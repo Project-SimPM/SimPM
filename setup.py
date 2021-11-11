@@ -2,7 +2,7 @@
 Followed from: https://github.com/cfengine/cf-remote
 More: https://youtu.be/U-aIPTS580s
 """
-from setuptools import setup, find_packages
+from setuptools import setup
 import subprocess
 
 # Get the last tag from git

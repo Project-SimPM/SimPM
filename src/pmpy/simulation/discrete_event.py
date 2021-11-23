@@ -14,7 +14,7 @@ pmpy Project Management with Python
 *****Entity Class*******************
 *****************************************
 '''
-def switchDic(dic):
+def switch_dic(dic):
     '''
     siwtch key and value in a dictionary
     '''
@@ -25,7 +25,7 @@ def switchDic(dic):
 
 class Entity:
     def __init__(self,env,name,print_actions=False,log=True):
-     
+    
         self.env=env
         
         self.name=name
@@ -94,7 +94,7 @@ class Entity:
                 amount=a
             if type(res)==Resource:
                 return self.env.process(res.get(self,amount))
-            elif type(res)==PriorityResource:
+            elif type(res)==priority_resource:
                 return self.env.process(res.get(self,amount,priority))
             elif type(res)==PreemptiveResource:
                 return self.env.process(res.get(self,amount,priority,preemp))
@@ -119,23 +119,23 @@ class Entity:
 
     def schedule(self):
         df=pd.DataFrame(data=self.schedule_log,columns=['activity','start_time','finish_time'])
-        df['activity']=df['activity'].map(switchDic(self.act_dic))
+        df['activity']=df['activity'].map(switch_dic(self.act_dic))
         return df
 
-    def waitingLog(self):
+    def waiting_log(self):
         df=pd.DataFrame(data=self.waiting_log,columns=['resource','start_waiting','end_waiting','resource_amount'])
         df['resource']=(df['resource'].map(self.env.resource_names))
         return df
 
 
-    def WaitingTime(self):
-        a=self.waitingLog()
+    def Waiting_time(self):
+        a=self.waiting_log()
         a=a['end_waiting']-a['start_waiting']
         return a.values
         
     def statusLog(self):
         df=pd.DataFrame(data=self.status_log,columns=['time','status','actid/resid'])
-        df['status']=df['status'].map(switchDic(self._status_codes))
+        df['status']=df['status'].map(switch_dic(self._status_codes))
         
         return df
 '''
@@ -162,12 +162,12 @@ class GeneralResource():
         self.queue_log=np.array([[0,0,0,0]])#entityid,startTime,endTime,amount
 
 
-    def queueLog(self):
+    def queue_log(self):
         df=pd.DataFrame(data=self.queue_log,columns=['entity','start_time','finish_time','resource_amount'])
         df['entity']=df['entity'].map(self.env.entity_names)
         return df
 
-    def statusLog(self):
+    def status_log(self):
         df=pd.DataFrame(data=self.status_log,columns=['time','in_use','idle','queue_lenthg'])
         return df
 
@@ -257,7 +257,7 @@ class Resource(GeneralResource):
         yield self.container.put(amount)
         super()._put(entity,amount)
         
-class PriorityRequest():
+class priority_request():
     def __init__(self,entity,amount,priority):
         self.time=entity.env.now
         self.entity=entity
@@ -281,7 +281,7 @@ class PriorityRequest():
         return self>other_request or self==other_request
 
         
-class PriorityResource(GeneralResource):
+class priority_resource(GeneralResource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         super().__init__(env,name,capacity,init,print_actions,log)
         
@@ -292,13 +292,13 @@ class PriorityResource(GeneralResource):
        
         
         super()._request(entity,amount)
-        pr=PriorityRequest(entity,amount,priority)
+        pr=priority_request(entity,amount,priority)
         bisect.insort_left(self.requestlist,pr)
         yield self.env.timeout(0)
-        yield entity.env.process(self.checkAllRequests())
+        yield entity.env.process(self.check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
         
-    def checkAllRequests(self):
+    def check_all_requests(self):
         while len(self.requestlist)>0 and self.requestlist[-1].amount<=self.container.level:
         
            
@@ -314,14 +314,14 @@ class PriorityResource(GeneralResource):
     def add(self,entity,amount):
         yield self.container.put(amount)
         super()._add(entity,amount)
-        return entity.env.process(self.checkAllRequests())
+        return entity.env.process(self.check_all_requests())
 
     def put(self,entity,amount):
         yield self.container.put(amount)
         super()._put(entity,amount)
-        return entity.env.process(self.checkAllRequests())
+        return entity.env.process(self.check_all_requests())
 
-class PreemptiveResource(PriorityResource):
+class PreemptiveResource(priority_resource):
     pass
     
 '''
@@ -359,7 +359,7 @@ class Environment(simpy.Environment):
 ***************************************
 '''
 
-def MonteCarlo(function,runs=1000):
+def monte_carlo(function,runs=1000):
     results=None
     results=np.array([function()])
     for i in range(runs-1):
@@ -373,34 +373,34 @@ def MonteCarlo(function,runs=1000):
 **************************************
 '''
 
-def fit_dist(data,distType):
+def fit_dist(data,dist_type):
         try:
             data=np.concatenate(data).ravel()
         except:
             pass
-        if distType=='triang':
-            distType='triang'
+        if dist_type=='triang':
+            dist_type='triang'
             params=st.triang.fit(data)
             dist=st.triang(params[0],loc=params[1],scale=params[2])
             a=triang(0,1,2)
             a.dist=dist
             return a
-        if distType=='norm' :
-            distType='norm'
+        if dist_type=='norm' :
+            dist_type='norm'
             params=st.norm.fit(data)
             dist=st.norm(loc=params[0],scale=params[1])
             a=norm(0,1)
             a.dist=dist
             return a
-        if distType=='beta' :
-            distType='beta'
+        if dist_type=='beta' :
+            dist_type='beta'
             params=st.beta.fit(data)
             dist=st.beta(params[0],params[1],loc=params[2],scale=params[3])
             a=beta(1,1,0,1)
             a.dist=dist
             return a
-        if distType=='trapz' :
-            distType='trapz'
+        if dist_type=='trapz' :
+            dist_type='trapz'
             params=st.trapz.fit(data)
             print(params)
             dist=st.trapz(params[0],params[1],loc=params[2],scale=params[3])
@@ -562,6 +562,7 @@ class emperical(Distribution):
     def discrete_sample(self):
         return np.random.choice(self.data)
         
+print("hello form pmpy, project management library  developed at KNTU")
 '''
 *****************************
 ********future works*********

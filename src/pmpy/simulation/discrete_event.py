@@ -562,7 +562,7 @@ class emperical(Distribution):
     def discrete_sample(self):
         return np.random.choice(self.data)
         
-print("hello form pmpy, project management library  developed at KNTU")
+
 '''
 *****************************
 ********future works*********

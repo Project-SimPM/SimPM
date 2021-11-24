@@ -1,4 +1,3 @@
-"""PmPy is a Project Management Tool in Python
+"""Simulation subpackage includes "discrete_event", "distributions" and "monte_carlo" modules.
 """
-
-#from pmpy.des import *
+print("Simulation subpackage includes `discrete_event`, `distributions` and `monte_carlo` modules.")

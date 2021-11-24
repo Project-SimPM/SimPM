@@ -1,9 +1,25 @@
 Changelog for PmPy
 ===================
-1.0.1 - 2021-11-11
+1.0.4 - 2021-11-24
 ------------------
 
-- [NEW] Fixing typo
+- [CHANGE] Updated PmPy package structure. PmPy now has a `simulation` subpackage that includes `discrete_event` and `distributions` modules.
+
+1.0.3 - 2021-11-20
+------------------
+
+- [FIX] Fixed PyPi project description
+
+1.0.2 - 2021-11-20
+------------------
+
+- [FIX] Fixed `setup.py` file with an extra empty line at the end.
+- [NEW] Updated information about the project (`AUTHORS.md` and `README.md` files).
+  
+1.0.1 - 2021-11-12
+------------------
+
+- [FIX] Fixing typo
 
 1.0.0 - 2021-11-11
 ------------------

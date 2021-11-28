@@ -306,13 +306,13 @@ class general_resource():
         env.last_res_id+=1
         self.id=env.last_res_id
         env.resource_names[self.id]=self.name+'('+str(self.id)+')'
-        self._in_use=0
+        self.in_use=0
         self.container=simpy.Container(env, capacity,init)
         self.queue_length=0
         
         #logs
-        self.__status_log=array([[0,0,0,0]])#time,in-use,idle,queue-lenthg
-        self.__queue_log=array([[0,0,0,0]])#entityid,startTime,endTime,amount
+        self._status_log=array([[0,0,0,0]])#time,in-use,idle,queue-lenthg
+        self._queue_log=array([[0,0,0,0]])#entityid,startTime,endTime,amount
 
 
     def queue_log(self):
@@ -324,7 +324,7 @@ class general_resource():
             All entities who are wiaitng in for the resource, their start time and
             finish time of waiting are stored in this DataFrame
         '''
-        df=DataFrame(data=self.__queue_log,columns=['entity','start_time','finish_time','resource_amount'])
+        df=DataFrame(data=self._queue_log,columns=['entity','start_time','finish_time','resource_amount'])
         df['entity']=df['entity'].map(self.env.entity_names)
         return df
 
@@ -338,7 +338,7 @@ class general_resource():
             in this DataFrame. The recorded statuses are number of in-use resources ,
             number of idle resources, and number of entities waiting for the resoruce. 
         '''
-        df=DataFrame(data=self.__status_log,columns=['time','in_use','idle','queue_lenthg'])
+        df=DataFrame(data=self._status_log,columns=['time','in_use','idle','queue_lenthg'])
         return df
 
     
@@ -358,9 +358,9 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' requested',str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.__status_log=append(self.__status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=append(entity.status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
+            entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
 
     def _get(self,entity,amount):
         '''
@@ -374,14 +374,14 @@ class general_resource():
             The number of taken resouces 
         '''
         self.queue_length-=1
-        self._in_use+=amount
+        self.in_use+=amount
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
                   +' got '+str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.__status_log=append(self.__status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=append(entity.status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
+            entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
         entity.usingResources[self]=amount
 
     def _add(self,entity,amount):
@@ -399,9 +399,9 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' add '+str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.__status_log=append(self.__status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=append(entity.status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
+            entity._status_log=append(entity._status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
 
     def _put(self,entity,amount):
         '''
@@ -419,14 +419,14 @@ class general_resource():
         if self in entity.usingResources and entity.usingResources[self]<amount:
             raise Warning(entity.name, "did not got this many of",self.name, "to put it back")
         entity.usingResources[self]=entity.usingResources[self]-amount
-        self._in_use-=amount
+        self.in_use-=amount
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
                   +' put back '+str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.__status_log=append(self.__status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=append(entity.status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
+            entity._status_log=append(entity._status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
         
     def level(self):
         '''
@@ -458,7 +458,7 @@ class general_resource():
             The number of resources that are currently in-use
 
         '''
-        return self._in_use     
+        return self.in_use     
 
     def capacity(self):
         '''
@@ -534,7 +534,7 @@ class resource(general_resource):
         yield self.container.get(amount)
         super()._get(entity,amount)
         if self.log:
-            self.__queue_log=append(self.__queue_log,[[entity.id,start_waiting,self.env.now,amount]],axis=0)
+            self._queue_log=append(self._queue_log,[[entity.id,start_waiting,self.env.now,amount]],axis=0)
         if entity.log:
             entity.waiting_log=append(entity.waiting_log,[[self.id,start_waiting,self.env.now,amount]],axis=0)
           
@@ -642,7 +642,7 @@ class priority_resource(general_resource):
             r.flag.put(1)
             super()._get(r.entity,r.amount)
             if self.log:
-                self.__queue_log=append(self.__queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
+                self._queue_log=append(self._queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
             if r.entity.log:
                 r.entity.waiting_log=append(r.entity.waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
             

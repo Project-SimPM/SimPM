@@ -1,6 +1,13 @@
 Changelog for PmPy
 ===================
-1.0.5 - 2021-11-28
+1.0.9 - 2021-11-28
+------------------
+
+- [Fixed] fixed numbering of entities in the discrete event simulation  environment.
+
+- [Fixed] fixed spelling  of preemptive resources.
+
+1.0.8 - 2021-11-28
 ------------------
 
 - [Fixed] fixed splelling of environment class.

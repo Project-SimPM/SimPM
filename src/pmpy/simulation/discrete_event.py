@@ -3,10 +3,10 @@ Discrete Event Simulation for Project Management in Python.
 '''
 
 import simpy
-import numpy as np
-import pandas as pd
-import bisect
-import pmpy.simulation.distributions 
+from numpy import array, append
+from pandas import DataFrame
+from bisect import insort_left
+from pmpy.simulation.distributions import distribution
 
 '''
 *****************************************
@@ -25,7 +25,7 @@ def __switch_dic(dic):
 
 class entity:
     '''
-    A class that defines and entity. Entities are virtual objects essential to useful for modeling dynamic systems. 
+    A class that defines an entity. Entities are virtual objects essential to useful for modeling dynamic systems. 
     Some examples of entities can be: a customer, communication message, or any resource requiring service.
 
     ...
@@ -33,6 +33,8 @@ class entity:
     ----------
     name: str
         Name of the entity
+    id: int
+        A unique id for the entity in the environment
     env: pmpy.environment
         The environemnt in which the entity is defined in
     attr: dict
@@ -66,10 +68,10 @@ class entity:
         self.usingResources={}
 
         #***logs
-        self.schedule_log=np.array([[0,0,0]])#act_id,act_start_time,act_finish_time
+        self.schedule_log=array([[0,0,0]])#act_id,act_start_time,act_finish_time
         self._status_codes={'wait for':1,'get':2,'start':3,'finish':4,'put':5,'add':6}
-        self.status_log=np.array([[0,0,0]])#time,entity_status_code,actid/resid
-        self.waiting_log=np.array([[0,0,0,0]]) #resource_id,start_waiting,end_waiting,amount waiting for
+        self.status_log=array([[0,0,0]])#time,entity_status_code,actid/resid
+        self.waiting_log=array([[0,0,0,0]]) #resource_id,start_waiting,end_waiting,amount waiting for
 
         if print_actions:
             print(name+'('+str(self.id)+') is created, sim_time:',env.now)
@@ -83,10 +85,10 @@ class entity:
         ----------
         name : string
             Name of the activty
-        Duration : float, int, or pmpy.simulation.distributions.distribution
+        Duration : float, int, or distribution
             The duration of that activity
         '''
-        if isinstance(duration,pmpy.simulation.distributions.distribution):
+        if isinstance(duration,distribution):
             d=-1
             while d<0:
                 d=duration.sample()
@@ -98,15 +100,15 @@ class entity:
             self.last_act_id+=1
             self.act_dic[name]=self.last_act_id
         if self.log:
-            self.schedule_log=np.append(self.schedule_log,[[self.act_dic[name],self.env.now,self.env.now+duration]],axis=0)
-            self.status_log=np.append(self.status_log,[[self.env.now,self._status_codes['start'],self.act_dic[name]]],axis=0)
+            self.schedule_log=append(self.schedule_log,[[self.act_dic[name],self.env.now,self.env.now+duration]],axis=0)
+            self.status_log=append(self.status_log,[[self.env.now,self._status_codes['start'],self.act_dic[name]]],axis=0)
 
         yield self.env.timeout(duration)
 
         if self.print_actions:
             print(self.name+'('+str(self.id)+ ') finished',name,', sim_time:',self.env.now)
         if self.log:
-            self.status_log=np.append(self.status_log,[[self.env.now,self._status_codes['finish'],self.act_dic[name]]],axis=0)
+            self.status_log=append(self.status_log,[[self.env.now,self._status_codes['finish'],self.act_dic[name]]],axis=0)
 
     def do(self,name,dur):
         '''
@@ -124,7 +126,7 @@ class entity:
             the process for the activity
         '''
         try:
-            if isinstance(dur,pmpy.simulation.distributions.distribution):
+            if isinstance(dur,distribution):
                 d=-1
                 while d<0:
                     d=dur.sample()
@@ -155,7 +157,7 @@ class entity:
             The process for the request
         '''
         try:
-            if isinstance(amount,pmpy.simulation.distributions.distribution):
+            if isinstance(amount,distribution):
                 a=-1
                 while a<0:
                     a=amount.sample()
@@ -164,7 +166,7 @@ class entity:
                 return self.env.process(res.get(self,amount))
             elif type(res)==priority_resource:
                 return self.env.process(res.get(self,amount,priority))
-            elif type(res)==PreemptiveResource:
+            elif type(res)==preemptive_resource:
                 return self.env.process(res.get(self,amount,priority,preemp))
         except:
             print('pmpy: error in get')
@@ -184,7 +186,7 @@ class entity:
         pmpy.environment.process
             The process for adding resources
         '''
-        if isinstance(amount,pmpy.simulation.distributions.distribution):
+        if isinstance(amount,distribution):
             a=-1
             while a<0:
                 a=amount.sample() #?can this amount be float!
@@ -206,7 +208,7 @@ class entity:
         pmpy.environment.process
             The process for putting back the resources
         '''
-        if isinstance(amount,pmpy.simulation.distributions.distribution):
+        if isinstance(amount,distribution):
             a=-1
             while a<0:
                 a=amount.sample()
@@ -222,7 +224,7 @@ class entity:
             The schedule of each entity.
             The columns are activity name, and start time and finish time of that activity
         '''
-        df=pd.DataFrame(data=self.schedule_log,columns=['activity','start_time','finish_time'])
+        df=DataFrame(data=self.schedule_log,columns=['activity','start_time','finish_time'])
         df['activity']=df['activity'].map(__switch_dic(self.act_dic))
         return df
 
@@ -236,7 +238,7 @@ class entity:
             The columns show the resource name for which the entity is waiting for, time when watiting is started, 
             time when waiting is finished, and the number of resources the entity is waiting for
         '''
-        df=pd.DataFrame(data=self.waiting_log,columns=['resource','start_waiting','end_waiting','resource_amount'])
+        df=DataFrame(data=self.waiting_log,columns=['resource','start_waiting','end_waiting','resource_amount'])
         df['resource']=(df['resource'].map(self.env.resource_names))
         return df
 
@@ -263,7 +265,7 @@ class entity:
             waiting for a resourcing, getting a reouces, putting a resource back, or adding to a resouce, 
             or it can be starting or finishing an activity
         '''
-        df=pd.DataFrame(data=self.status_log,columns=['time','status','actid/resid'])
+        df=DataFrame(data=self.status_log,columns=['time','status','actid/resid'])
         df['status']=df['status'].map(__switch_dic(self._status_codes))
         
         return df
@@ -286,9 +288,11 @@ class general_resource():
             The environment for the entity
         name : string
             Name of the resource
+        id : int
+            A unique id for the resource in the environment
         capacity:
             Maximum capacity for the resource
-        init:
+        init : int
             Initial number of resources
         print_actions : bool
             If equal to True, the changes in the resource will be printed in console
@@ -307,8 +311,8 @@ class general_resource():
         self.queue_length=0
         
         #logs
-        self.status_log=np.array([[0,0,0,0]])#time,in-use,idle,queue-lenthg
-        self.queue_log=np.array([[0,0,0,0]])#entityid,startTime,endTime,amount
+        self.status_log=array([[0,0,0,0]])#time,in-use,idle,queue-lenthg
+        self.queue_log=array([[0,0,0,0]])#entityid,startTime,endTime,amount
 
 
     def queue_log(self):
@@ -320,7 +324,7 @@ class general_resource():
             All entities who are wiaitng in for the resource, their start time and
             finish time of waiting are stored in this DataFrame
         '''
-        df=pd.DataFrame(data=self.queue_log,columns=['entity','start_time','finish_time','resource_amount'])
+        df=DataFrame(data=self.queue_log,columns=['entity','start_time','finish_time','resource_amount'])
         df['entity']=df['entity'].map(self.env.entity_names)
         return df
 
@@ -334,7 +338,7 @@ class general_resource():
             in this DataFrame. The recorded statuses are number of in-use resources ,
             number of idle resources, and number of entities waiting for the resoruce. 
         '''
-        df=pd.DataFrame(data=self.status_log,columns=['time','in_use','idle','queue_lenthg'])
+        df=DataFrame(data=self.status_log,columns=['time','in_use','idle','queue_lenthg'])
         return df
 
     
@@ -354,9 +358,9 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' requested',str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.status_log=np.append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self.status_log=append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=np.append(entity.status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
+            entity.status_log=append(entity.status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
 
     def _get(self,entity,amount):
         '''
@@ -375,9 +379,9 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' got '+str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.status_log=np.append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self.status_log=append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=np.append(entity.status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
+            entity.status_log=append(entity.status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
         entity.usingResources[self]=amount
 
     def _add(self,entity,amount):
@@ -395,9 +399,9 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' add '+str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.status_log=np.append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self.status_log=append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=np.append(entity.status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
+            entity.status_log=append(entity.status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
 
     def _put(self,entity,amount):
         '''
@@ -420,9 +424,9 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' put back '+str(amount),self.name+'(s), sim_time:',self.env.now)
         if self.log:
-            self.status_log=np.append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
+            self.status_log=append(self.status_log,[[self.env.now,self._in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
-            entity.status_log=np.append(entity.status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
+            entity.status_log=append(entity.status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
         
     def level(self):
         '''
@@ -478,9 +482,11 @@ class resource(general_resource):
         The environment for the entity
     name : string
         Name of the resource
-    capacity:
+    id : int
+        A unique id for the resource in the environment
+    capacity: int
         Maximum capacity for the resource
-    init:
+    init: int
         Initial number of resources
     print_actions : bool
         If equal to True, the changes in the resource will be printed in console
@@ -528,9 +534,9 @@ class resource(general_resource):
         yield self.container.get(amount)
         super()._get(entity,amount)
         if self.log:
-            self.queue_log=np.append(self.queue_log,[[entity.id,start_waiting,self.env.now,amount]],axis=0)
+            self.queue_log=append(self.queue_log,[[entity.id,start_waiting,self.env.now,amount]],axis=0)
         if entity.log:
-            entity.waiting_log=np.append(entity.waiting_log,[[self.id,start_waiting,self.env.now,amount]],axis=0)
+            entity.waiting_log=append(entity.waiting_log,[[self.id,start_waiting,self.env.now,amount]],axis=0)
           
             
     def add(self,entity,amount):
@@ -621,7 +627,7 @@ class priority_resource(general_resource):
         ''' 
         super()._request(entity,amount)
         pr=priority_request(entity,amount,priority)
-        bisect.insort_left(self.requestlist,pr)
+        insort_left(self.requestlist,pr)
         yield self.env.timeout(0) #? why do we need this?
         yield entity.env.process(self._check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
@@ -636,9 +642,9 @@ class priority_resource(general_resource):
             r.flag.put(1)
             super()._get(r.entity,r.amount)
             if self.log:
-                self.queue_log=np.append(self.queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
+                self.queue_log=append(self.queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
             if r.entity.log:
-                r.entity.waiting_log=np.append(r.entity.waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
+                r.entity.waiting_log=append(r.entity.waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
             
     def add(self,entity,amount):
         '''
@@ -670,7 +676,7 @@ class priority_resource(general_resource):
         super()._put(entity,amount)
         return entity.env.process(self._check_all_requests())
 
-class PreemptiveResource(priority_resource):
+class preemptive_resource(priority_resource):
     '''
     this class is to be implemented.
     '''
@@ -700,7 +706,7 @@ class environment(simpy.Environment):
  
     def create_entities(self,name,total_number,print_actions=False,log=True):
         '''
-        Create entities by making instances of class Entity and adding them to the environemnt.
+        Create entities by making instances of class entity and adding them to the environemnt.
         All the entities are created at the current simulation time: env.now
 
         Parameters
@@ -719,7 +725,7 @@ class environment(simpy.Environment):
         '''
         Entities=[]
         for i in range(total_number):
-            Entities.append(entity(self,name+'_'+str(i),print_actions,log))
+            Entities.append(entity(self,name,print_actions,log))
         return Entities
 
     def create(self,name,time_between_arrivals,number_arrived_each_time,process,resource_list,number_of_arrivals=10000000,print_actions=False,log=True):
@@ -752,7 +758,7 @@ class environment(simpy.Environment):
         for i in range(number_of_arrivals):
             a=self.create_entities(name,number_arrived_each_time,print_actions)
             for e in a:
-                self.process(process(e,resource_list)) #? what is this for
+                self.process(process(e,resource_list)) 
             yield self.timeout(time_between_arrivals)
  
     

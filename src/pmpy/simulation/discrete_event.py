@@ -6,7 +6,7 @@ import simpy
 import numpy as np
 import pandas as pd
 import bisect
-from pmpy.simulation.distributions import *
+import pmpy.simulation.distributions 
 
 '''
 *****************************************
@@ -83,10 +83,10 @@ class entity:
         ----------
         name : string
             Name of the activty
-        Duration : float, int, or pmpy.distribution
+        Duration : float, int, or pmpy.simulation.distributions.distribution
             The duration of that activity
         '''
-        if isinstance(duration,distribution):
+        if isinstance(duration,pmpy.simulation.distributions.distribution):
             d=-1
             while d<0:
                 d=duration.sample()
@@ -124,7 +124,7 @@ class entity:
             the process for the activity
         '''
         try:
-            if isinstance(dur,distribution):
+            if isinstance(dur,pmpy.simulation.distributions.distribution):
                 d=-1
                 while d<0:
                     d=dur.sample()
@@ -155,7 +155,7 @@ class entity:
             The process for the request
         '''
         try:
-            if isinstance(amount,distribution):
+            if isinstance(amount,pmpy.simulation.distributions.distribution):
                 a=-1
                 while a<0:
                     a=amount.sample()
@@ -184,7 +184,7 @@ class entity:
         pmpy.environment.process
             The process for adding resources
         '''
-        if isinstance(amount,distribution):
+        if isinstance(amount,pmpy.simulation.distributions.distribution):
             a=-1
             while a<0:
                 a=amount.sample() #?can this amount be float!
@@ -206,7 +206,7 @@ class entity:
         pmpy.environment.process
             The process for putting back the resources
         '''
-        if isinstance(amount,distribution):
+        if isinstance(amount,pmpy.simulation.distributions.distribution):
             a=-1
             while a<0:
                 a=amount.sample()

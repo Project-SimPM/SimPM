@@ -1,5 +1,4 @@
 import numpy as np
-from pmpy.simulation.distributions import *
 '''
 ***************************************
 ******Monte Carlo**********************

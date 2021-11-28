@@ -1,33 +1,59 @@
+'''
+Discrete Event Simulation for Project Management in Python.
+'''
+
 import simpy
 import numpy as np
 import pandas as pd
 import bisect
-import scipy.stats as st
-import matplotlib.pyplot as plt
-
-'''
-pmpy Project Management with Python
-'''
+from pmpy.simulation.distributions import *
 
 '''
 *****************************************
-*****Entity Class*******************
+*****entity class*******************
 *****************************************
 '''
 def switch_dic(dic):
     '''
     siwtch key and value in a dictionary
+
     '''
     newdic={}
     for key in dic:
         newdic[dic[key]]=key
     return newdic
 
-class Entity:
+class entity:
+    '''
+    A class that defines and entity. Entities are virtual objects essential to useful for modeling dynamic systems. 
+    Some examples of entities can be: a customer, communication message, or any resource requiring service.
+
+    ...
+    Attributes
+    ----------
+    name: str
+        Name of the entity
+    env: pmpy.environment
+        The environemnt in which the entity is defined in
+    attr: dict
+        a dictionay containting all the special attributes defined for the entity.
+    '''
     def __init__(self,env,name,print_actions=False,log=True):
-    
+        '''
+        Creates an new instance for entity.
+
+        Parameters
+        ----------
+        env:pmpy.environment
+            The environment for the entity
+        name : string
+            Name of the entity
+        print_actions : bool
+            If equal to True, the actions of the entity will be printed in console
+        log: bool
+            If equals True, various statistics will be collected for the entity
+        '''
         self.env=env
-        
         self.name=name
         env.last_entity_id+=1
         self.id=self.env.last_entity_id
@@ -49,8 +75,18 @@ class Entity:
             print(name+'('+str(self.id)+') is created, sim_time:',env.now)
 
       
-    def activity(self,name,duration):
-        if isinstance(duration,Distribution):
+    def _activity(self,name,duration):
+        '''
+        This method defines the activity that the entity is doing.
+
+        Parameters
+        ----------
+        name : string
+            Name of the activty
+        Duration : float, int, or pmpy.distribution
+            The duration of that activity
+        '''
+        if isinstance(duration,distribution):
             d=-1
             while d<0:
                 d=duration.sample()
@@ -73,26 +109,58 @@ class Entity:
             self.status_log=np.append(self.status_log,[[self.env.now,self._status_codes['finish'],self.act_dic[name]]],axis=0)
 
     def do(self,name,dur):
+        '''
+        Defines the activity that the entity is doing.
+
+        Parameters
+        ----------
+        name : string
+            Name of the activity
+        duration : float , int, or distribution
+            The duration of that activity
+        Returns
+        -------
+        Environment.process
+            the process for the activity
+        '''
         try:
-            if isinstance(dur,Distribution):
+            if isinstance(dur,distribution):
                 d=-1
                 while d<0:
                     d=dur.sample()
                 dur=d
        
-            return self.env.process(self.activity(name,dur))
+            return self.env.process(self._activity(name,dur))
         except:
             print('pmpy: error in do')
 
 
     def get(self,res,amount,priority=1,preemp=False):
+        '''
+        Entity requests to get a resource using this method. 
+
+        Parameters
+        ----------
+        res : pmpy.resource
+            the resource to be captured by the entity
+        amount :  int
+            The number of resouces to be captured
+        priority : int
+            The priority of the request for getting the resource 
+        preempt : bool
+            Preemptive resources are not yet implemented
+        Returns
+        -------
+        pmpy.environment.process
+            The process for the request
+        '''
         try:
-            if isinstance(amount,Distribution):
+            if isinstance(amount,distribution):
                 a=-1
                 while a<0:
                     a=amount.sample()
                 amount=a
-            if type(res)==Resource:
+            if type(res)==resource:
                 return self.env.process(res.get(self,amount))
             elif type(res)==priority_resource:
                 return self.env.process(res.get(self,amount,priority))
@@ -102,15 +170,43 @@ class Entity:
             print('pmpy: error in get')
 
     def add(self,res,amount):
-        if isinstance(amount,Distribution):
+        '''
+        Entity increases the number of resources using this method.
+
+        Parameters
+        ----------
+        res : pmpy.resource
+            the resource to be added by the entity
+        amount :  int
+            The number of resouces to be added
+        Returns
+        -------
+        pmpy.environment.process
+            The process for adding resources
+        '''
+        if isinstance(amount,distribution):
             a=-1
             while a<0:
-                a=amount.sample()
+                a=amount.sample() #?can this amount be float!
             amount=a
         return self.env.process(res.add(self,amount))
 
     def put(self,res,amount):
-        if isinstance(amount,Distribution):
+        '''
+        Entity puts back the resources using this method.
+
+        Parameters
+        ----------
+        res : pmpy.resource
+            the resource to be added by the entity
+        amount :  int
+            The number of resouces to be put back
+        Returns
+        -------
+        pmpy.environment.process
+            The process for putting back the resources
+        '''
+        if isinstance(amount,distribution):
             a=-1
             while a<0:
                 a=amount.sample()
@@ -118,22 +214,55 @@ class Entity:
         return self.env.process(res.put(self,amount))
 
     def schedule(self):
+        '''
+
+        Returns
+        -------
+        pandas.DataFrame
+            The schedule of each entity.
+            The columns are activity name, and start time and finish time of that activity
+        '''
         df=pd.DataFrame(data=self.schedule_log,columns=['activity','start_time','finish_time'])
         df['activity']=df['activity'].map(switch_dic(self.act_dic))
         return df
 
     def waiting_log(self):
+        '''
+
+        Returns
+        -------
+        pandas.DataFrame
+            The time the activty started waiting and the time it finished waiting.
+            The columns show the resource name for which the entity is waiting for, time when watiting is started, 
+            time when waiting is finished, and the number of resources the entity is waiting for
+        '''
         df=pd.DataFrame(data=self.waiting_log,columns=['resource','start_waiting','end_waiting','resource_amount'])
         df['resource']=(df['resource'].map(self.env.resource_names))
         return df
 
 
-    def Waiting_time(self):
+    def waiting_time(self):
+        '''
+
+        Returns
+        -------
+        numpy.array
+            The waiting durations of the entity each time it waited for a resource
+        '''
         a=self.waiting_log()
         a=a['end_waiting']-a['start_waiting']
         return a.values
         
-    def statusLog(self):
+    def status_log(self):
+        '''
+
+        Returns
+        -------
+        pandas.DataFrame
+            Any change in the status of an entity, the change can be either
+            waiting for a resourcing, getting a reouces, putting a resource back, or adding to a resouce, 
+            or it can be starting or finishing an activity
+        '''
         df=pd.DataFrame(data=self.status_log,columns=['time','status','actid/resid'])
         df['status']=df['status'].map(switch_dic(self._status_codes))
         
@@ -143,8 +272,29 @@ class Entity:
 *****Resource Class*******************
 *****************************************
 '''
-class GeneralResource():
+class general_resource():
+    '''
+    The parent class for all of pmpy.resources
+    '''
     def __init__(self,env,name,capacity,init,print_actions=False,log=True):
+        '''
+        Creates an intstance of a pmpy general resource.
+
+        Parameters
+        ----------
+        env:pmpy.environment
+            The environment for the entity
+        name : string
+            Name of the resource
+        capacity:
+            Maximum capacity for the resource
+        init:
+            Initial number of resources
+        print_actions : bool
+            If equal to True, the changes in the resource will be printed in console
+        log: bool
+            If equals True, various statistics will be collected for the resource
+        '''
         self.name=name
         self.env=env 
         self.log=log
@@ -156,23 +306,49 @@ class GeneralResource():
         self.container=simpy.Container(env, capacity,init)
         self.queue_length=0
         
-
         #logs
         self.status_log=np.array([[0,0,0,0]])#time,in-use,idle,queue-lenthg
         self.queue_log=np.array([[0,0,0,0]])#entityid,startTime,endTime,amount
 
 
     def queue_log(self):
+        '''
+
+        Returns
+        -------
+        pandas.DataFrame
+            All entities who are wiaitng in for the resource, their start time and
+            finish time of waiting are stored in this DataFrame
+        '''
         df=pd.DataFrame(data=self.queue_log,columns=['entity','start_time','finish_time','resource_amount'])
         df['entity']=df['entity'].map(self.env.entity_names)
         return df
 
     def status_log(self):
+        '''
+
+        Returns
+        -------
+        pandas.DataFrame
+            Any changes in the status of the resource and the time of the change is presented 
+            in this DataFrame. The recorded statuses are number of in-use resources ,
+            number of idle resources, and number of entities waiting for the resoruce. 
+        '''
         df=pd.DataFrame(data=self.status_log,columns=['time','in_use','idle','queue_lenthg'])
         return df
 
     
     def _request(self,entity,amount):
+        '''
+        Calculate needed logs when an entity requests the resource.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity requesting the resource 
+        amount : int
+            The number of requested resouces 
+        '''
         self.queue_length+=1
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
@@ -183,6 +359,16 @@ class GeneralResource():
             entity.status_log=np.append(entity.status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
 
     def _get(self,entity,amount):
+        '''
+        Calculate needed logs when an entity got the resource.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity getting the resource 
+        amount : int
+            The number of taken resouces 
+        '''
         self.queue_length-=1
         self._in_use+=amount
         if self.print_actions or entity.print_actions:
@@ -195,6 +381,16 @@ class GeneralResource():
         entity.usingResources[self]=amount
 
     def _add(self,entity,amount):
+        '''
+        Calculate needed logs when an entity add to the resource.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity adding the resource 
+        amount : int
+            The number of added resouces 
+        '''
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
                   +' add '+str(amount),self.name+'(s), sim_time:',self.env.now)
@@ -204,6 +400,16 @@ class GeneralResource():
             entity.status_log=np.append(entity.status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
 
     def _put(self,entity,amount):
+        '''
+        Calculate needed logs when an entity add to the resource.
+
+        Parameters
+        ----------
+        res : pmpy.entity
+            The entity putting the resource back
+        amount : int
+            The number of resouces being put back
+        '''
         if self not in entity.usingResources:
             raise Warning(entity.name, "did not got ", self.name,"to put it back")
         if self in entity.usingResources and entity.usingResources[self]<amount:
@@ -219,25 +425,103 @@ class GeneralResource():
             entity.status_log=np.append(entity.status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
         
     def level(self):
+        '''
+
+        Returns
+        -------
+        int
+            The number of resources that are currently availbale
+        '''
         return self.container.level
 
     def idle(self):
+        '''
+
+        Returns
+        -------
+        int
+            The number of resources that are currently availbale
+
+        '''
         return self.level()
 
     def in_use(self):
+        '''
+
+        Returns
+        -------
+        int
+            The number of resources that are currently in-use
+
+        '''
         return self._in_use     
 
     def capacity(self):
+        '''
+
+        Returns
+        -------
+        int
+            The maximum capacity for the reource
+        '''
         return self.container.capacity
 
 
 
-class Resource(GeneralResource):
+class resource(general_resource):
+    '''
+    A class to represent a normal resource in discrete event simulation.
+    ...
+    Attributes
+    ----------
+    env:pmpy.environment
+        The environment for the entity
+    name : string
+        Name of the resource
+    capacity:
+        Maximum capacity for the resource
+    init:
+        Initial number of resources
+    print_actions : bool
+        If equal to True, the changes in the resource will be printed in console
+    log: bool
+        If equals True, various statistics will be collected for the resource
+    '''
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
+        '''
+        Creates an intstance of a pmpy general resource.
+
+        Parameters
+        ----------
+        env:pmpy.environment
+            The environment for the entity
+        name : string
+            Name of the resource
+        capacity: int
+            Maximum capacity for the resource, defualt value is 1000.
+        init: int
+            Initial number of resources, defualt value is 1.
+        print_actions : bool
+            If equal to True, the changes in the resource will be printed in console.
+            defualt value is False
+        log: bool
+            If equals True, various statistics will be collected for the resource.
+            defualt value is True.
+        '''
         super().__init__(env,name,capacity,init,print_actions,log)
         self.requests=[]
 
     def get(self,entity,amount):
+        '''
+        A method for getting(capturing) the resoruce by the entity.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity adding the resource 
+        amount : int
+            The number of resouces to be captured
+        '''
         super()._request(entity,amount)
    
         start_waiting=self.env.now
@@ -250,14 +534,38 @@ class Resource(GeneralResource):
           
             
     def add(self,entity,amount):
+        '''
+        A method for adding the resoruce by the entity.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity adding the resource 
+        amount : int
+            The number of resouces to be added
+        '''
         yield self.container.put(amount)
         super()._add(entity,amount)
 
     def put(self,entity,amount):
+        '''
+        A method for putting back(releasing) the resoruce by the entity.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity putting back the resource 
+        amount : int
+            The number of resouces to be put back
+        '''
         yield self.container.put(amount)
         super()._put(entity,amount)
         
 class priority_request():
+    '''
+    A class defining the a priority request for capturing the resoruces.
+    This class allows to keep all the requests in a sorted list of requests.
+    '''
     def __init__(self,entity,amount,priority):
         self.time=entity.env.now
         self.entity=entity
@@ -266,6 +574,12 @@ class priority_request():
         self.flag=simpy.Container(entity.env,init=0)#show if the resource is obtained
         
     def __gt__(self,other_request):
+        '''
+        Decides if a resoruce request has a higher priority than antothe resource request
+        Lower priority values show higher priority!
+        If the priority of two requests is equal and are made at the same time,
+        the request with lower number of needed resources will have a higher priority.
+        '''
         if self.priority==other_request.priority:
             if self.time==other_request.time:
                 return self.amount<other_request.amount
@@ -281,27 +595,42 @@ class priority_request():
         return self>other_request or self==other_request
 
         
-class priority_resource(GeneralResource):
+class priority_resource(general_resource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
+        '''
+        Defines a resource for which a priroty que is implemented. 
+
+        '''
         super().__init__(env,name,capacity,init,print_actions,log)
         
         self.resource=simpy.PriorityResource(env,1)
         self.requestlist=[]
 
     def get(self,entity,amount,priority=1):
-       
-        
+        '''
+        A method for getting the resource. 
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity adding the resource 
+        amount : int
+            The number of resouces to be added
+        priority : int
+            lower values for this input show higher priority
+        ''' 
         super()._request(entity,amount)
         pr=priority_request(entity,amount,priority)
         bisect.insort_left(self.requestlist,pr)
-        yield self.env.timeout(0)
-        yield entity.env.process(self.check_all_requests())
+        yield self.env.timeout(0) #? why do we need this?
+        yield entity.env.process(self._check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
         
-    def check_all_requests(self):
+    def _check_all_requests(self):
+        '''
+        Check to see if any rquest for the resource can be granted.
+        '''
         while len(self.requestlist)>0 and self.requestlist[-1].amount<=self.container.level:
-        
-           
             r=self.requestlist.pop()
             yield self.container.get(r.amount)
             r.flag.put(1)
@@ -312,16 +641,39 @@ class priority_resource(GeneralResource):
                 r.entity.waiting_log=np.append(r.entity.waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
             
     def add(self,entity,amount):
+        '''
+        A method for adding the resoruce by the entity.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity adding the resource 
+        amount : int
+            The number of resouces to be added
+        '''
         yield self.container.put(amount)
         super()._add(entity,amount)
-        return entity.env.process(self.check_all_requests())
+        return entity.env.process(self._check_all_requests())
 
     def put(self,entity,amount):
+        '''
+        A method for putting back the resoruce by the entity.
+
+        Parameters
+        ----------
+        entity : pmpy.entity
+            The entity adding the resource 
+        amount : int
+            The number of resouces to be added
+        '''
         yield self.container.put(amount)
         super()._put(entity,amount)
-        return entity.env.process(self.check_all_requests())
+        return entity.env.process(self._check_all_requests())
 
 class PreemptiveResource(priority_resource):
+    '''
+    this class is to be implemented.
+    '''
     pass
     
 '''
@@ -330,7 +682,14 @@ class PreemptiveResource(priority_resource):
 *****************************************
 '''
 class Environment(simpy.Environment):
+    '''
+    This class defines the simulation environment. 
+    All of the processes, entities and resources are defined in this class. 
+    '''
     def __init__(self):
+        '''
+        Creates an instance of the simulation environment
+        '''
         super().__init__()
         self.last_entity_id=0
         self.entity_names={}
@@ -340,228 +699,63 @@ class Environment(simpy.Environment):
         self.finishedTime=[]
  
     def create_entities(self,name,total_number,print_actions=False,log=True):
+        '''
+        Create entities by making instances of class Entity and adding them to the environemnt.
+        All the entities are created at the current simulation time: env.now
+
+        Parameters
+        ----------
+        name : string
+            Name of the entities, the name of each entity would be name_0, name_1, ...
+        print_actions : bool
+            If equal to True, the actions of the entities will be printed in console
+        log: bool
+            If equals True, various statistics will be collected for the entities
+
+        Returns
+        -------
+        list of entitiy
+            A list containing all the created entities
+        '''
         Entities=[]
         for i in range(total_number):
-            Entities.append(Entity(self,name,print_actions,log))
+            Entities.append(entity(self,name+'_'+str(i),print_actions,log))
         return Entities
 
-    def create(self,name,time_between_arrivals,number_of_arrivals,number_arrived_each_time,process,resource_list,print_actions=False,log=True):
+    def create(self,name,time_between_arrivals,number_arrived_each_time,process,resource_list,number_of_arrivals=10000000,print_actions=False,log=True):
+        '''
+        Create entities by making instances of class Entity and adding them to the environemnt.
+        The entities are created during the simulation based on the given time intervals.
+        Right after the creation, the processes of the entity should be added to the environment so that the 
+        entities start taking actions.
+
+        Parameters
+        ----------
+        name : string
+            Name of the entities, the name of each entity would be name_0, name_1, ...
+        time_between_arrivals : float
+            Time btween arrival of the entity batches
+        number_arrived_each_time : int
+            The number of entities created each time, i.e. batch size
+        process: func
+            The name of the function that specifies the process for the entity
+        resource_list : list of pmpy.resource
+            List of resources that is the input to the function "process"    
+        number_of_arrivals:
+            The maximum number of times the entity batches are created
+        print_actions : bool
+            If equal to True, the actions of the entities will be printed in console
+        log: bool
+            If equals True, various statistics will be collected for the entities
+     
+        '''
         for i in range(number_of_arrivals):
             a=self.create_entities(name,number_arrived_each_time,print_actions)
             for e in a:
-                self.process(process(e,resource_list))
+                self.process(process(e,resource_list)) #? what is this for
             yield self.timeout(time_between_arrivals)
  
     
-'''
-***************************************
-******Monte Carlo**********************
-***************************************
-'''
-
-def monte_carlo(function,runs=1000):
-    results=None
-    results=np.array([function()])
-    for i in range(runs-1):
-        results=np.append(results,[function()],axis=0)
-    return results
-        
-
-'''
-**************************************
-*********distribution*****************
-**************************************
-'''
-
-def fit_dist(data,dist_type):
-        try:
-            data=np.concatenate(data).ravel()
-        except:
-            pass
-        if dist_type=='triang':
-            dist_type='triang'
-            params=st.triang.fit(data)
-            dist=st.triang(params[0],loc=params[1],scale=params[2])
-            a=triang(0,1,2)
-            a.dist=dist
-            return a
-        if dist_type=='norm' :
-            dist_type='norm'
-            params=st.norm.fit(data)
-            dist=st.norm(loc=params[0],scale=params[1])
-            a=norm(0,1)
-            a.dist=dist
-            return a
-        if dist_type=='beta' :
-            dist_type='beta'
-            params=st.beta.fit(data)
-            dist=st.beta(params[0],params[1],loc=params[2],scale=params[3])
-            a=beta(1,1,0,1)
-            a.dist=dist
-            return a
-        if dist_type=='trapz' :
-            dist_type='trapz'
-            params=st.trapz.fit(data)
-            print(params)
-            dist=st.trapz(params[0],params[1],loc=params[2],scale=params[3])
-            a=trapz(1,2,3,4)
-            a.dist=dist
-            return a
-
-    
-class Distribution():
-    def __init__(self):
-        self.params=None
-        self.distType=None
-        self.dist=None
-        self.params=None
-
-    def sample(self):
-        return self.dist.rvs()
-        
-    def plot_pdf(self):
-        low=0.00001
-        high=.99999
-        if self.distType=='uniform' or self.distType=='triang' or self.distType=='trapz':
-            low=0
-            high=1
-        x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),101)
-        y=self.dist.pdf(x)
-        plt.plot(x,y,'r')
-        plt.show()
-
-    def plot_cdf(self):
-        low=0.00001
-        high=.99999
-        if self.distType=='uniform' or self.distType=='triang' or self.distType=='trapz':
-            low=0
-            high=1
-        x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),101)
-        y=self.dist.cdf(x)
-        plt.plot(x,y,'b')
-        plt.show()
-
-    def percentile(self,q):
-        return self.dist.ppf(q)
-
-    def pdf(self,x):
-        return self.dist.pdf(x)
-
-    def cdf(self,x):
-        return self.dist.cdf(x)
-        
-class uniform(Distribution):
-    def __init__(self,a,b):
-        self.distType='uniform'
-        Loc=a
-        Scale=b-a
-        self.params=[Loc,Scale]
-        self.dist=st.uniform(loc=Loc,scale=Scale)
-    
-class norm(Distribution):
-    def __init__(self,mean,std):
-        self.distType='norm'
-        self.params=[mean,std]
-        self.dist=st.norm(loc=mean,scale=std)
-class triang(Distribution): 
-    def __init__(self,a,b,c):
-        self.distType='triang'
-        Loc=a
-        Scale=c-a
-        c=(b-a)/Scale
-        self.params=[c,Loc,Scale]
-        self.dist=st.triang(c,loc=Loc,scale=Scale)
-    
-class trapz(Distribution): 
-    def __init__(self,a,b,c,d):
-
-        self.distType='trapz'
-        Loc=a
-        Scale=d-a
-        C=(b-a)/(d-a)
-        D=(c-a)/(d-a)
-       
-        self.params=[C,D,Loc,Scale]
-        self.dist=st.trapz(C,D,loc=Loc,scale=Scale)   
-class beta(Distribution): 
-    def __init__(self,a,b,minp,maxp):
-        self.distType='beta'
-        Loc=minp
-        Scale=maxp-minp
-        self.params=[a,b,Loc,Scale]
-        self.dist=st.beta(a,b,loc=Loc,scale=Scale)  
-class expon(Distribution): 
-    def __init__(self,mean):
-        self.distType='expon'
-        Scale=mean
-        self.params=[Scale]
-        self.dist=st.expon(scale=Scale)
-
-class emperical(Distribution):
-    def __init__(self,data):
-        try:
-            data=np.concatenate(data).ravel()
-        except:
-            pass
-        self.distType='emperical'
-        self.params=None
-        self.dist=None
-        self.data=np.sort(data)
-
-    def plot_cdf(self):
-        print('here')
-        unique, counts = np.unique(self.data, return_counts=True)
-        c=np.cumsum(counts)
-        print(c)
-        c=c/c[-1]
-        plt.step(unique,c)
-        plt.show()
-
-    def plot_pdf(self):
-        bins=int(2*len(self.data)**(1/3))
-        value,BinList=np.histogram(self.data,bins)
-        value=value/len(self.data)
-        l=BinList[-1]-BinList[0]
-        n=len(BinList)
-        width=l/(n)
-        value=value/width
-        BinList=BinList[:-1]+np.diff(BinList)[1]/2
-        plt.bar(BinList,value,width)
-        plt.show()
-
-    def pdf(self,x):
-        bins=int(2*len(self.data)**(1/3))
-        value,BinList=np.histogram(self.data,bins)
-        if x<BinList[0] or x>BinList[-1]:
-            return 0
-        i=0
-        bl=len(BinList)
-        while x>=BinList[i] and i<bl:
-            i+=1
-        r=value[i-1]/len(self.data)
-        l=BinList[-1]-BinList[0]
-        n=len(BinList)
-        width=l/(n)
-        r=r/width
-        return r
-       
-    def cdf(self,x):
-        if x>self.data[-1]:
-            return 1
-        i=0
-        while x>=self.data[i]:
-            i+=1
-        return i/len(self.data)
- 
-    def percentile(self,q):
-        return np.quantile(self.data,q)
-
-    def sample(self):
-        return np.quantile(self.data,np.random.random())
-        
-    def discrete_sample(self):
-        return np.random.choice(self.data)
-        
 
 '''
 *****************************

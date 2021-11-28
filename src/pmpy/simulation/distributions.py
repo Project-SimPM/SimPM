@@ -1,41 +1,41 @@
+'''
+Defining distributions and their stats most common for project management.
+'''
 import numpy as np
-import pandas as pd
-import bisect
 import scipy.stats as st
 import matplotlib.pyplot as plt
-'''
-**************************************
-*********distribution*****************
-**************************************
-'''
 
 def fit_dist(data,distType):
-        try:
-            data=np.concatenate(data).ravel()
-        except:
-            pass
-        if distType=='triang':
-            distType='triang'
-            params=st.triang.fit(data)
-            dist=st.triang(params[0],loc=params[1],scale=params[2])
-            a=triang(0,1,2)
-            a.dist=dist
-            return a
-        if distType=='norm' :
-            distType='norm'
-            params=st.norm.fit(data)
-            dist=st.norm(loc=params[0],scale=params[1])
-            a=norm(0,1)
-            a.dist=dist
-            return a
-        if distType=='beta' :
+    '''
+    Fit a distribution on data using maximum likelihood method
+
+    '''
+    try:
+        data=np.concatenate(data).ravel()
+    except:
+        pass
+    if distType=='triang':
+        distType='triang'
+        params=st.triang.fit(data)
+        dist=st.triang(params[0],loc=params[1],scale=params[2])
+        a=triang(0,1,2)
+        a.dist=dist
+        return a
+    if distType=='norm' :
+        distType='norm'
+        params=st.norm.fit(data)
+        dist=st.norm(loc=params[0],scale=params[1])
+        a=norm(0,1)
+        a.dist=dist
+        return a
+    if distType=='beta' :
             distType='beta'
             params=st.beta.fit(data)
             dist=st.beta(params[0],params[1],loc=params[2],scale=params[3])
             a=beta(1,1,0,1)
             a.dist=dist
             return a
-        if distType=='trapz' :
+    if distType=='trapz' :
             distType='trapz'
             params=st.trapz.fit(data)
             print(params)
@@ -45,39 +45,81 @@ def fit_dist(data,distType):
             return a
 
     
-class Distribution():
+class distribution():
+    '''
+    Defines a distirbution. All distributins inherit from this class.
+
+    ...
+    Attributes:
+    params: list of int
+        the list of paramters of the distribution
+    dist_type: str
+        The type of distribution
+    dist: scipy distribution
+    '''
     def __init__(self):
         self.params=None
-        self.distType=None
+        self.dist_type=None
         self.dist=None
-        self.params=None
 
     def sample(self):
+        '''
+
+        Returns
+        -------
+        float
+            A random sample of the distribution
+        '''
         return self.dist.rvs()
         
     def plot_pdf(self):
+        '''
+
+        Returns
+        -------
+        matplotlib.pylot.plt
+            A plot for the probability density function
+        '''
         low=0.00001
         high=.99999
-        if self.distType=='uniform' or self.distType=='triang' or self.distType=='trapz':
+        if self.dist_type=='uniform' or self.dist_type=='triang' or self.dist_type=='trapz':
             low=0
             high=1
         x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),101)
         y=self.dist.pdf(x)
         plt.plot(x,y,'r')
-        plt.show()
+        return plt
 
     def plot_cdf(self):
+        '''
+
+        Returns
+        -------
+        matplotlib.pylot.plt
+            A plot for the cummulative distribution function
+        '''
         low=0.00001
         high=.99999
-        if self.distType=='uniform' or self.distType=='triang' or self.distType=='trapz':
+        if self.dist_type=='uniform' or self.dist_type=='triang' or self.dist_type=='trapz':
             low=0
             high=1
         x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),101)
         y=self.dist.cdf(x)
         plt.plot(x,y,'b')
-        plt.show()
+        return plt
 
     def percentile(self,q):
+        '''
+
+        Parameters
+        ----------
+        q: float
+            The value to find its percentile in the inverse of commulative distribution function
+        Returns
+        -------
+        float
+            The percentile value
+        '''
         return self.dist.ppf(q)
 
     def pdf(self,x):
@@ -86,7 +128,7 @@ class Distribution():
     def cdf(self,x):
         return self.dist.cdf(x)
         
-class uniform(Distribution):
+class uniform(distribution):
     def __init__(self,a,b):
         self.distType='uniform'
         Loc=a
@@ -94,12 +136,12 @@ class uniform(Distribution):
         self.params=[Loc,Scale]
         self.dist=st.uniform(loc=Loc,scale=Scale)
     
-class norm(Distribution):
+class norm(distribution):
     def __init__(self,mean,std):
         self.distType='norm'
         self.params=[mean,std]
         self.dist=st.norm(loc=mean,scale=std)
-class triang(Distribution): 
+class triang(distribution): 
     def __init__(self,a,b,c):
         self.distType='triang'
         Loc=a
@@ -108,7 +150,7 @@ class triang(Distribution):
         self.params=[c,Loc,Scale]
         self.dist=st.triang(c,loc=Loc,scale=Scale)
     
-class trapz(Distribution): 
+class trapz(distribution): 
     def __init__(self,a,b,c,d):
 
         self.distType='trapz'
@@ -119,21 +161,21 @@ class trapz(Distribution):
        
         self.params=[C,D,Loc,Scale]
         self.dist=st.trapz(C,D,loc=Loc,scale=Scale)   
-class beta(Distribution): 
+class beta(distribution): 
     def __init__(self,a,b,minp,maxp):
         self.distType='beta'
         Loc=minp
         Scale=maxp-minp
         self.params=[a,b,Loc,Scale]
         self.dist=st.beta(a,b,loc=Loc,scale=Scale)  
-class expon(Distribution): 
+class expon(distribution): 
     def __init__(self,mean):
         self.distType='expon'
         Scale=mean
         self.params=[Scale]
         self.dist=st.expon(scale=Scale)
 
-class emperical(Distribution):
+class emperical(distribution):
     def __init__(self,data):
         try:
             data=np.concatenate(data).ravel()
@@ -198,8 +240,3 @@ class emperical(Distribution):
     def discrete_sample(self):
         return np.random.choice(self.data)
         
-'''
-*****************************
-********future works*********
-*****************************
-'''

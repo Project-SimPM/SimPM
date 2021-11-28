@@ -6,7 +6,7 @@ import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
-from pmpy.simulation.distributions import distribution
+from pmpy.dists import distribution
 
 '''
 *****************************************
@@ -656,7 +656,7 @@ class priority_resource(general_resource):
             if self.log:
                 self._queue_log=append(self._queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
             if r.entity.log:
-                r.entity.waiting_log=append(r.entity.waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
+                r.entity._waiting_log=append(r.entity._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
             
     def add(self,entity,amount):
         '''

@@ -1,4 +1,4 @@
-import discrete_event as des
+import des as des
 def truck_process(truck:des.entity,loader:des.resource,dumped_dirt:des.resource):
     while True:
         yield truck.get(loader,1)

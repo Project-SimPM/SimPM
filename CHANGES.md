@@ -3,6 +3,17 @@ Changelog for PmPy
 1.0.5 - 2021-11-28
 ------------------
 
+- [Fixed] fixed splelling of environment class.
+
+
+1.0.5 - 2021-11-28
+------------------
+
+- [CHANGED] changed importing disrtibution.
+
+1.0.5 - 2021-11-28
+------------------
+
 - [NEW] Added Docstrings for discrete event simulation.
 
 

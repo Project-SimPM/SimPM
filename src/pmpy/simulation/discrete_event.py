@@ -13,7 +13,7 @@ import pmpy.simulation.distributions
 *****entity class*******************
 *****************************************
 '''
-def switch_dic(dic):
+def __switch_dic(dic):
     '''
     siwtch key and value in a dictionary
 
@@ -223,7 +223,7 @@ class entity:
             The columns are activity name, and start time and finish time of that activity
         '''
         df=pd.DataFrame(data=self.schedule_log,columns=['activity','start_time','finish_time'])
-        df['activity']=df['activity'].map(switch_dic(self.act_dic))
+        df['activity']=df['activity'].map(__switch_dic(self.act_dic))
         return df
 
     def waiting_log(self):
@@ -264,7 +264,7 @@ class entity:
             or it can be starting or finishing an activity
         '''
         df=pd.DataFrame(data=self.status_log,columns=['time','status','actid/resid'])
-        df['status']=df['status'].map(switch_dic(self._status_codes))
+        df['status']=df['status'].map(__switch_dic(self._status_codes))
         
         return df
 '''
@@ -681,7 +681,7 @@ class PreemptiveResource(priority_resource):
 *****Environment Class*******************
 *****************************************
 '''
-class Environment(simpy.Environment):
+class environment(simpy.Environment):
     '''
     This class defines the simulation environment. 
     All of the processes, entities and resources are defined in this class. 

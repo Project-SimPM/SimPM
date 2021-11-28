@@ -1,5 +1,11 @@
 Changelog for PmPy
 ===================
+1.0.5 - 2021-11-28
+------------------
+
+- [NEW] Added Docstrings for discrete event simulation.
+
+
 1.0.4 - 2021-11-24
 ------------------
 

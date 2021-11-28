@@ -251,7 +251,7 @@ class entity:
         numpy.array
             The waiting durations of the entity each time it waited for a resource
         '''
-        a=self._waiting_log()
+        a=self.waiting_log()
         a=a['end_waiting']-a['start_waiting']
         return a.values
         
@@ -311,7 +311,7 @@ class general_resource():
         self.queue_length=0
         
         #logs
-        self._status_log=array([[0,0,0,0]])#time,in-use,idle,queue-lenthg
+        self._status_log=array([[0,0,0,0]])#time,in-use,idle,queue-length
         self._queue_log=array([[0,0,0,0]])#entityid,startTime,endTime,amount
 
 
@@ -321,8 +321,8 @@ class general_resource():
         Returns
         -------
         pandas.DataFrame
-            All entities who are wiaitng in for the resource, their start time and
-            finish time of waiting are stored in this DataFrame
+            All entities wiaitng for the resource, their start waiting time and
+            finish waiting time are stored in this DataFrame
         '''
         df=DataFrame(data=self._queue_log,columns=['entity','start_time','finish_time','resource_amount'])
         df['entity']=df['entity'].map(self.env.entity_names)
@@ -338,10 +338,22 @@ class general_resource():
             in this DataFrame. The recorded statuses are number of in-use resources ,
             number of idle resources, and number of entities waiting for the resoruce. 
         '''
-        df=DataFrame(data=self._status_log,columns=['time','in_use','idle','queue_lenthg'])
+        df=DataFrame(data=self._status_log,columns=['time','in_use','idle','queue_length'])
         return df
 
     
+    def waiting_time(self):
+        '''
+
+        Returns
+        -------
+        numpy.array
+            The waiting durations for a resource
+        '''
+        a=self.queue_log()
+        a=a['finish_time']-a['start_time']
+        return a.values
+        
     def _request(self,entity,amount):
         '''
         Calculate needed logs when an entity requests the resource.
@@ -536,7 +548,7 @@ class resource(general_resource):
         if self.log:
             self._queue_log=append(self._queue_log,[[entity.id,start_waiting,self.env.now,amount]],axis=0)
         if entity.log:
-            entity.waiting_log=append(entity.waiting_log,[[self.id,start_waiting,self.env.now,amount]],axis=0)
+            entity._waiting_log=append(entity._waiting_log,[[self.id,start_waiting,self.env.now,amount]],axis=0)
           
             
     def add(self,entity,amount):

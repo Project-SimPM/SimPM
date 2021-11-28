@@ -1,5 +1,13 @@
 Changelog for PmPy
 ===================
+1.0.11 - 2021-11-28
+------------------
+
+- [Fixed] fixed namings of logs.
+
+- [Added] added waiting time for resources.
+
+
 1.0.9 - 2021-11-28
 ------------------
 

@@ -22,4 +22,5 @@ print(truck[0].waiting_time())
 print(loader.queue_log())
 print(loader.status_log())
 print(loader.waiting_time())
+print(loader.average_queue_length())
 

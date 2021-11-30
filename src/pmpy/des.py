@@ -6,7 +6,7 @@ import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
-from pmpy.dists import distribution
+from dists import distribution
 
 '''
 *****************************************
@@ -224,7 +224,7 @@ class entity:
             The schedule of each entity.
             The columns are activity name, and start time and finish time of that activity
         '''
-        df=DataFrame(data=self._schedule_log,columns=['activity','start_time','finish_time'])
+        df=DataFrame(data=self._schedule_log[1: , :],columns=['activity','start_time','finish_time'])
         df['activity']=df['activity'].map(_switch_dic(self.act_dic))
         return df
 
@@ -234,11 +234,11 @@ class entity:
         Returns
         -------
         pandas.DataFrame
-            The time the activty started waiting and the time it finished waiting.
-            The columns show the resource name for which the entity is waiting for, time when watiting is started, 
+            The time the activity started waiting and the time it finished waiting.
+            The columns show the resource name for which the entity is waiting for, time when waiting is started, 
             time when waiting is finished, and the number of resources the entity is waiting for
         '''
-        df=DataFrame(data=self._waiting_log,columns=['resource','start_waiting','end_waiting','resource_amount'])
+        df=DataFrame(data=self._waiting_log[1: , :],columns=['resource','start_waiting','end_waiting','resource_amount'])
         df['resource']=(df['resource'].map(self.env.resource_names))
         return df
 
@@ -261,11 +261,11 @@ class entity:
         Returns
         -------
         pandas.DataFrame
-            Any change in the status of an entity, the change can be either
-            waiting for a resourcing, getting a reouces, putting a resource back, or adding to a resouce, 
+            shows any change in the status of an entity, the change can be either
+            waiting for a resourcing, getting a resources, putting a resource back, or adding to a resouce, 
             or it can be starting or finishing an activity
         '''
-        df=DataFrame(data=self._status_log,columns=['time','status','actid/resid'])
+        df=DataFrame(data=self._status_log[1: , :],columns=['time','status','actid/resid'])
         df['status']=df['status'].map(_switch_dic(self._status_codes))
         
         return df
@@ -321,10 +321,10 @@ class general_resource():
         Returns
         -------
         pandas.DataFrame
-            All entities wiaitng for the resource, their start waiting time and
+            All entities waiting for the resource, their start waiting time and
             finish waiting time are stored in this DataFrame
         '''
-        df=DataFrame(data=self._queue_log,columns=['entity','start_time','finish_time','resource_amount'])
+        df=DataFrame(data=self._queue_log[1: , :],columns=['entity','start_time','finish_time','resource_amount'])
         df['entity']=df['entity'].map(self.env.entity_names)
         return df
 
@@ -336,9 +336,9 @@ class general_resource():
         pandas.DataFrame
             Any changes in the status of the resource and the time of the change is presented 
             in this DataFrame. The recorded statuses are number of in-use resources ,
-            number of idle resources, and number of entities waiting for the resoruce. 
+            number of idle resources, and number of entities waiting for the resource. 
         '''
-        df=DataFrame(data=self._status_log,columns=['time','in_use','idle','queue_length'])
+        df=DataFrame(data=self._status_log[1: , :],columns=['time','in_use','idle','queue_length'])
         return df
 
     
@@ -446,7 +446,7 @@ class general_resource():
         Returns
         -------
         int
-            The number of resources that are currently availbale
+            The number of resources that are currently available
         '''
         return self.container.level
 
@@ -456,7 +456,7 @@ class general_resource():
         Returns
         -------
         int
-            The number of resources that are currently availbale
+            The number of resources that are currently available
 
         '''
         return self.level()
@@ -478,10 +478,18 @@ class general_resource():
         Returns
         -------
         int
-            The maximum capacity for the reource
+            The maximum capacity for the resource
         '''
         return self.container.capacity
 
+    def average_queue_length(self):
+        '''
+        Returns
+        -------
+        float
+            The average waiting queue length for a resource
+        '''
+        return sum(self.waiting_time())/(self.env.now)
 
 
 class resource(general_resource):
@@ -507,7 +515,7 @@ class resource(general_resource):
     '''
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         '''
-        Creates an intstance of a pmpy general resource.
+        Creates an intstance of a pmpy resource.
 
         Parameters
         ----------
@@ -531,7 +539,7 @@ class resource(general_resource):
 
     def get(self,entity,amount):
         '''
-        A method for getting(capturing) the resoruce by the entity.
+        A method for getting(capturing) the resource by the entity.
 
         Parameters
         ----------
@@ -553,7 +561,7 @@ class resource(general_resource):
             
     def add(self,entity,amount):
         '''
-        A method for adding the resoruce by the entity.
+        A method for adding the resource by the entity.
 
         Parameters
         ----------
@@ -567,7 +575,7 @@ class resource(general_resource):
 
     def put(self,entity,amount):
         '''
-        A method for putting back(releasing) the resoruce by the entity.
+        A method for putting back(releasing) the resource by the entity.
 
         Parameters
         ----------
@@ -581,7 +589,7 @@ class resource(general_resource):
         
 class priority_request():
     '''
-    A class defining the a priority request for capturing the resoruces.
+    A class defining the a priority request for capturing the resources.
     This class allows to keep all the requests in a sorted list of requests.
     '''
     def __init__(self,entity,amount,priority):
@@ -593,7 +601,7 @@ class priority_request():
         
     def __gt__(self,other_request):
         '''
-        Decides if a resoruce request has a higher priority than antothe resource request
+        Decides if a resource request has a higher priority than antothe resource request
         Lower priority values show higher priority!
         If the priority of two requests is equal and are made at the same time,
         the request with lower number of needed resources will have a higher priority.
@@ -616,8 +624,24 @@ class priority_request():
 class priority_resource(general_resource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         '''
-        Defines a resource for which a priroty que is implemented. 
+        Defines a resource for which a priority queue is implemented. 
 
+        Parameters
+        ----------
+        env:pmpy.environment
+            The environment for the entity
+        name : string
+            Name of the resource
+        capacity: int
+            Maximum capacity for the resource, defualt value is 1000.
+        init: int
+            Initial number of resources, defualt value is 1.
+        print_actions : bool
+            If equal to True, the changes in the resource will be printed in console.
+            defualt value is False
+        log: bool
+            If equals True, various statistics will be collected for the resource.
+            defualt value is True.
         '''
         super().__init__(env,name,capacity,init,print_actions,log)
         
@@ -660,7 +684,7 @@ class priority_resource(general_resource):
             
     def add(self,entity,amount):
         '''
-        A method for adding the resoruce by the entity.
+        A method for adding the resource by the entity.
 
         Parameters
         ----------
@@ -675,7 +699,7 @@ class priority_resource(general_resource):
 
     def put(self,entity,amount):
         '''
-        A method for putting back the resoruce by the entity.
+        A method for putting back the resource by the entity.
 
         Parameters
         ----------
@@ -703,6 +727,12 @@ class environment(simpy.Environment):
     '''
     This class defines the simulation environment. 
     All of the processes, entities and resources are defined in this class. 
+
+    Attributes
+    ----------
+    now : float
+        current simulation time
+    
     '''
     def __init__(self):
         '''
@@ -744,7 +774,7 @@ class environment(simpy.Environment):
         '''
         Create entities by making instances of class Entity and adding them to the environemnt.
         The entities are created during the simulation based on the given time intervals.
-        Right after the creation, the processes of the entity should be added to the environment so that the 
+        Right after the creation, the processes of the entity are added to the environment so that the 
         entities start taking actions.
 
         Parameters

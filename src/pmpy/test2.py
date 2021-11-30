@@ -6,8 +6,8 @@ Created on Sun Nov 28 22:43:01 2021
 """
 
 import des as des
-import pmpy.dists as dist
-import pmpy.mcs as mc
+import dists as dist
+import mcs as mc
 
 def a0(e,Rs):
         i=0

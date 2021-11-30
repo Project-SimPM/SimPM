@@ -6,7 +6,7 @@ import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
-from dists import distribution
+from pmpy.dists import distribution
 
 '''
 *****************************************
@@ -65,7 +65,7 @@ class entity:
         self.attr={}
         self.print_actions=print_actions
         self.log=log
-        self.usingResources={}
+        self.usingResources={} #a dictionary showig all the resources an entity is using
 
         #***logs
         self._schedule_log=array([[0,0,0]])#act_id,act_start_time,act_finish_time
@@ -712,11 +712,48 @@ class priority_resource(general_resource):
         super()._put(entity,amount)
         return entity.env.process(self._check_all_requests())
 
-class preemptive_resource(priority_resource):
+class preemptive_resource(general_resource):
     '''
-    this class is to be implemented.
+    this class impements a preemptive_resource.
     '''
-    pass
+    def __init__(self,env,name, print_actions=False,log=True):
+        '''
+        Defines a resource for which a priority queue is implemented. 
+
+        Parameters
+        ----------
+        env:pmpy.environment
+            The environment for the entity
+        name : string
+            Name of the resource
+        capacity: int
+            Maximum capacity for the resource, defualt value is 1000.
+        init: int
+            Initial number of resources, defualt value is 1.
+        print_actions : bool
+            If equal to True, the changes in the resource will be printed in console.
+            defualt value is False
+        log: bool
+            If equals True, various statistics will be collected for the resource.
+            defualt value is True.
+        '''
+        super().__init__(env,name,1,1,print_actions,log)
+        
+        self.resource=simpy.PreemptiveResource(env,1)
+        self.request=None
+        
+    def get(self,entity,priority: int,preempt:bool=False):
+        super()._request(entity,1)
+        self.request=self.resource.request(priority,preempt)
+        yield self.request
+        super()._get(entity,1)
+
+    def put(self,entity,priority: int,preempt:bool=False):
+        super()._request(entity,1)
+        yield self.resource.release(self.request)
+        super()._get(entity,1)
+
+    
     
 '''
 *****************************************

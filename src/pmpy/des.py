@@ -6,7 +6,7 @@ import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
-from pmpy.dists import distribution
+from dists import distribution
 
 '''
 *****************************************
@@ -72,6 +72,7 @@ class entity:
         self._status_codes={'wait for':1,'get':2,'start':3,'finish':4,'put':5,'add':6}
         self._status_log=array([[0,0,0]])#time,entity_status_code,actid/resid
         self._waiting_log=array([[0,0,0,0]]) #resource_id,start_waiting,end_waiting,amount waiting for
+        self.pending_requests=[] #the simpy requests made by an entity but not granted yet
 
         if print_actions:
             print(name+'('+str(self.id)+') is created, sim_time:',env.now)
@@ -94,7 +95,7 @@ class entity:
                 d=duration.sample()
             duration=d
         if self.print_actions:
-            print(self.name+'('+str(self.id)+ ') start',name,', sim_time:',self.env.now)
+            print(self.name+'('+str(self.id)+ ') started',name,', sim_time:',self.env.now)
         
         if name not in self.act_dic:
             self.last_act_id+=1
@@ -137,7 +138,7 @@ class entity:
             print('pmpy: error in do')
 
 
-    def get(self,res,amount,priority=1,preemp=False):
+    def get(self,res,amount:int=1,priority:int=1,preempt:bool=False):
         '''
         Entity requests to get a resource using this method. 
 
@@ -167,7 +168,9 @@ class entity:
             elif type(res)==priority_resource:
                 return self.env.process(res.get(self,amount,priority))
             elif type(res)==preemptive_resource:
-                return self.env.process(res.get(self,amount,priority,preemp))
+                if amount>1:
+                    print("Warning: amount of preemptive resource is always 1")
+                return self.env.process(res.get(self,priority,preempt))
         except:
             print('pmpy: error in get')
 
@@ -193,7 +196,7 @@ class entity:
             amount=a
         return self.env.process(res.add(self,amount))
 
-    def put(self,res,amount):
+    def put(self,res,amount=1):
         '''
         Entity puts back the resources using this method.
 
@@ -213,8 +216,61 @@ class entity:
             while a<0:
                 a=amount.sample()
             amount=a
+        if type(res)==preemptive_resource:
+            
+                if amount>1:
+                    amount=1
+                    print("Warning: amount of preemptive resource is always 1")
+                return self.env.process(res.put(self))
         return self.env.process(res.put(self,amount))
+    def is_pending(self,res,amount):
+        '''
 
+        Parameters:
+        -----------
+        res : resource
+            Resource for which the eneity is waiting for.
+        amount: int
+            Number of resources that the entity is waiting for.
+            If the number of entities is not specified, waiting for any number of resources is ok
+
+        Returns
+        --------
+        the request that cuased entity to wait, and None if the entity is not waiting
+        '''
+
+        for r in res.request_list:
+            if r.entity==self and r.amount==amount:
+                return True
+        return False
+
+    def not_pending(self,res,amount:int=1):
+        return not self.is_pending(res,amount)
+
+    def cancel(self,res,amount:int=1):
+        '''
+
+        Parameters:
+        -----------
+        res : resource
+            Resource for which the eneity is waiting for.
+        amount: int
+            Number of resources that the entity is waiting for.
+            If the number of entities is not specified, waiting for any number of resources is ok
+
+        Returns
+        --------
+        cancels a resource request if it is pending, and returns it if it is already granted
+        '''
+
+        for r in res.request_list:
+            if r.entity==self and r.amount==amount:
+                res.cancel(r)
+                return r
+        
+        self.put(res,amount) #a problem may occur of someone adds to the resouce meanwhile we are canceling
+        return True
+                    
     def schedule(self):
         '''
 
@@ -309,6 +365,7 @@ class general_resource():
         self.in_use=0
         self.container=simpy.Container(env, capacity,init)
         self.queue_length=0
+        self.request_list=[]
         
         #logs
         self._status_log=array([[0,0,0,0]])#time,in-use,idle,queue-length
@@ -368,7 +425,7 @@ class general_resource():
         self.queue_length+=1
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
-                  +' requested',str(amount),self.name+'(s), sim_time:',self.env.now)
+                  +' requested',str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
@@ -389,7 +446,7 @@ class general_resource():
         self.in_use+=amount
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
-                  +' got '+str(amount),self.name+'(s), sim_time:',self.env.now)
+                  +' got '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
@@ -409,7 +466,7 @@ class general_resource():
         '''
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
-                  +' add '+str(amount),self.name+'(s), sim_time:',self.env.now)
+                  +' added '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
@@ -434,7 +491,7 @@ class general_resource():
         self.in_use-=amount
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
-                  +' put back '+str(amount),self.name+'(s), sim_time:',self.env.now)
+                  +' put back '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
         if entity.log:
@@ -491,31 +548,23 @@ class general_resource():
         '''
         return sum(self.waiting_time())/(self.env.now)
 
+class request():
+    '''
+    A class defining the a priority request for capturing the resources.
+    This class allows to keep all the requests in a sorted list of requests.
+    '''
+    def __init__(self,entity,amount):
+        self.time=entity.env.now
+        self.entity=entity
+        self.amount=amount
+        self.flag=simpy.Container(entity.env,init=0)#show if the resource is obtained when flag truns 1
+        
+    
 
 class resource(general_resource):
-    '''
-    A class to represent a normal resource in discrete event simulation.
-    ...
-    Attributes
-    ----------
-    env:pmpy.environment
-        The environment for the entity
-    name : string
-        Name of the resource
-    id : int
-        A unique id for the resource in the environment
-    capacity: int
-        Maximum capacity for the resource
-    init: int
-        Initial number of resources
-    print_actions : bool
-        If equal to True, the changes in the resource will be printed in console
-    log: bool
-        If equals True, various statistics will be collected for the resource
-    '''
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         '''
-        Creates an intstance of a pmpy resource.
+        Defines a resource for which a priority queue is implemented. 
 
         Parameters
         ----------
@@ -535,30 +584,54 @@ class resource(general_resource):
             defualt value is True.
         '''
         super().__init__(env,name,capacity,init,print_actions,log)
-        self.requests=[]
+        
+        #self.resource=simpy.PriorityResource(env,1) #shoule be deleted
+       
 
     def get(self,entity,amount):
         '''
-        A method for getting(capturing) the resource by the entity.
+        A method for getting the resource. 
 
         Parameters
         ----------
         entity : pmpy.entity
             The entity adding the resource 
         amount : int
-            The number of resouces to be captured
-        '''
+            The number of resouces to be added
+        priority : int
+            lower values for this input show higher priority
+        ''' 
         super()._request(entity,amount)
-   
-        start_waiting=self.env.now
-        yield self.container.get(amount)
-        super()._get(entity,amount)
-        if self.log:
-            self._queue_log=append(self._queue_log,[[entity.id,start_waiting,self.env.now,amount]],axis=0)
-        if entity.log:
-            entity._waiting_log=append(entity._waiting_log,[[self.id,start_waiting,self.env.now,amount]],axis=0)
-          
-            
+        pr=request(entity,amount)
+        entity.pending_requests.append(pr) #append priority request to the eneity
+        self.request_list.append(pr)
+        yield self.env.timeout(0) #? why do we need this?
+        yield entity.env.process(self._check_all_requests())
+        yield pr.flag.get(1) #flag shows that the resource is granted
+        
+    def _check_all_requests(self):
+        '''
+        Check to see if any rquest for the resource can be granted.
+        '''
+        while len(self.request_list)>0 and self.request_list[0].amount<=self.container.level:
+            r=self.request_list.pop(0) #remove the first element from the list
+            simpy_request=self.container.get(r.amount)
+            yield simpy_request
+            r.entity.pending_requests.remove(r)
+            r.flag.put(1)
+            super()._get(r.entity,r.amount)
+            if self.log:
+                self._queue_log=append(self._queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
+            if r.entity.log:
+                r.entity._waiting_log=append(r.entity._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
+
+    def cancel(self,priority_request):
+        if request in self.request_list:
+            self.request_list.remove(priority_request)
+        else:
+            print("warning: the request can not be cancled as it is not in the request list")
+
+
     def add(self,entity,amount):
         '''
         A method for adding the resource by the entity.
@@ -572,20 +645,23 @@ class resource(general_resource):
         '''
         yield self.container.put(amount)
         super()._add(entity,amount)
+        return entity.env.process(self._check_all_requests())
 
     def put(self,entity,amount):
         '''
-        A method for putting back(releasing) the resource by the entity.
+        A method for putting back the resource by the entity.
 
         Parameters
         ----------
         entity : pmpy.entity
-            The entity putting back the resource 
+            The entity adding the resource 
         amount : int
-            The number of resouces to be put back
+            The number of resouces to be added
         '''
         yield self.container.put(amount)
         super()._put(entity,amount)
+        return entity.env.process(self._check_all_requests())
+
         
 class priority_request():
     '''
@@ -644,9 +720,9 @@ class priority_resource(general_resource):
             defualt value is True.
         '''
         super().__init__(env,name,capacity,init,print_actions,log)
-        
-        self.resource=simpy.PriorityResource(env,1)
-        self.requestlist=[]
+        self.request_list=[]
+        #self.resource=simpy.PriorityResource(env,1) #shoule be deleted
+       
 
     def get(self,entity,amount,priority=1):
         '''
@@ -663,7 +739,8 @@ class priority_resource(general_resource):
         ''' 
         super()._request(entity,amount)
         pr=priority_request(entity,amount,priority)
-        insort_left(self.requestlist,pr)
+        entity.pending_requests.append(pr) #append priority request to the eneity
+        insort_left(self.request_list,pr)
         yield self.env.timeout(0) #? why do we need this?
         yield entity.env.process(self._check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
@@ -672,16 +749,24 @@ class priority_resource(general_resource):
         '''
         Check to see if any rquest for the resource can be granted.
         '''
-        while len(self.requestlist)>0 and self.requestlist[-1].amount<=self.container.level:
-            r=self.requestlist.pop()
+        while len(self.request_list)>0 and self.request_list[-1].amount<=self.container.level:
+            r=self.request_list.pop()
             yield self.container.get(r.amount)
+            r.entity.pending_requests.remove(r)
             r.flag.put(1)
             super()._get(r.entity,r.amount)
             if self.log:
                 self._queue_log=append(self._queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
             if r.entity.log:
                 r.entity._waiting_log=append(r.entity._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
-            
+
+    def cancel(self,priority_request):
+        if priority_request in self.request_list:
+            self.request_list.remove(priority_request)
+        else:
+            print("warning: the priority request can not be cancled as it is not in the request list")
+
+
     def add(self,entity,amount):
         '''
         A method for adding the resource by the entity.
@@ -714,7 +799,7 @@ class priority_resource(general_resource):
 
 class preemptive_resource(general_resource):
     '''
-    this class impements a preemptive_resource.
+    this class is under construction.
     '''
     def __init__(self,env,name, print_actions=False,log=True):
         '''
@@ -741,17 +826,20 @@ class preemptive_resource(general_resource):
         
         self.resource=simpy.PreemptiveResource(env,1)
         self.request=None
+        self.current_entities=None
+        self.suspended_entities=None
         
     def get(self,entity,priority: int,preempt:bool=False):
         super()._request(entity,1)
-        self.request=self.resource.request(priority,preempt)
-        yield self.request
+        r=self.resource.request(priority,preempt)
+        yield r
+        self.request=r
         super()._get(entity,1)
 
-    def put(self,entity,priority: int,preempt:bool=False):
-        super()._request(entity,1)
+    def put(self,entity):
+        #to be added: when waiting to ptu pack soemthing some logs should be calculated
         yield self.resource.release(self.request)
-        super()._get(entity,1)
+        super()._put(entity,1)
 
     
     
@@ -850,7 +938,7 @@ class environment(simpy.Environment):
 #visualiziation
 #graphs of logs
 #preempt for breakdown
-#Or between resource requests
+#Or between resource requests : done
 #input checks
 ### check each entity should be given to only one process and one environment
 #create tests

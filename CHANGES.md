@@ -1,5 +1,10 @@
 Changelog for PmPy
 ===================
+1.0.14 - 2021-12-03
+-------------------
+
+- [Added] Ability to cancel requests for resoruces. this allows modeling or between resource requests
+
 1.0.11 - 2021-11-28
 ------------------
 
@@ -11,9 +16,9 @@ Changelog for PmPy
 1.0.9 - 2021-11-28
 ------------------
 
-- [Fixed] fixed numbering of entities in the discrete event simulation  environment.
+- [Fixed] Fixed numbering of entities in the discrete event simulation  environment.
 
-- [Fixed] fixed spelling  of preemptive resources.
+- [Fixed] Fixed spelling  of preemptive resources.
 
 1.0.8 - 2021-11-28
 ------------------

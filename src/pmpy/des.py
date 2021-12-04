@@ -6,7 +6,7 @@ import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
-from dists import distribution
+from pmpy.dists import distribution
 
 '''
 *****************************************

@@ -6,7 +6,10 @@ import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
-from pmpy.dists import distribution
+try:
+    from pmpy.dists import distribution
+except:
+    from dists import distribution
 
 """
 *****************************************
@@ -135,8 +138,39 @@ class entity:
        
             return self.env.process(self._activity(name,dur))
         except:
-            print('pmpy: error in do')
+            print('pmpy: error in  duration of activity',name)
 
+    def interruptive_do(self,name,dur):
+        try:
+            if isinstance(dur,distribution):
+                    d=-1
+                    while d<0:
+                        d=dur.sample()
+                    dur=d
+        except:
+             print('pmpy: error in  duration of activity',name)
+        
+        try:
+            return self.env.process(self._activity(name,dur))
+        except:
+            print('pmpy: error in do interrupted')
+
+
+        '''while done_in:
+            try:
+                # Working on the part
+                start = self.env.now
+                print("preemptive activity started at time", start)
+                return self.env.process(self._activity(name,done_in))
+               
+            except simpy.Interrupt:
+                    print("preemptive activity interrupted at time:", self.env.now)
+                    done_in -= self.env.now - start  # How much time left?
+                    print("some time is left:",done_in)
+                    for r in res:
+                        if r not in self.using_resources:
+                            yield self.get(r,res[r],priority=1)
+        '''
 
     def get(self,res,amount=1,priority=1,preempt:bool=False):
         """
@@ -839,7 +873,7 @@ class preemptive_resource(general_resource):
         super().__init__(env,name,1,1,print_actions,log)
         
         self.resource=simpy.PreemptiveResource(env,1)
-        self.request=None
+        self.request=None #the request of the entity that is currently using the resource
         self.current_entities=None
         self.suspended_entities=None
         
@@ -847,7 +881,7 @@ class preemptive_resource(general_resource):
         super()._request(entity,1)
         r=self.resource.request(priority,preempt)
         yield r
-        self.request=r
+        self.request=r #the request that is currently using the rsource
         super()._get(entity,1)
 
     def put(self,entity):

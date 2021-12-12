@@ -1,8 +1,12 @@
-from des import *
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir) 
 '''
 Canceling a request for a resource to model "OR" for getting resources
 
 '''
+from pmpy.des import *
 
 def p1(a:entity,R2,R):
     

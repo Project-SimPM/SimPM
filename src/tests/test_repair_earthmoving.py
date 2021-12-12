@@ -1,5 +1,10 @@
-import des as d
-import dists as dist
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir) 
+
+import pmpy.des as d
+import pmpy.dists as dist
 
 '''
 earthmoving example with repair

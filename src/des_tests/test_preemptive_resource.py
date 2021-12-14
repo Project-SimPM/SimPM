@@ -8,17 +8,24 @@ testing preemptive resources
 this is not working yet
 '''
 
-def p1(a,R):
-    
-    yield a.get(R)
+def p1(a:entity,R):
+
+    yield a.get(R,1,False)
     yield a.interruptive_do('something',10)
+
     yield a.put(R)
+    
 
 def p2(b,R):
     yield b.do('b_act',5)
-    yield b.get(R,priority=-1,preempt=True)
+
+    r=b.get(R,priority=-1,preempt=True)
+    yield r
+    print("interrupted")
     yield b.do('b_act2',5)
     yield b.put(R)
+
+    
     
 env=environment()
 e1=entity(env,'e1',print_actions=True)

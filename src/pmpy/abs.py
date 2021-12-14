@@ -11,13 +11,13 @@ from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
 import matplotlib.pyplot as plt
-
 from pmpy.dists import distribution
+import pmpy.des as des
 
 
 """
 *****************************************
-*****entity class*******************
+*****agent class*******************
 *****************************************
 """
 def _switch_dic(dic):
@@ -29,189 +29,92 @@ def _switch_dic(dic):
     for key in dic:
         newdic[dic[key]]=key
     return newdic
-
-class entity:
+class agent_type():
+    def __init__(self,name,shape):
+        self.shape=shape
+        self.name=name
+        self.x=[]
+        self.y=[]
+        self.agents=[]
+        
+        
+class agent(des.entity):
     """
-    A class that defines an entity. Entities are virtual objects essential to useful for modeling dynamic systems. 
-    Some examples of entities can be: a customer, communication message, or any resource requiring service.
+    A class that defines an Agents. Agents are virtual objects essential to useful for modeling dynamic systems. 
+    Some examples of Agents can be: a customer, communication message, or any resource requiring service.
 
     ...
     Attributes
     ----------
     name: str
-        Name of the entity
+        Name of the agent
     id: int
-        A unique id for the entity in the environment
-    env: pmpy.des.environment
-        The environemnt in which the entity is defined in
+        A unique id for the agent in the environment
+    env: pmpy.abs.environment
+        The environemnt in which the agent is defined in
     attr: dict
-        a dictionay containting all the special attributes defined for the entity.
+        a dictionay containting all the special attributes defined for the agent.
+    shape : string
+        the shape of agent in matplotlib
+    x:location x
+        the location x of agent in the environment
+    y: location y
+        the location y of the agent in the environment
     """
-    def __init__(self,env,name,print_actions=False,log=True):
+    def __init__(self,env:des.environment,type:agent_type,location=(0,0),print_actions=False,log=True):
         """
-        Creates an new instance for entity.
+        Creates an new instance for agent.
 
         Parameters
         ----------
         env:pmpy.environment
-            The environment for the entity
+            The environment for the agent
         name : string
-            Name of the entity
+            Name of the agent
+        shape : string
+            the shape of agent in matplotlib
+        location:(x,y)
+            the location of agent in the environment
         print_actions : bool
-            If equal to True, the actions of the entity will be printed in console
+            If equal to True, the actions of the agent will be printed in console
         log: bool
-            If equals True, various statistics will be collected for the entity
-        """
-        self.env=env
-        self.name=name
-        env.last_entity_id+=1
-        self.id=self.env.last_entity_id
-        env.entity_names[self.id]=self.name+'('+str(self.id)+')'
-        self.last_act_id=0
-        self.act_dic={}
-        self.attr={}
-        self.print_actions=print_actions
-        self.log=log
-        self.using_resources={} #a dictionary showig all the resources an entity is using
-
-        #***logs
-        self._schedule_log=array([[0,0,0]])#act_id,act_start_time,act_finish_time
-        self._status_codes={'wait for':1,'get':2,'start':3,'finish':4,'put':5,'add':6}
-        self._status_log=array([[0,0,0]])#time,entity_status_code,actid/resid
-        self._waiting_log=array([[0,0,0,0]]) #resource_id,start_waiting,end_waiting,amount waiting for
-        self.pending_requests=[] #the simpy requests made by an entity but not granted yet
-
-        if print_actions:
-            print(name+'('+str(self.id)+') is created, sim_time:',env.now)
-    
-      
-    def _activity(self,name,duration):
-        """
-        This method defines the activity that the entity is doing.
-
-        Parameters
-        ----------
-        name : string
-            Name of the activty
-        Duration : float, int, or distribution
-            The duration of that activity
-        """
-        if isinstance(duration,distribution):
-            d=-1
-            while d<0:
-                d=duration.sample()
-            duration=d
-        if self.print_actions:
-            print(self.name+'('+str(self.id)+ ') started',name,', sim_time:',self.env.now)
+            If equals True, various statistics will be collected for the agent
         
-        if name not in self.act_dic:
-            self.last_act_id+=1
-            self.act_dic[name]=self.last_act_id
-        if self.log:
-            self._schedule_log=append(self._schedule_log,[[self.act_dic[name],self.env.now,self.env.now+duration]],axis=0)
-            self._status_log=append(self._status_log,[[self.env.now,self._status_codes['start'],self.act_dic[name]]],axis=0)
-
-        yield self.env.timeout(duration)
-  
-        if self.print_actions:
-            print(self.name+'('+str(self.id)+ ') finished',name,', sim_time:',self.env.now)
-        if self.log:
-            self._status_log=append(self._status_log,[[self.env.now,self._status_codes['finish'],self.act_dic[name]]],axis=0)
-    
-    
-    def _interruptive_activity(self,name,duration):
         """
-        This method defines the activity that the entity is doing.
-
-        Parameters
-        ----------
-        name : string
-            Name of the activty
-        Duration : float, int, or distribution
-            The duration of that activity
-        """
-        if isinstance(duration,distribution):
-            d=-1
-            while d<0:
-                d=duration.sample()
-            duration=d
-        if self.print_actions:
-            print(self.name+'('+str(self.id)+ ') started',name,', sim_time:',self.env.now)
+        super().__init__(env,type.name,print_actions,log)
         
-        if name not in self.act_dic:
-            self.last_act_id+=1
-            self.act_dic[name]=self.last_act_id
-        if self.log:
-            self._schedule_log=append(self._schedule_log,[[self.act_dic[name],self.env.now,self.env.now+duration]],axis=0)
-            self._status_log=append(self._status_log,[[self.env.now,self._status_codes['start'],self.act_dic[name]]],axis=0)
-
-        #yield self.env.timeout(duration)
-        
-        done_in=duration
-        while done_in:
-            try:
-                # Working on the part
-                start = self.env.now
-                print("preemptive activity started at time", start)
-                yield self.env.timeout(done_in)
-                done_in=0
-            except simpy.Interrupt:
-                    print("preemptive activity interrupted at time:", self.env.now)
-                    done_in -= self.env.now - start  # How much time left?
-                    print("some time is left:",done_in)
-        if self.print_actions:
-            print(self.name+'('+str(self.id)+ ') finished',name,', sim_time:',self.env.now)
-        if self.log:
-            self._status_log=append(self._status_log,[[self.env.now,self._status_codes['finish'],self.act_dic[name]]],axis=0)
-
-    def do(self,name,dur):
-        """
-        Defines the activity that the entity is doing.
-
-        Parameters
-        ----------
-        name : string
-            Name of the activity
-        duration : float , int, or distribution
-            The duration of that activity
-        Returns
-        -------
-        Environment.process
-            the process for the activity
-        """
-        try:
-            if isinstance(dur,distribution):
-                d=-1
-                while d<0:
-                    d=dur.sample()
-                dur=d
        
-            return self.env.process(self._activity(name,dur))
-        except:
-            print('pmpy: error in  duration of activity',name)
+        self.x=location[0]
+        self.y=location[1]
+        self.agent_type=type
+        self.name=type.name
+        self.agent_type.agents.append(self)
+        self.agent_type.x.append(self.x)
+        self.agent_type.y.append(self.y)
+        if type not in self.env.agents:
+            self.env.agents.append(type)
 
-    def interruptive_do(self,name,dur):
-        try:
-            if isinstance(dur,distribution):
-                    d=-1
-                    while d<0:
-                        d=dur.sample()
-                    dur=d
-        except:
-             print('pmpy: error in  duration of activity',name)
-        return self.env.process(self._interruptive_activity(name,dur))
-        
+    def move(self,move_name,speed,vector):
+        '''
+        move the age using the vecor
 
-        
+        Parameters
+        ----------
+        move_name: str
+            name of the move
+        speed: double
+            move_amount per simulation time unit
+        '''
+        pass
 
     def get(self,res,amount=1,priority=1,preempt:bool=False):
         """
-        Entity requests to get a resource using this method. 
+        Agent requests to get a resource using this method. 
 
         Parameters
         ----------
         res : pmpy.resource
-            the resource to be captured by the entity
+            the resource to be captured by the agent
         amount :  int
             The number of resouces to be captured
         priority : int
@@ -223,31 +126,16 @@ class entity:
         pmpy.environment.process
             The process for the request
         """
-        try:
-            if isinstance(amount,distribution):
-                a=-1
-                while a<0:
-                    a=amount.sample()
-                amount=int(a)
-            if type(res)==resource:
-                return self.env.process(res.get(self,amount))
-            elif type(res)==priority_resource:
-                return self.env.process(res.get(self,amount,priority))
-            elif type(res)==preemptive_resource:
-                if amount>1:
-                    print("Warning: amount of preemptive resource is always 1")
-                return res.get(self,priority,preempt)
-        except:
-            print('pmpy: error in get')
+        return super().get(res,amount,priority,preempt)
 
     def add(self,res,amount=1):
         """
-        Entity increases the number of resources using this method.
+        Agent increases the number of resources using this method.
 
         Parameters
         ----------
         res : pmpy.resource
-            the resource to be added by the entity
+            the resource to be added by the agent
         amount :  int
             The number of resouces to be added
         Returns
@@ -264,12 +152,12 @@ class entity:
 
     def put(self,res,amount=1,request=None):
         """
-        Entity puts back the resources using this method.
+        Agent puts back the resources using this method.
 
         Parameters
         ----------
         res : pmpy.resource
-            the resource to be added by the entity
+            the resource to be added by the agent
         amount :  int
             The number of resouces to be put back
         Returns
@@ -297,16 +185,16 @@ class entity:
         res : resource
             Resource for which the eneity is waiting for.
         amount: int
-            Number of resources that the entity is waiting for.
+            Number of resources that the agent is waiting for.
             If the number of entities is not specified, waiting for any number of resources is ok
 
         Returns
         --------
-        True if entity is waiting for the resource, and False if the entity is not waiting for the resource
+        True if agent is waiting for the resource, and False if the agent is not waiting for the resource
         """
 
         for r in res.request_list:
-            if r.entity==self and r.amount==amount:
+            if r.agent==self and r.amount==amount:
                 return True
         return False
 
@@ -318,12 +206,12 @@ class entity:
         res : resource
             Resource for which the eneity is waiting for.
         amount: int
-            Number of resources that the entity is waiting for.
+            Number of resources that the agent is waiting for.
             If the number of entities is not specified, waiting for any number of resources is ok
 
         Returns
         --------
-        Flase if the entitiy is not waiting for the resource, and True if the entity is not waiting for the resource
+        Flase if the entitiy is not waiting for the resource, and True if the agent is not waiting for the resource
         """
         return not self.is_pending(res,amount)
 
@@ -336,14 +224,14 @@ class entity:
         res : resource
             Resource for which the eneity is waiting for.
         amount: int
-            Number of resources that the entity is waiting for.
+            Number of resources that the agent is waiting for.
             If the number of entities is not specified, waiting for any number of resources is ok
 
   
          """
 
         for r in res.request_list:
-            if r.entity==self and r.amount==amount:
+            if r.agent==self and r.amount==amount:
                 res.cancel(r)
                 return 
         
@@ -356,7 +244,7 @@ class entity:
         Returns
         -------
         pandas.DataFrame
-            The schedule of each entity.
+            The schedule of each agent.
             The columns are activity name, and start time and finish time of that activity
         """
         df=DataFrame(data=self._schedule_log[1: , :],columns=['activity','start_time','finish_time'])
@@ -369,9 +257,9 @@ class entity:
         Returns
         -------
         pandas.DataFrame
-            The time the entity started waiting and the time it finished waiting.
-            The columns show the resource name for which the entity is waiting for, time when waiting is started, 
-            time when waiting is finished, and the number of resources the entity is waiting for
+            The time the agent started waiting and the time it finished waiting.
+            The columns show the resource name for which the agent is waiting for, time when waiting is started, 
+            time when waiting is finished, and the number of resources the agent is waiting for
         """
         df=DataFrame(data=self._waiting_log[1: , :],columns=['resource','start_waiting','end_waiting','resource_amount'])
         df['resource']=(df['resource'].map(self.env.resource_names))
@@ -384,7 +272,7 @@ class entity:
         Returns
         -------
         numpy.array
-            The waiting durations of the entity each time it waited for a resource
+            The waiting durations of the agent each time it waited for a resource
         """
         a=self.waiting_log()
         a=a['end_waiting']-a['start_waiting']
@@ -396,7 +284,7 @@ class entity:
         Returns
         -------
         pandas.DataFrame
-            shows any change in the status of an entity, the change can be either
+            shows any change in the status of an agent, the change can be either
             waiting for a resourcing, getting a resources, putting a resource back, or adding to a resouce, 
             or it can be starting or finishing an activity
         """
@@ -420,7 +308,7 @@ class general_resource():
         Parameters
         ----------
         env:pmpy.environment
-            The environment for the entity
+            The environment for the agent
         name : string
             Name of the resource
         id : int
@@ -449,7 +337,7 @@ class general_resource():
         
         #logs
         self._status_log=array([[0,0,0,0]])#time,in-use,idle,queue-length
-        self._queue_log=array([[0,0,0,0]])#entityid,startTime,endTime,amount
+        self._queue_log=array([[0,0,0,0]])#agentid,startTime,endTime,amount
 
 
     def queue_log(self):
@@ -461,8 +349,8 @@ class general_resource():
             All entities waiting for the resource, their start waiting time and
             finish waiting time are stored in this DataFrame
         """
-        df=DataFrame(data=self._queue_log[1: , :],columns=['entity','start_time','finish_time','resource_amount'])
-        df['entity']=df['entity'].map(self.env.entity_names)
+        df=DataFrame(data=self._queue_log[1: , :],columns=['agent','start_time','finish_time','resource_amount'])
+        df['agent']=df['agent'].map(self.env.agent_names)
         return df
 
     def status_log(self):
@@ -491,91 +379,91 @@ class general_resource():
         a=a['finish_time']-a['start_time']
         return a.values
         
-    def _request(self,entity,amount):
+    def _request(self,agent,amount):
         """
-        Calculate needed logs when an entity requests the resource.
+        Calculate needed logs when an agent requests the resource.
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity requesting the resource 
+        agent : pmpy.agent
+            The agent requesting the resource 
         amount : int
             The number of requested resouces 
         """
         self.queue_length+=1
-        if self.print_actions or entity.print_actions:
-            print(entity.name+'('+str(entity.id)+')'
+        if self.print_actions or agent.print_actions:
+            print(agent.name+'('+str(agent.id)+')'
                   +' requested',str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
-        if entity.log:
-            entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
+        if agent.log:
+            agent._status_log=append(agent._status_log,[[self.env.now,agent._status_codes['wait for'],self.id]],axis=0)
 
-    def _get(self,entity,amount):
+    def _get(self,agent,amount):
         """
-        Calculate needed logs when an entity got the resource.
+        Calculate needed logs when an agent got the resource.
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity getting the resource 
+        agent : pmpy.agent
+            The agent getting the resource 
         amount : int
             The number of taken resouces 
         """
         self.queue_length-=1
         self.in_use+=amount
-        if self.print_actions or entity.print_actions:
-            print(entity.name+'('+str(entity.id)+')'
+        if self.print_actions or agent.print_actions:
+            print(agent.name+'('+str(agent.id)+')'
                   +' got '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
-        if entity.log:
-            entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
-        entity.using_resources[self]=amount
+        if agent.log:
+            agent._status_log=append(agent._status_log,[[self.env.now,agent._status_codes['get'],self.id]],axis=0)
+        agent.using_resources[self]=amount
 
-    def _add(self,entity,amount):
+    def _add(self,agent,amount):
         """
-        Calculate needed logs when an entity add to the resource.
+        Calculate needed logs when an agent add to the resource.
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity adding the resource 
+        agent : pmpy.agent
+            The agent adding the resource 
         amount : int
             The number of added resouces 
         """
-        if self.print_actions or entity.print_actions:
-            print(entity.name+'('+str(entity.id)+')'
+        if self.print_actions or agent.print_actions:
+            print(agent.name+'('+str(agent.id)+')'
                   +' added '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
-        if entity.log:
-            entity._status_log=append(entity._status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
+        if agent.log:
+            agent._status_log=append(agent._status_log,[[agent._status_codes['add'],self.id,self.env.now]],axis=0)
 
-    def _put(self,entity,amount):
+    def _put(self,agent,amount):
         """
-        Calculate needed logs when an entity add to the resource.
+        Calculate needed logs when an agent add to the resource.
 
         Parameters
         ----------
-        res : pmpy.entity
-            The entity putting the resource back
+        res : pmpy.agent
+            The agent putting the resource back
         amount : int
             The number of resouces being put back
         """
-        if self not in entity.using_resources:
-            raise Warning(entity.name, "did not got ", self.name,"to put it back")
-        if self in entity.using_resources and entity.using_resources[self]<amount:
-            raise Warning(entity.name, "did not got this many of",self.name, "to put it back")
-        entity.using_resources[self]=entity.using_resources[self]-amount
+        if self not in agent.using_resources:
+            raise Warning(agent.name, "did not got ", self.name,"to put it back")
+        if self in agent.using_resources and agent.using_resources[self]<amount:
+            raise Warning(agent.name, "did not got this many of",self.name, "to put it back")
+        agent.using_resources[self]=agent.using_resources[self]-amount
         self.in_use-=amount
-        if self.print_actions or entity.print_actions:
-            print(entity.name+'('+str(entity.id)+')'
+        if self.print_actions or agent.print_actions:
+            print(agent.name+'('+str(agent.id)+')'
                   +' put back '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
-        if entity.log:
-            entity._status_log=append(entity._status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
+        if agent.log:
+            agent._status_log=append(agent._status_log,[[agent._status_codes['put'],self.id,self.env.now]],axis=0)
         
     def level(self):
         """
@@ -633,11 +521,11 @@ class request():
     A class defining the a priority request for capturing the resources.
     This class allows to keep all the requests in a sorted list of requests.
     """
-    def __init__(self,entity,amount):
-        self.time=entity.env.now
-        self.entity=entity
+    def __init__(self,agent,amount):
+        self.time=agent.env.now
+        self.agent=agent
         self.amount=amount
-        self.flag=simpy.Container(entity.env,init=0)#show if the resource is obtained when flag truns 1
+        self.flag=simpy.Container(agent.env,init=0)#show if the resource is obtained when flag truns 1
         
     
 
@@ -649,7 +537,7 @@ class resource(general_resource):
         Parameters
         ----------
         env:pmpy.environment
-            The environment for the entity
+            The environment for the agent
         name : string
             Name of the resource
         capacity: int
@@ -668,25 +556,25 @@ class resource(general_resource):
         #self.resource=simpy.PriorityResource(env,1) #shoule be deleted
        
 
-    def get(self,entity,amount):
+    def get(self,agent,amount):
         """
         A method for getting the resource. 
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity adding the resource 
+        agent : pmpy.agent
+            The agent adding the resource 
         amount : int
             The number of resouces to be added
         priority : int
             lower values for this input show higher priority
         """ 
-        super()._request(entity,amount)
-        pr=request(entity,amount)
-        entity.pending_requests.append(pr) #append priority request to the eneity
+        super()._request(agent,amount)
+        pr=request(agent,amount)
+        agent.pending_requests.append(pr) #append priority request to the eneity
         self.request_list.append(pr)
         yield self.env.timeout(0) #? why do we need this?
-        yield entity.env.process(self._check_all_requests())
+        yield agent.env.process(self._check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
         
     def _check_all_requests(self):
@@ -697,13 +585,13 @@ class resource(general_resource):
             r=self.request_list.pop(0) #remove the first element from the list
             simpy_request=self.container.get(r.amount)
             yield simpy_request
-            r.entity.pending_requests.remove(r)
+            r.agent.pending_requests.remove(r)
             r.flag.put(1)
-            super()._get(r.entity,r.amount)
+            super()._get(r.agent,r.amount)
             if self.log:
-                self._queue_log=append(self._queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
-            if r.entity.log:
-                r.entity._waiting_log=append(r.entity._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
+                self._queue_log=append(self._queue_log,[[r.agent.id,r.time,self.env.now,r.amount]],axis=0)
+            if r.agent.log:
+                r.agent._waiting_log=append(r.agent._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
 
     def cancel(self,priority_request):
         if request in self.request_list:
@@ -712,35 +600,35 @@ class resource(general_resource):
             print("warning: the request can not be cancled as it is not in the request list")
 
 
-    def add(self,entity,amount):
+    def add(self,agent,amount):
         """
-        A method for adding the resource by the entity.
+        A method for adding the resource by the agent.
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity adding the resource 
+        agent : pmpy.agent
+            The agent adding the resource 
         amount : int
             The number of resouces to be added
         """
         yield self.container.put(amount)
-        super()._add(entity,amount)
-        return entity.env.process(self._check_all_requests())
+        super()._add(agent,amount)
+        return agent.env.process(self._check_all_requests())
 
-    def put(self,entity,amount):
+    def put(self,agent,amount):
         """
-        A method for putting back the resource by the entity.
+        A method for putting back the resource by the agent.
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity adding the resource 
+        agent : pmpy.agent
+            The agent adding the resource 
         amount : int
             The number of resouces to be added
         """
         yield self.container.put(amount)
-        super()._put(entity,amount)
-        return entity.env.process(self._check_all_requests())
+        super()._put(agent,amount)
+        return agent.env.process(self._check_all_requests())
 
         
 class priority_request():
@@ -748,12 +636,12 @@ class priority_request():
     A class defining the a priority request for capturing the resources.
     This class allows to keep all the requests in a sorted list of requests.
     """
-    def __init__(self,entity,amount,priority):
-        self.time=entity.env.now
-        self.entity=entity
+    def __init__(self,agent,amount,priority):
+        self.time=agent.env.now
+        self.agent=agent
         self.amount=amount
         self.priority=priority
-        self.flag=simpy.Container(entity.env,init=0)#show if the resource is obtained
+        self.flag=simpy.Container(agent.env,init=0)#show if the resource is obtained
         
     def __gt__(self,other_request):
         """
@@ -785,7 +673,7 @@ class priority_resource(general_resource):
         Parameters
         ----------
         env:pmpy.environment
-            The environment for the entity
+            The environment for the agent
         name : string
             Name of the resource
         capacity: int
@@ -804,25 +692,25 @@ class priority_resource(general_resource):
         #self.resource=simpy.PriorityResource(env,1) #shoule be deleted
        
 
-    def get(self,entity,amount,priority=1):
+    def get(self,agent,amount,priority=1):
         """
         A method for getting the resource. 
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity adding the resource 
+        agent : pmpy.agent
+            The agent adding the resource 
         amount : int
             The number of resouces to be added
         priority : int
             lower values for this input show higher priority
         """ 
-        super()._request(entity,amount)
-        pr=priority_request(entity,amount,priority)
-        entity.pending_requests.append(pr) #append priority request to the eneity
+        super()._request(agent,amount)
+        pr=priority_request(agent,amount,priority)
+        agent.pending_requests.append(pr) #append priority request to the eneity
         insort_left(self.request_list,pr)
         yield self.env.timeout(0) #? why do we need this?
-        yield entity.env.process(self._check_all_requests())
+        yield agent.env.process(self._check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
         
     def _check_all_requests(self):
@@ -832,13 +720,13 @@ class priority_resource(general_resource):
         while len(self.request_list)>0 and self.request_list[-1].amount<=self.container.level:
             r=self.request_list.pop()
             yield self.container.get(r.amount)
-            r.entity.pending_requests.remove(r)
+            r.agent.pending_requests.remove(r)
             r.flag.put(1)
-            super()._get(r.entity,r.amount)
+            super()._get(r.agent,r.amount)
             if self.log:
-                self._queue_log=append(self._queue_log,[[r.entity.id,r.time,self.env.now,r.amount]],axis=0)
-            if r.entity.log:
-                r.entity._waiting_log=append(r.entity._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
+                self._queue_log=append(self._queue_log,[[r.agent.id,r.time,self.env.now,r.amount]],axis=0)
+            if r.agent.log:
+                r.agent._waiting_log=append(r.agent._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
 
     def cancel(self,priority_request):
         if priority_request in self.request_list:
@@ -847,35 +735,35 @@ class priority_resource(general_resource):
             print("warning: the priority request can not be cancled as it is not in the request list")
 
 
-    def add(self,entity,amount):
+    def add(self,agent,amount):
         """
-        A method for adding the resource by the entity.
+        A method for adding the resource by the agent.
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity adding the resource 
+        agent : pmpy.agent
+            The agent adding the resource 
         amount : int
             The number of resouces to be added
         """
         yield self.container.put(amount)
-        super()._add(entity,amount)
-        return entity.env.process(self._check_all_requests())
+        super()._add(agent,amount)
+        return agent.env.process(self._check_all_requests())
 
-    def put(self,entity,amount):
+    def put(self,agent,amount):
         """
-        A method for putting back the resource by the entity.
+        A method for putting back the resource by the agent.
 
         Parameters
         ----------
-        entity : pmpy.entity
-            The entity adding the resource 
+        agent : pmpy.agent
+            The agent adding the resource 
         amount : int
             The number of resouces to be added
         """
         yield self.container.put(amount)
-        super()._put(entity,amount)
-        return entity.env.process(self._check_all_requests())
+        super()._put(agent,amount)
+        return agent.env.process(self._check_all_requests())
 
 class preemptive_resource(general_resource):
     """
@@ -888,7 +776,7 @@ class preemptive_resource(general_resource):
         Parameters
         ----------
         env:pmpy.environment
-            The environment for the entity
+            The environment for the agent
         name : string
             Name of the resource
         capacity: int
@@ -905,12 +793,12 @@ class preemptive_resource(general_resource):
         super().__init__(env,name,1,1,print_actions,log)
         
         self.resource=simpy.PreemptiveResource(env,1)
-        self.request=None #the request of the entity that is currently using the resource
+        self.request=None #the request of the agent that is currently using the resource
         self.current_entities=None
         self.suspended_entities=None
         
-    def get(self,entity,priority: int,preempt:bool=False):
-        super()._request(entity,1)
+    def get(self,agent,priority: int,preempt:bool=False):
+        super()._request(agent,1)
         while True:
             try:
                 r=self.resource.request(priority,preempt)
@@ -919,12 +807,12 @@ class preemptive_resource(general_resource):
                 print("resource is preempted")
             
         self.request=r #the request that is currently using the rsource
-        super()._get(entity,1)
+        super()._get(agent,1)
 
-    def put(self,entity,request=None):
+    def put(self,agent,request=None):
         #to be added: when waiting to ptu pack soemthing some logs should be calculated
         yield self.resource.release(request)
-        super()._put(entity,1)
+        super()._put(agent,1)
 
     
     
@@ -933,7 +821,7 @@ class preemptive_resource(general_resource):
 *****Environment Class*******************
 *****************************************
 """
-class environment(simpy.Environment):
+class environment(des.environment):
     """
     This class defines the simulation environment. 
     All of the processes, entities and resources are defined in this class. 
@@ -942,29 +830,40 @@ class environment(simpy.Environment):
     ----------
     now : float
         current simulation time
-    
+    width: int
+        width of the environment
+    hight: int
+        hight of the environment
+    agents:list
+        list of all agents created in the environment
     """
-    def __init__(self):
+    def __init__(self,width:int,hight:int):
         """
         Creates an instance of the simulation environment
+        width: int
+            width of the environment
+        hight: int
+            hight of the environment
+
         """
         super().__init__()
-        self.last_entity_id=0
-        self.entity_names={}
-        self.last_res_id=0
-        self.resource_names={}
-        self.run_number=0
-        self.finishedTime=[]
+        self.hight=hight
+        self.width=width
+        self.fig = plt.figure()
+        self.ax = plt.axes(xlim=(0, width), ylim=(0, hight))
+        self.agents=[]
+        self.agents_xloc={} #key is the name and value is list of x values of those agents
+        self.agents_yloc={} #key is the name and value is list of y values of those agents
  
-    def create_entities(self,name,total_number,print_actions=False,log=True):
+    def create_agents(self,name,total_number,shape='o',location=(0,0),print_actions=False,log=True):
         """
-        Create entities by making instances of class entity and adding them to the environemnt.
+        Create entities by making instances of class agent and adding them to the environemnt.
         All the entities are created at the current simulation time: env.now
 
         Parameters
         ----------
         name : string
-            Name of the entities, the name of each entity would be name_0, name_1, ...
+            Name of the agents
         print_actions : bool
             If equal to True, the actions of the entities will be printed in console
         log: bool
@@ -977,9 +876,17 @@ class environment(simpy.Environment):
         """
         Entities=[]
         for i in range(total_number):
-            Entities.append(entity(self,name,print_actions,log))
+            Entities.append(agent(self,name,shape,location,print_actions,log))
         return Entities
 
+    def run(self):
+        #super().__run(until)
+        for agent_t in self.agents:
+            self.ax.plot(agent_t.x,agent_t.y,agent_t.shape,label=agent_t.name)
+    
+        self.ax.legend()
+        plt.show(block=True)
+        print("hi")
 
 
- 
+        

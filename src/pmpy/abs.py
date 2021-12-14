@@ -887,6 +887,31 @@ class environment(des.environment):
         self.ax.legend()
         plt.show(block=True)
         print("hi")
+        '''
+# initialization function: plot the background of each frame
+def init():
+    line.set_data([], [])
+    return line,
+
+# animation function.  This is called sequentially
+def animate(i:int):
+    x = np.linspace(0, 2, 10)
+    y = np.sin(2 * np.pi * (x - 0.01 * i))
+    line.set_data(x, y)
+    return line,
+
+# call the animator.  blit=True means only re-draw the parts that have changed.
+anim = animation.FuncAnimation(fig, animate, init_func=init,
+                               frames=2000, interval=10, blit=True)
+
+# save the animation as an mp4.  This requires ffmpeg or mencoder to be
+# installed.  The extra_args ensure that the x264 codec is used, so that
+# the video can be embedded in html5.  You may need to adjust this for
+# your system: for more information, see
+# http://matplotlib.sourceforge.net/api/animation_api.html
+#anim.save('basic_animation.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
+'''
+
 
 
         

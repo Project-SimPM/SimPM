@@ -10,7 +10,7 @@ Created on Sun Nov 28 22:43:01 2021
 """
 
 import pmpy.des as des
-import pmpy.dists as dist
+import pmpy.dist as dist
 
 
 

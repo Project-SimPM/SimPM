@@ -5,7 +5,7 @@ import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
 
-def fit_dist(data,distType):
+def fit(data,dist_type):
     '''
     Fit a distribution on data using maximum likelihood method
 
@@ -14,36 +14,40 @@ def fit_dist(data,distType):
         data=np.concatenate(data).ravel()
     except:
         pass
-    if distType=='triang':
-        distType='triang'
+    a=None
+    if dist_type=='triang':
+        dist_type='triang'
         params=st.triang.fit(data)
         dist=st.triang(params[0],loc=params[1],scale=params[2])
         a=triang(0,1,2)
         a.dist=dist
-        return a
-    if distType=='norm' :
-        distType='norm'
+        
+    elif dist_type=='norm' :
+        dist_type='norm'
         params=st.norm.fit(data)
         dist=st.norm(loc=params[0],scale=params[1])
         a=norm(0,1)
         a.dist=dist
-        return a
-    if distType=='beta' :
-            distType='beta'
+       
+    elif dist_type=='beta' :
+            dist_type='beta'
             params=st.beta.fit(data)
             dist=st.beta(params[0],params[1],loc=params[2],scale=params[3])
             a=beta(1,1,0,1)
             a.dist=dist
-            return a
-    if distType=='trapz' :
-            distType='trapz'
+            
+    elif dist_type=='trapz' :
+            dist_type='trapz'
             params=st.trapz.fit(data)
             print(params)
             dist=st.trapz(params[0],params[1],loc=params[2],scale=params[3])
             a=trapz(1,2,3,4)
             a.dist=dist
-            return a
-
+    else:
+        raise("Distribution type is not recognized!")
+        return
+    a.ks=st.kstest(a.dist.rvs,data)[0]
+    return a
     
 class distribution():
     '''
@@ -61,6 +65,7 @@ class distribution():
         self.params=None
         self.dist_type=None
         self.dist=None
+        self.ks=None
 
     def sample(self):
         '''
@@ -71,7 +76,21 @@ class distribution():
             A random sample of the distribution
         '''
         return self.dist.rvs()
-        
+
+    def pdf_xy(self,size=100):
+        '''
+        return x,y numpy array of the pdf function for plotting
+        '''
+        low=0.00001
+        high=.99999
+        if self.dist_type=='uniform' or self.dist_type=='triang' or self.dist_type=='trapz':
+            low=0
+            high=1
+        x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),size+1)
+        y=self.dist.pdf(x)
+        return x,y
+
+
     def plot_pdf(self):
         '''
 
@@ -80,15 +99,20 @@ class distribution():
         matplotlib.pylot.plt
             A plot for the probability density function
         '''
+        x,y=self.pdf_xy()
+        plt.plot(x,y,'r')
+        plt.show(block=True)
+        return plt
+
+    def cdf_xy(self,size):
         low=0.00001
         high=.99999
         if self.dist_type=='uniform' or self.dist_type=='triang' or self.dist_type=='trapz':
             low=0
             high=1
-        x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),101)
-        y=self.dist.pdf(x)
-        plt.plot(x,y,'r')
-        return plt
+        x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),size+1)
+        y=self.dist.cdf(x)
+        return x,y
 
     def plot_cdf(self):
         '''
@@ -98,14 +122,9 @@ class distribution():
         matplotlib.pylot.plt
             A plot for the cummulative distribution function
         '''
-        low=0.00001
-        high=.99999
-        if self.dist_type=='uniform' or self.dist_type=='triang' or self.dist_type=='trapz':
-            low=0
-            high=1
-        x=np.linspace(self.dist.ppf(low),self.dist.ppf(high),101)
-        y=self.dist.cdf(x)
+        x,y=self.cdf_xy(100)
         plt.plot(x,y,'b')
+        plt.show(block=True)
         return plt
 
     def percentile(self,q):
@@ -130,7 +149,7 @@ class distribution():
         
 class uniform(distribution):
     def __init__(self,a,b):
-        self.distType='uniform'
+        self.dist_type='uniform'
         Loc=a
         Scale=b-a
         self.params=[Loc,Scale]
@@ -138,12 +157,12 @@ class uniform(distribution):
     
 class norm(distribution):
     def __init__(self,mean,std):
-        self.distType='norm'
+        self.dist_type='norm'
         self.params=[mean,std]
         self.dist=st.norm(loc=mean,scale=std)
 class triang(distribution): 
     def __init__(self,a,b,c):
-        self.distType='triang'
+        self.dist_type='triang'
         Loc=a
         Scale=c-a
         c=(b-a)/Scale
@@ -153,7 +172,7 @@ class triang(distribution):
 class trapz(distribution): 
     def __init__(self,a,b,c,d):
 
-        self.distType='trapz'
+        self.dist_type='trapz'
         Loc=a
         Scale=d-a
         C=(b-a)/(d-a)
@@ -163,14 +182,14 @@ class trapz(distribution):
         self.dist=st.trapz(C,D,loc=Loc,scale=Scale)   
 class beta(distribution): 
     def __init__(self,a,b,minp,maxp):
-        self.distType='beta'
+        self.dist_type='beta'
         Loc=minp
         Scale=maxp-minp
         self.params=[a,b,Loc,Scale]
         self.dist=st.beta(a,b,loc=Loc,scale=Scale)  
 class expon(distribution): 
     def __init__(self,mean):
-        self.distType='expon'
+        self.dist_type='expon'
         Scale=mean
         self.params=[Scale]
         self.dist=st.expon(scale=Scale)
@@ -181,20 +200,28 @@ class emperical(distribution):
             data=np.concatenate(data).ravel()
         except:
             pass
-        self.distType='emperical'
+        self.dist_type='emperical'
         self.params=None
         self.dist=None
         self.data=np.sort(data)
-
-    def plot_cdf(self):
+    def cdf_xy(self):
+        '''
+        returns x,y numpy array for plotting the cdf function
+        '''
+    def cdf_xy(self):
         print('here')
         unique, counts = np.unique(self.data, return_counts=True)
         c=np.cumsum(counts)
         print(c)
         c=c/c[-1]
-        plt.step(unique,c)
-        plt.show()
+        return unique,c
 
+    def plot_cdf(self):
+        x,y=self.cdf_xy()
+        plt.step(x,y)
+        plt.show()
+    def pdf_xy(self):
+        pass
     def plot_pdf(self):
         bins=int(2*len(self.data)**(1/3))
         value,BinList=np.histogram(self.data,bins)

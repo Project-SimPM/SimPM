@@ -39,7 +39,7 @@ def fit(data,dist_type):
     elif dist_type=='trapz' :
             dist_type='trapz'
             params=st.trapz.fit(data)
-            print(params)
+            
             dist=st.trapz(params[0],params[1],loc=params[2],scale=params[3])
             a=trapz(1,2,3,4)
             a.dist=dist
@@ -208,11 +208,10 @@ class emperical(distribution):
         '''
         returns x,y numpy array for plotting the cdf function
         '''
-    def cdf_xy(self):
-        print('here')
+
         unique, counts = np.unique(self.data, return_counts=True)
         c=np.cumsum(counts)
-        print(c)
+        
         c=c/c[-1]
         return unique,c
 
@@ -230,7 +229,7 @@ class emperical(distribution):
         value=value/width
         BinList=BinList[:-1]+np.diff(BinList)[1]/2
         return BinList,value
-        
+
     def plot_pdf(self):
         bins=int(2*len(self.data)**(1/3))
         value,BinList=np.histogram(self.data,bins)

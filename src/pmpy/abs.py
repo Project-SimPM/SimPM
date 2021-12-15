@@ -33,9 +33,14 @@ class agent_type():
     def __init__(self,name,shape):
         self.shape=shape
         self.name=name
-        self.x=[]
-        self.y=[]
         self.agents=[]
+    def xy_list(self):
+        xlist=[]
+        ylist=[]
+        for a in self.agents:
+           xlist.append(a.x) 
+           ylist.append(a.y)
+        return xlist,ylist
         
         
 class agent(des.entity):
@@ -89,11 +94,37 @@ class agent(des.entity):
         self.agent_type=type
         self.name=type.name
         self.agent_type.agents.append(self)
-        self.agent_type.x.append(self.x)
-        self.agent_type.y.append(self.y)
+    
         if type not in self.env.agents:
             self.env.agents.append(type)
 
+    def _move(self,move_name,speed,vector):
+        '''
+        move the age using the vecor
+
+        Parameters
+        ----------
+        move_name: str
+            name of the move
+        speed: double
+            move_amount per simulation time unit
+        '''
+        initial_x=self.x
+        initial_y=self.y
+        for point in vector:
+            destination=point
+            dirx=destination[0]-initial_x
+            diry=destination[1]-initial_y
+            alpha=((self.x*self.x+self.y*self.y)/(speed*speed))**(.5)
+            while  (self.x-destination[0])**2+(self.y-destination[1])**2>(0.5)**2:
+                yield self.env.timeout(1)
+                self.x+=dirx/alpha
+                self.y+=diry/alpha
+            self.x=destination[0]
+            self.y=destination[1]
+            initial_x=self.x
+            initial_y=self.y
+    
     def move(self,move_name,speed,vector):
         '''
         move the age using the vecor
@@ -105,7 +136,8 @@ class agent(des.entity):
         speed: double
             move_amount per simulation time unit
         '''
-        pass
+        return self.env.process(self._move(move_name,speed,vector))
+    
 
     def get(self,res,amount=1,priority=1,preempt:bool=False):
         """
@@ -881,12 +913,29 @@ class environment(des.environment):
 
     def run(self):
         #super().__run(until)
+        # for agent_t in self.agents:
+        #     self.ax.plot(agent_t.x,agent_t.y,agent_t.shape,label=agent_t.name)
+    
+        # self.ax.legend()
+        # plt.show(block=True)
+        while True:
+            try:
+                super().step()
+            except:
+                break
+        
         for agent_t in self.agents:
-            self.ax.plot(agent_t.x,agent_t.y,agent_t.shape,label=agent_t.name)
+            xlist,ylist=agent_t.xy_list()
+            self.ax.plot(xlist,ylist,agent_t.shape,label=agent_t.name)
     
         self.ax.legend()
         plt.show(block=True)
-        print("hi")
+
+        def step(self):
+            super().step()
+            for i in range (self.agents):
+                data=self.agents[i].xy_list()
+                agent_objects[i].setdata(data[0],data[1])
         '''
 # initialization function: plot the background of each frame
 def init():

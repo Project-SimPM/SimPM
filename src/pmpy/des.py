@@ -287,8 +287,8 @@ class entity:
                 if amount>1:
                     amount=1
                     print("Warning: amount of preemptive resource is always 1")
-                return self.env.process(res.put(self))
-        return self.env.process(res.put(self,request))
+                return self.env.process(res.put(self,request))
+        return self.env.process(res.put(self,amount))
     def is_pending(self,res,amount:int=1):
         """
 

@@ -5,18 +5,28 @@ sys.path.insert(0,parentdir)
 
 import pmpy.mcs as mcs
 import pmpy.dist as dist
-
+import matplotlib.pyplot as plt
 def f():
     dur=0
     x=dist.norm(3.4,0.307)
-    for i in range(1000):
+    for i in range(10):
         dur+=x.sample()
-    return dur
+    return dur,dur+1
 
-project_dur=mcs.monte_carlo(f,runs=100)
-projec_dist=dist.emperical(project_dur)
+project_dur=mcs.monte_carlo(f,runs=1000)
+print(project_dur[:,1].shape)
+project_dur[:,1]=project_dur[:,1]
+project_dist=dist.emperical(project_dur)
 project_dist2=dist.fit(project_dur,'norm')
-project_dist2.plot_cdf()
-project_dist2.plot_pdf()
+project_dist.plot_cdf()
+project_dist.plot_pdf()
 
-result=projec_dist.percentile(.8)
+d1=project_dur[:,1]
+d2=project_dur[:,0]
+x1,y1=dist.emperical(d1).cdf_xy()
+x2,y2=dist.emperical(d2).cdf_xy()
+plt.plot(x1,y1,label='1')
+plt.plot(x2,y2,label='2')
+plt.legend()
+plt.show()
+result=project_dist.percentile(.8)

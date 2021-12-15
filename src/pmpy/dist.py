@@ -221,7 +221,16 @@ class emperical(distribution):
         plt.step(x,y)
         plt.show()
     def pdf_xy(self):
-        pass
+        bins=int(2*len(self.data)**(1/3))
+        value,BinList=np.histogram(self.data,bins)
+        value=value/len(self.data)
+        l=BinList[-1]-BinList[0]
+        n=len(BinList)
+        width=l/(n)
+        value=value/width
+        BinList=BinList[:-1]+np.diff(BinList)[1]/2
+        return BinList,value
+        
     def plot_pdf(self):
         bins=int(2*len(self.data)**(1/3))
         value,BinList=np.histogram(self.data,bins)

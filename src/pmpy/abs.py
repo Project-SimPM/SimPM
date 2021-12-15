@@ -935,7 +935,7 @@ class environment(des.environment):
             super().step()
             for i in range (self.agents):
                 data=self.agents[i].xy_list()
-                agent_objects[i].setdata(data[0],data[1])
+                #agent_objects[i].setdata(data[0],data[1])
         '''
 # initialization function: plot the background of each frame
 def init():

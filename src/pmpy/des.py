@@ -697,7 +697,7 @@ class resource(general_resource):
             r=self.request_list.pop(0) #remove the first element from the list
             simpy_request=self.container.get(r.amount)
             yield simpy_request
-            r.entity.pending_requests.remove(r)
+            r.entity.pending_requests.remove(r) 
             r.flag.put(1)
             super()._get(r.entity,r.amount)
             if self.log:
@@ -841,10 +841,17 @@ class priority_resource(general_resource):
                 r.entity._waiting_log=append(r.entity._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
 
     def cancel(self,priority_request):
-        if priority_request in self.request_list:
-            self.request_list.remove(priority_request)
-        else:
-            print("warning: the priority request can not be cancled as it is not in the request list")
+        #***the followig code did not work***
+        #if priority_request in self.request_list:
+            #self.request_list.remove(priority_request)
+            #remove does not work since it uses equal defined in the priority resource class
+        for i in range(len(self.request_list)):
+            pr=self.request_list[i]
+            if pr.entity==priority_request.entity and pr.amount==priority_request.amount:
+                del self.request_list[i]
+                return
+        
+        print("warning: the priority request can not be cancled as it is not in the request list")
 
 
     def add(self,entity,amount):

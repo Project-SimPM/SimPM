@@ -37,13 +37,13 @@ dumpeddirt=d.resource(env,'dirt',init=0,capacity=2000)
 workedHours=d.resource(env,'workedHours',init=0,capacity=2000,print_actions=True)
 
 truckent=d.entity(env,'smallTruck',print_actions=True)
-truckent.attr['loadingDur']=dist.norm(5,4)
+truckent.attr['loadingDur']=dist.uniform(4,5)
 truckent.attr['haulingDur']=dist.uniform(10,14)
 truckent.attr['DumpingDur']=4
 truckent.attr['capacity']=80
 
 truckent2=d.entity(env,'bigTruck',print_actions=True)
-truckent2.attr['loadingDur']=dist.norm(7,4)
+truckent2.attr['loadingDur']=dist.uniform(4,7)
 truckent2.attr['haulingDur']=dist.uniform(12,16)
 truckent2.attr['DumpingDur']=5
 truckent2.attr['capacity']=100

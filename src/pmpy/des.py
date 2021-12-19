@@ -10,7 +10,7 @@ import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
-import matplotlib.pyplot as plt
+
 
 from pmpy.dist import distribution
 

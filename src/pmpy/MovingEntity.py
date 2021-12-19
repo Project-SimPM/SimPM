@@ -44,7 +44,7 @@ class agent_type():
         return xlist,ylist
         
         
-class agent(des.environment.process):
+class agent(des.entity):
     """
     A class that defines an Agents. Agents are virtual objects essential to useful for modeling dynamic systems. 
     Some examples of Agents can be: a customer, communication message, or any resource requiring service.

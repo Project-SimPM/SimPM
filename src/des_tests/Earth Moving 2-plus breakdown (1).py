@@ -16,22 +16,16 @@ def truck_process(truck: des.entity,loader_1,loader_2,dumped_dirt):
      elif truck.not_pending(loader_2):
          L=loader_2
          truck.cancel(loader_1,1) 
-     if truck.env.now>500:
-         print("here")
      start_load_list.append(env.now)
      yield truck.do("loading",truck.attr["load_dur"])
-     if truck.env.now>500:
-         print("here")
-     if L not in truck.using_resources:
-         print("why")
      yield truck.put(L,1)
-     if dumped_dirt.level()>10000:
-         break
      yield truck.add(dumped_dirt,truck.attr["capacity"])
      start_haul_list.append(env.now)
      yield truck.do("hauling",truck.attr["haul_dur"])
      yield truck.do("dumping",truck.attr["dump_dur"])
      yield truck.do("returning",truck.attr["return_dur"])
+     if dumped_dirt.level()>10000:
+         break
      
 def loader_breakdown_proc(repair_man,loader):
     while True:
@@ -80,10 +74,10 @@ production_rate=(dumped_dirt.level()/env.now)
 print("Production Rate is:",production_rate,"m3/minute")
 l2=np.array(start_load_list)
 l1=np.array(start_haul_list)
-#loader_utilization_time=l1-l2
-#loader_utilization_sum=(sum(loader_utilization_time))
-#loader_utilization=(loader_utilization_sum/env.now)
-#print("Loader Utilization is:",loader_utilization)
-#loader_idleness=1-loader_utilization
-#print("Loader Idleness is:",loader_idleness)
+loader_utilization_time=l1-l2
+loader_utilization_sum=(sum(loader_utilization_time))
+loader_utilization=(loader_utilization_sum/env.now)
+print("Loader Utilization is:",loader_utilization)
+loader_idleness=1-loader_utilization
+print("Loader Idleness is:",loader_idleness)
 print("simulation time: ",env.now)

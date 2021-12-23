@@ -7,9 +7,10 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
 import simpy
-from numpy import array, append
+from numpy import array, append,nansum
 from pandas import DataFrame
 from bisect import insort_left
+import matplotlib.pyplot as plt
 
 
 from pmpy.dist import distribution
@@ -490,7 +491,98 @@ class general_resource():
         a=self.queue_log()
         a=a['finish_time']-a['start_time']
         return a.values
+
+    ####*****************plotting is still under construction*************
+    # def plot_utilization(self):
+    #     l=self.status_log()
+    #     y=l["in_use"].values/(l["in_use"].values+l["idle"].values)
+    #     x=l["time"].values
+    #     plt.plot(x,y*100)
+    #     plt.show()
+
+    # def plot_idleness(self):
+    #     l=self.status_log()
+    #     l["idleness%"]=l["idle"].values/(l["in_use"].values+l["idle"].values)*100
+    #     l.plot(x="time",y="idleness%")
+    #     plt.show()
+    
+    # def plot_queue_length(self):
         
+    #     l=self.status_log()
+    #     l.plot(x="time",y="queue_length")
+    #     plt.show()
+
+    def average_utilization(self):
+        """
+
+        Returns
+        -------
+        int
+            The average utilization for the resource
+        """
+        l=self.status_log()
+        t1=l["time"].values[:-1]
+        t2=l["time"].values[1:]
+        y=l["in_use"].values/(l["in_use"].values+l["idle"].values)
+        y_dur=y[:-1]
+        d=t2-t1
+        r= nansum(d*y_dur)/l["time"].values[-1]
+        return r
+
+    def average_idleness(self):
+        """
+        Returns
+        -------
+        int
+            The average idleness for the resource
+        """
+        return 1-self.average_utilization()
+    
+    
+    def total_time_idle(self):
+        """
+        Returns
+        -------
+        int
+            The total idle time of the resource
+        """
+        l=self.status_log()
+        t1=l["time"].values[:-1]
+        t2=l["time"].values[1:]
+        this_level=l["idle"].values
+        this_level=this_level[:-1]
+        d=t2-t1
+        r= nansum(d*this_level)
+        return r
+
+    def total_time_in_use(self):
+        """
+        Returns
+        -------
+        int
+            The total idle time of the resource
+        """
+        l=self.status_log()
+        t1=l["time"].values[:-1]
+        t2=l["time"].values[1:]
+        this_level=l["in_use"].values
+        this_level=this_level[:-1]
+        d=t2-t1
+        r= nansum(d*this_level)
+        return r
+
+    def average_level(self):
+        """
+        Returns
+        -------
+        int
+            The average level for the resource
+        """
+        l=self.status_log()
+        return self.total_time_idle()/l["time"].values[-1]
+
+
+
     def _request(self,entity,amount):
         """
         Calculate needed logs when an entity requests the resource.
@@ -508,6 +600,8 @@ class general_resource():
                   +' requested',str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
+            if self.container.level+self.in_use==0:
+                print("why")
         if entity.log:
             entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
 
@@ -529,6 +623,8 @@ class general_resource():
                   +' got '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
+        if self.container.level+self.in_use==0:
+                print("why")
         if entity.log:
             entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
         entity.using_resources[self]=amount
@@ -549,6 +645,9 @@ class general_resource():
                   +' added '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
+        if self.container.level+self.in_use==0:
+                print("why")
+        
         if entity.log:
             entity._status_log=append(entity._status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
 
@@ -574,6 +673,9 @@ class general_resource():
                   +' put back '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
+        if self.container.level+self.in_use==0:
+                print("why")
+ 
         if entity.log:
             entity._status_log=append(entity._status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
         
@@ -624,7 +726,7 @@ class general_resource():
         Returns
         -------
         float
-            The average waiting queue length for a resource
+            The average  queue length for a resource
         """
         return sum(self.waiting_time())/(self.env.now)
 
@@ -685,7 +787,7 @@ class resource(general_resource):
         pr=request(entity,amount)
         entity.pending_requests.append(pr) #append priority request to the eneity
         self.request_list.append(pr)
-        yield self.env.timeout(0) #? why do we need this?
+        #yield self.env.timeout(0) #? why do we need this?
         yield entity.env.process(self._check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
         

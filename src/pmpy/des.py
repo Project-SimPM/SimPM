@@ -600,8 +600,8 @@ class general_resource():
                   +' requested',str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
-            if self.container.level+self.in_use==0:
-                print("why")
+            #if self.container.level+self.in_use==0:
+            #    print("why")
         if entity.log:
             entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
 

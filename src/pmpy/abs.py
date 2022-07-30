@@ -44,7 +44,7 @@ class agent_type():
         return xlist,ylist
         
         
-class agent(des.environment.process):
+class agent:
     """
     A class that defines an Agents. Agents are virtual objects essential to useful for modeling dynamic systems. 
     Some examples of Agents can be: a customer, communication message, or any resource requiring service.
@@ -67,7 +67,7 @@ class agent(des.environment.process):
     y: location y
         the location y of the agent in the environment
     """
-    def __init__(self,env:des.environment,type:agent_type,location=(0,0),print_actions=False,log=True):
+    def __init__(self,type:agent_type,location=(0,0),quantity=1,log=True):
         """
         Creates an new instance for agent.
 
@@ -87,18 +87,14 @@ class agent(des.environment.process):
             If equals True, various statistics will be collected for the agent
         
         """
-        super().__init__(env,type.name,print_actions,log)
         
-        self.env=env
-        self.name=type.name
         self.x=location[0]
         self.y=location[1]
         self.agent_type=type
-        self.name=type.name
         self.agent_type.agents.append(self)
-    
-        if type not in self.env.agents:
-            self.env.agents.append(type)
+        self.quantity=quantity
+        self.log=log
+
 
     def _move(self,move_name,speed,vector):
         '''

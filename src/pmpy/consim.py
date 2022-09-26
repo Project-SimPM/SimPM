@@ -285,6 +285,7 @@ class activity:
 
 e=project(1)
 r=resource(6)
+r2=resource(2)
 a1=activity(e,"a1",3)
 a2=activity(e,"a2",3)
 a3=activity(e,"a3",6)
@@ -294,7 +295,7 @@ delay(a2,2,2,"owner")
 delay(a3,7,3,"owner")
 
 a3.prerequisite_acts=[a1,a2]
-a1.resource_needs=[(r,3)]
-a2.resource_needs=[(r,3)]
+a1.resource_needs=[(r,3),(r2,2)]
+a2.resource_needs=[(r,3),(r2,2)]
 
 e.delay_analysis()

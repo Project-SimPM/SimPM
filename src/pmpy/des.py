@@ -443,6 +443,7 @@ class general_resource():
         self.id=env.last_res_id
         env.resource_names[self.id]=self.name+'('+str(self.id)+')'
         self.in_use=0
+        self.idle=init
         self.container=simpy.Container(env, capacity,init)
         self.queue_length=0 #number of entities waiting for a resource
         self.request_list=[]
@@ -599,7 +600,7 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' requested',str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
-            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.idle,self.queue_length]],axis=0)
             #if self.container.level+self.in_use==0:
             #    print("why")
         if entity.log:
@@ -618,12 +619,13 @@ class general_resource():
         """
         self.queue_length-=1
         self.in_use+=amount
+        self.idle-=amount
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
                   +' got '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
-            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
-        if self.container.level+self.in_use==0:
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.idle,self.queue_length]],axis=0)
+        if self.idle+self.in_use==0:
                 print("why")
         if entity.log:
             entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
@@ -644,7 +646,7 @@ class general_resource():
             print(entity.name+'('+str(entity.id)+')'
                   +' added '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
-            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.idle,self.queue_length]],axis=0)
         if self.container.level+self.in_use==0:
                 print("why")
         
@@ -666,16 +668,19 @@ class general_resource():
             raise Warning(entity.name, "did not got ", self.name,"to put it back")
         if self in entity.using_resources and entity.using_resources[self]<amount:
             raise Warning(entity.name, "did not got this many of",self.name, "to put it back")
+
         entity.using_resources[self]=entity.using_resources[self]-amount
+
         self.in_use-=amount
+        self.idle+=amount
+
         if self.print_actions or entity.print_actions:
             print(entity.name+'('+str(entity.id)+')'
                   +' put back '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
+
         if self.log:
-            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.container.level,self.queue_length]],axis=0)
-        if self.container.level+self.in_use==0:
-                print("why")
- 
+            self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.idle,self.queue_length]],axis=0)
+
         if entity.log:
             entity._status_log=append(entity._status_log,[[entity._status_codes['put'],self.id,self.env.now]],axis=0)
         

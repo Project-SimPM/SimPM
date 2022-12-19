@@ -601,8 +601,6 @@ class general_resource():
                   +' requested',str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.idle,self.queue_length]],axis=0)
-            #if self.container.level+self.in_use==0:
-            #    print("why")
         if entity.log:
             entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['wait for'],self.id]],axis=0)
 
@@ -625,8 +623,7 @@ class general_resource():
                   +' got '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.idle,self.queue_length]],axis=0)
-        if self.idle+self.in_use==0:
-                print("why")
+
         if entity.log:
             entity._status_log=append(entity._status_log,[[self.env.now,entity._status_codes['get'],self.id]],axis=0)
         entity.using_resources[self]=amount
@@ -647,8 +644,7 @@ class general_resource():
                   +' added '+str(amount),self.name+'(s)'+'('+str(self.id)+')'+', sim_time:',self.env.now)
         if self.log:
             self._status_log=append(self._status_log,[[self.env.now,self.in_use,self.idle,self.queue_length]],axis=0)
-        if self.container.level+self.in_use==0:
-                print("why")
+       
         
         if entity.log:
             entity._status_log=append(entity._status_log,[[entity._status_codes['add'],self.id,self.env.now]],axis=0)
@@ -746,7 +742,9 @@ class request():
         self.amount=amount
         self.flag=simpy.Container(entity.env,init=0)#show if the resource is obtained when flag truns 1
         
-    
+    def __eq__(self,other_request):
+        return self.priority==other_request.priority and self.time==other_request.time and self.amount==other_request.amount
+
 
 class resource(general_resource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
@@ -792,7 +790,7 @@ class resource(general_resource):
         pr=request(entity,amount)
         entity.pending_requests.append(pr) #append priority request to the eneity
         self.request_list.append(pr)
-        #yield self.env.timeout(0) #? why do we need this?
+        yield self.env.timeout(0) #? why do we need this?
         yield entity.env.process(self._check_all_requests())
         yield pr.flag.get(1) #flag shows that the resource is granted
         
@@ -813,7 +811,7 @@ class resource(general_resource):
                 r.entity._waiting_log=append(r.entity._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
 
     def cancel(self,priority_request):
-        if request in self.request_list:
+        if priority_request in self.request_list:
             self.request_list.remove(priority_request)
         else:
             print("warning: the request can not be cancled as it is not in the request list")
@@ -877,6 +875,8 @@ class priority_request():
         return self.priority<other_request.priority
     
     def __eq__(self,other_request):
+        if type(other_request)!=type(self):
+            return False
         return self.priority==other_request.priority and self.time==other_request.time and self.amount==other_request.amount
 
 

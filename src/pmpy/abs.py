@@ -1,11 +1,6 @@
 """
 Discrete Event Simulation for Project Management in Python.
 """
-import os,sys,inspect
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0,parentdir) 
-
 import simpy
 from numpy import array, append
 from pandas import DataFrame
@@ -14,7 +9,6 @@ import matplotlib.pyplot as plt
 from pmpy.dist import distribution
 from matplotlib import animation, lines
 import pmpy.des as des
-
 
 """
 *****************************************

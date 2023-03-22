@@ -1,6 +1,6 @@
 # PmPy - Project Management in python
 
-![Github Workflow Deploy Package](https://img.shields.io/github/workflow/status/Project-PmPy/pmpy/Upload%20Python%20Package?label=deploy)
+![Github Workflow Deploy Package](https://img.shields.io/github/actions/workflow/status/Project-PmPy/pmpy/python-publish.yml?label=deploy)
 ![Github Release Version](https://img.shields.io/github/v/release/Project-PmPy/pmpy)
 ![Github Release Date](https://img.shields.io/github/release-date/project-pmpy/pmpy)
 ![PyPi Package Version](https://img.shields.io/pypi/v/pmpy)
@@ -11,6 +11,12 @@
 
 PmPy offers project management tools in python.
 
+Subpackages:
+- des (discrete event simulation)
+- consim (continuous simulation), 
+- abs (agent-based simulation)
+- mcs (monte carlo simulation)
+- dists (probability distributions) modules.
 ## Using Pmpy
 Getting started quickly:
 ```

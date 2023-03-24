@@ -1,9 +1,8 @@
+"""
+Monte Carlo for Project Management in Python.
+"""
+
 import numpy as np
-'''
-***************************************
-******Monte Carlo**********************
-***************************************
-'''
 
 def monte_carlo(function,runs=1000):
     results=None

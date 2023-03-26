@@ -17,13 +17,13 @@ def truck_process(truck: des.Entity,loader_1,loader_2,dumped_dirt):
          L=loader_2
          truck.cancel(loader_1,1) 
      start_load_list.append(env.now)
-     yield truck.do("loading",truck.attr["load_dur"])
+     yield truck.do("loading",truck._attributes["load_dur"])
      yield truck.put(L,1)
-     yield truck.add(dumped_dirt,truck.attr["capacity"])
+     yield truck.add(dumped_dirt,truck._attributes["capacity"])
      start_haul_list.append(env.now)
-     yield truck.do("hauling",truck.attr["haul_dur"])
-     yield truck.do("dumping",truck.attr["dump_dur"])
-     yield truck.do("returning",truck.attr["return_dur"])
+     yield truck.do("hauling",truck._attributes["haul_dur"])
+     yield truck.do("dumping",truck._attributes["dump_dur"])
+     yield truck.do("returning",truck._attributes["return_dur"])
      if dumped_dirt.level()>10000:
          break
      

@@ -1,6 +1,8 @@
 """
 Discrete Event Simulation for Project Management in Python.
 """
+from typing import Any
+
 import simpy
 from numpy import array, append, nansum
 from pandas import DataFrame
@@ -13,8 +15,8 @@ from pmpy._utils import _swap_dict_keys_values
 
 class Entity:
     """
-    A class that defines an entity. Entities are virtual objects essential to useful for modeling dynamic systems.
-    Some examples of entities can be: a customer, communication message, or any resource requiring service.
+    A class that defines an entity with dictionary-like attributes. Entities are virtual objects essential to useful for modeling dynamic systems.
+    Some examples of entities can be a customer, communication message, or any resource requiring service.
 
     ...
     Attributes
@@ -26,12 +28,12 @@ class Entity:
     env: pmpy.des.environment
         The environemnt in which the entity is defined in
     attr: dict
-        a dictionay containting all the special attributes defined for the entity.
+        a dictionay containting all the special attributes defined for the entity. Manage these attributes with the object (i.e. entity["key"])
     """
 
     def __init__(self, env, name, print_actions=False, log=True):
         """
-        Creates an new instance for entity.
+        Creates a new instance for entity.
 
         Parameters
         ----------
@@ -44,6 +46,7 @@ class Entity:
         log: bool
             If equals True, various statistics will be collected for the entity
         """
+        self._attributes:dict[str,Any] = {}
         self.env = env
         self.name = name
         env.last_entity_id += 1
@@ -51,7 +54,6 @@ class Entity:
         env.entity_names[self.id] = self.name + "(" + str(self.id) + ")"
         self.last_act_id = 0
         self.act_dic = {}
-        self.attr = {}
         self.print_actions = print_actions
         self.log = log
         self.using_resources = {}  # a dictionary showig all the resources an entity is using
@@ -65,31 +67,86 @@ class Entity:
 
         if print_actions:
             print(name + "(" + str(self.id) + ") is created, sim_time:", env.now)
-
-    def __getitem__(self, key):
+    
+    # region dictionary attribute
+    
+    def __getitem__(self, key:str) -> Any:
         """
-        Return the value associated with the given key.
+        Get the value of the attribute with the specified key.
 
         Parameters:
-            key (hashable): The key for the value to retrieve.
+        -----------
+        key: str
+            The key of the attribute to get.
 
         Returns:
-            The value associated with the key.
+        --------
+        The value of the attribute with the specified key.
 
         Raises:
-            KeyError: If the key is not in the dictionary.
+        -------
+        KeyError: If the entity does not have an attribute with the specified key.
         """
-        return self.attr[key]
-
-    def __setitem__(self, key, value):
+        return self._attributes[key]
+    
+    def __setitem__(self, key:str, value: Any):
         """
-        Set the value associated with the given key.
+        Set the value of the attribute with the specified key.
 
         Parameters:
-            key (hashable): The key for the value to set.
-            value (Any): The value to set for the key.
+        -----------
+        key: str
+            The key of the attribute to set.
+        value: Any
+            The value to set for the attribute.
+
+        Returns:
+        --------
+        None
+
+        Raises:
+        -------
+        TypeError: If the key is not a string.
         """
-        self.attr[key] = value
+        if not isinstance(key, str):
+            raise TypeError("Attribute keys must be strings")
+        self._attributes[key] = value
+
+    def __delitem__(self, key):
+        """
+        Delete the attribute with the specified key.
+
+        Parameters:
+        -----------
+        key: str
+            The key of the attribute to delete.
+
+        Returns:
+        --------
+        None
+
+        Raises:
+        -------
+        KeyError: If the entity does not have an attribute with the specified key.
+        """
+        del self._attributes[key]
+
+    def __contains__(self, key):
+        """
+        Check if the entity has an attribute with the specified key.
+
+        Parameters:
+        -----------
+        key: str
+            The key of the attribute to check.
+
+        Returns:
+        --------
+        bool: True if the entity has an attribute with the specified key, False otherwise.
+        """
+        return key in self._attributes
+    
+    # endregion
 
     def _activity(self, name, duration):
         """
@@ -168,6 +225,40 @@ class Entity:
             print(self.name + "(" + str(self.id) + ") finished", name, ", sim_time:", self.env.now)
         if self.log:
             self._status_log = append(self._status_log, [[self.env.now, self._status_codes["finish"], self.act_dic[name]]], axis=0)
+    
+    @property
+    def attributes(self) -> dict[str,Any]:
+        """
+        Get the dictionary of all attributes of the entity.
+
+        Returns:
+        --------
+        dict: A dictionary containing all attributes of the entity.
+        """
+        return self._attributes
+    
+    @attributes.setter
+    def attributes(self, value: dict[str, Any]) -> None:
+        """
+        Set the dictionary of all attributes of the entity.
+
+        Parameters:
+        -----------
+        value: dict
+            A dictionary containing all attributes to be set for the entity.
+
+        Returns:
+        --------
+        None
+
+        Raises:
+        -------
+        TypeError: If the value is not a dictionary.
+        """
+        if not isinstance(value, dict):
+            raise TypeError("Attribute values must be stored in a dictionary.")
+
+        self._attributes = value
 
     def do(self, name, dur):
         """

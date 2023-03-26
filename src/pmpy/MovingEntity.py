@@ -699,7 +699,7 @@ class priority_request():
         return self>other_request or self==other_request
 
         
-class priority_resource(general_resource):
+class PriorityResource(general_resource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         """
         Defines a resource for which a priority queue is implemented. 

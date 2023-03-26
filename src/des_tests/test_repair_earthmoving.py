@@ -32,7 +32,7 @@ def repairPorcess(e,loader,workedHours):
 
 
 env=d.Environment()
-loader=d.priority_resource(env,'loader',init=1,print_actions=True)
+loader=d.PriorityResource(env,'loader',init=1,print_actions=True)
 dumpeddirt=d.Resource(env,'dirt',init=0,capacity=2000)
 workedHours=d.Resource(env,'workedHours',init=0,capacity=2000,print_actions=True)
 

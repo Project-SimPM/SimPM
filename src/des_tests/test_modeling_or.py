@@ -31,8 +31,8 @@ def p2(b,R):
 env=Environment()
 e1=Entity(env,'e1',print_actions=True)
 e2=Entity(env,'e2',print_actions=True)
-R=priority_resource(env,'Truck1',init=0,print_actions=True)
-R2=priority_resource(env,'Truck2',print_actions=True)
+R=PriorityResource(env,'Truck1',init=0,print_actions=True)
+R2=PriorityResource(env,'Truck2',print_actions=True)
 env.process(p1(e1,R2,R))
 env.process(p2(e2,R))
 

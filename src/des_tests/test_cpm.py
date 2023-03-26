@@ -70,7 +70,7 @@ Priorities=[1, 2, 1, 1, 3, 1, 1]
 
 env=des.Environment()
 e=env.create_entities('e',7,print_actions=False)
-Rs=des.priority_resource(env,'totalres',init=4,print_actions=False)
+Rs=des.PriorityResource(env,'totalres',init=4,print_actions=False)
 p0=env.process(a0(e,Rs))
 p1=env.process(a1(e,Rs))
 p2=env.process(a2(e,Rs))

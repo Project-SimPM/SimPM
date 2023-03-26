@@ -42,10 +42,10 @@ start_load_list=[]
 start_haul_list=[]
 large_trucks=[]
 small_trucks=[]
-loader_1=des.priority_resource(env,"Loader1",1,print_actions=True)
+loader_1=des.PriorityResource(env,"Loader1",1,print_actions=True)
 loader_1.attr['time_betwin_break']=500
 loader_1.attr['time_to_fix']=20
-loader_2=des.priority_resource(env,"Loader2",1,print_actions=True)
+loader_2=des.PriorityResource(env,"Loader2",1,print_actions=True)
 loader_2.attr['time_betwin_break']=600
 loader_2.attr['time_to_fix']=25
 for i in range(4):

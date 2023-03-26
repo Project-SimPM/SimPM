@@ -27,7 +27,7 @@ def p2(b,R):
 
     
     
-env=environment()
+env=Environment()
 e1=Entity(env,'e1',print_actions=True)
 e2=Entity(env,'e2',print_actions=True)
 R=preemptive_resource(env,'Truck',print_actions=True)

@@ -36,7 +36,7 @@ def loader_breakdown_proc(repair_man,loader):
         
         
 
-env=des.environment()
+env=des.Environment()
 dumped_dirt=des.resource(env,"dumped_dirt",init=0,capacity=150000)
 start_load_list=[]
 start_haul_list=[]

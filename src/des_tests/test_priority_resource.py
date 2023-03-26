@@ -33,7 +33,7 @@ def pr(env,d,R):
     yield d.do('wait',2)
     yield d.add(R,3)
     
-env=environment()
+env=Environment()
 e1=Entity(env,'e1')
 e2=Entity(env,'e2')
 e3=Entity(env,'e3')

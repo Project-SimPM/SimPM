@@ -1017,7 +1017,7 @@ class preemptive_resource(general_resource):
 """
 
 
-class environment(simpy.Environment):
+class Environment(simpy.Environment):
     """
     This class defines the simulation environment.
     All of the processes, entities and resources are defined in this class.

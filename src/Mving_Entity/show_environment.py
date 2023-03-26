@@ -13,7 +13,7 @@ def f(a:MovingEntity.agent):
 
 
 
-env=MovingEntity.environment((-10,100),(0,100))
+env=MovingEntity.Environment((-10,100),(0,100))
 atype=MovingEntity.agent_type("a",'o')
 btype=MovingEntity.agent_type("b",'^')
 a0=MovingEntity.agent(env,atype,(10,10))

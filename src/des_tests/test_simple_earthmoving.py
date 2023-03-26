@@ -13,7 +13,7 @@ def truck_process(truck:des.Entity,loader:des.resource,dumped_dirt:des.resource)
         yield truck.add(dumped_dirt,60)
 
         yield truck.do("return",13)
-env=des.environment()
+env=des.Environment()
 truck=env.create_entities("truck",10,print_actions=False,log=True)
 loader=des.resource(env,"loader")
 dumped_dirt=des.resource(env,"dirt",init=0,capacity=100000)

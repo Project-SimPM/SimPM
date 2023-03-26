@@ -845,7 +845,7 @@ class preemptive_resource(general_resource):
 *****Environment Class*******************
 *****************************************
 """
-class environment(des.environment):
+class Environment(des.Environment):
     """
     This class defines the simulation environment. 
     All of the processes, entities and resources are defined in this class. 

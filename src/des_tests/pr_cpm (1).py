@@ -92,7 +92,7 @@ def prcpm(list_priority):
         yield e.put(r,2)
         e.attr["finish_time"]=env.now
         e.attr["critical"]=True
-    env=des.environment()
+    env=des.Environment()
     en=env.create_entities("e",7,True,True)
 
 

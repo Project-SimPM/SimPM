@@ -67,7 +67,7 @@ class agent(des.Entity):
     y: location y
         the location y of the agent in the environment
     """
-    def __init__(self,env:des.environment,type:agent_type,location=(0,0),print_actions=False,log=True):
+    def __init__(self,env:des.Environment,type:agent_type,location=(0,0),print_actions=False,log=True):
         """
         Creates an new instance for agent.
 
@@ -855,7 +855,7 @@ class preemptive_resource(general_resource):
 *****Environment Class*******************
 *****************************************
 """
-class environment(des.environment):
+class Environment(des.Environment):
     """
     This class defines the simulation environment. 
     All of the processes, entities and resources are defined in this class. 

@@ -68,7 +68,7 @@ Durations=[dist.triang(2,3,4), dist.triang(1,3,5), 5, 1, dist.triang(3.5,5,6), 4
 Resources=[1, 3, 2, 3, 1, 2, 2] 
 Priorities=[1, 2, 1, 1, 3, 1, 1] 
 
-env=des.environment()
+env=des.Environment()
 e=env.create_entities('e',7,print_actions=False)
 Rs=des.priority_resource(env,'totalres',init=4,print_actions=False)
 p0=env.process(a0(e,Rs))

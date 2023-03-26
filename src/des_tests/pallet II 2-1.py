@@ -7,7 +7,7 @@ import pmpy.des as des
 import pmpy.dist as dist
 import matplotlib as plt
 
-def create_pallets(factory:des.environment,res,damage_pallets_factory):
+def create_pallets(factory:des.Environment,res,damage_pallets_factory):
     while True :
             yield factory.do("work",dist.uniform(3,5))
             yield factory.add(res,10)    
@@ -43,7 +43,7 @@ def worker3_process(worker,site_pallets,installed_pallets) :
             if installed_pallets.level()>=20000:
                 break
                         
-env=des.environment()
+env=des.Environment()
 factory=des.Entity(env,'factory')
 pallets=des.resource(env,'factrory_pallet',init=0,capacity=10000)
 site_pallets=des.resource(env,'site_pallet',init=0,capacity=10000)

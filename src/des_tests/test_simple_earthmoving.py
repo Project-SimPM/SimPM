@@ -3,7 +3,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 import pmpy.des as des
-def truck_process(truck:des.entity,loader:des.resource,dumped_dirt:des.resource):
+def truck_process(truck:des.Entity,loader:des.resource,dumped_dirt:des.resource):
     while True:
         yield truck.get(loader,1)
         yield truck.do("loading",7)

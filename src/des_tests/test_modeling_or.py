@@ -8,7 +8,7 @@ Canceling a request for a resource to model "OR" for getting resources
 '''
 from pmpy.des import *
 
-def p1(a:entity,R2,R):
+def p1(a:Entity,R2,R):
     
     yield a.get(R,2)|a.get(R2,3)
 
@@ -29,8 +29,8 @@ def p2(b,R):
 
     
 env=environment()
-e1=entity(env,'e1',print_actions=True)
-e2=entity(env,'e2',print_actions=True)
+e1=Entity(env,'e1',print_actions=True)
+e2=Entity(env,'e2',print_actions=True)
 R=priority_resource(env,'Truck1',init=0,print_actions=True)
 R2=priority_resource(env,'Truck2',print_actions=True)
 env.process(p1(e1,R2,R))

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from pmpy.dist import distribution
 from pmpy._utils import _swap_dict_keys_values
 
-class entity:
+class Entity:
     """
     A class that defines an entity. Entities are virtual objects essential to useful for modeling dynamic systems.
     Some examples of entities can be: a customer, communication message, or any resource requiring service.
@@ -1062,5 +1062,5 @@ class environment(simpy.Environment):
         """
         Entities = []
         for i in range(total_number):
-            Entities.append(entity(self, name, print_actions, log))
+            Entities.append(Entity(self, name, print_actions, log))
         return Entities

@@ -44,13 +44,13 @@ def worker3_process(worker,site_pallets,installed_pallets) :
                 break
                         
 env=des.environment()
-factory=des.entity(env,'factory')
+factory=des.Entity(env,'factory')
 pallets=des.resource(env,'factrory_pallet',init=0,capacity=10000)
 site_pallets=des.resource(env,'site_pallet',init=0,capacity=10000)
 installed_pallets=des.resource(env,'installed_pallet',init=0,capacity=30000)
-worker1=des.entity(env,'woker')
-worker2=des.entity(env,'woker')
-worker3=des.entity(env,'woker')
+worker1=des.Entity(env,'woker')
+worker2=des.Entity(env,'woker')
+worker3=des.Entity(env,'woker')
 truck=env.create_entities('truck',2)
 damage_pallets_site=des.resource(env,"damage_pallets_site",0)
 damage_pallets_factory=des.resource(env,"damage_pallets_site",0)

@@ -563,7 +563,7 @@ class Request():
         
     
 
-class resource(general_resource):
+class Resource(general_resource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         """
         Defines a resource for which a priority queue is implemented. 

@@ -206,7 +206,7 @@ class Entity:
                 while a < 0:
                     a = amount.sample()
                 amount = int(a)
-            if type(res) == resource:
+            if type(res) == Resource:
                 return self.env.process(res.get(self, amount))
             elif type(res) == priority_resource:
                 return self.env.process(res.get(self, amount, priority))
@@ -717,7 +717,7 @@ class Request:
         return self.priority == other_request.priority and self.time == other_request.time and self.amount == other_request.amount
 
 
-class resource(GeneralResource):
+class Resource(GeneralResource):
     def __init__(self, env, name, init=1, capacity=1000, print_actions=False, log=True):
         """
         Defines a resource for which a priority queue is implemented.

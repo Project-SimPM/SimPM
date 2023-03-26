@@ -3,7 +3,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 import pmpy.des as des
-def truck_process(truck:des.Entity,loader:des.resource,dumped_dirt:des.resource):
+def truck_process(truck:des.Entity,loader:des.Resource,dumped_dirt:des.Resource):
     while True:
         yield truck.get(loader,1)
         yield truck.do("loading",7)
@@ -15,8 +15,8 @@ def truck_process(truck:des.Entity,loader:des.resource,dumped_dirt:des.resource)
         yield truck.do("return",13)
 env=des.Environment()
 truck=env.create_entities("truck",10,print_actions=False,log=True)
-loader=des.resource(env,"loader")
-dumped_dirt=des.resource(env,"dirt",init=0,capacity=100000)
+loader=des.Resource(env,"loader")
+dumped_dirt=des.Resource(env,"dirt",init=0,capacity=100000)
 for t in truck:
     env.process(truck_process(t,loader,dumped_dirt))
 env.run()

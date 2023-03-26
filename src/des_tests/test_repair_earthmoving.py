@@ -33,8 +33,8 @@ def repairPorcess(e,loader,workedHours):
 
 env=d.Environment()
 loader=d.priority_resource(env,'loader',init=1,print_actions=True)
-dumpeddirt=d.resource(env,'dirt',init=0,capacity=2000)
-workedHours=d.resource(env,'workedHours',init=0,capacity=2000,print_actions=True)
+dumpeddirt=d.Resource(env,'dirt',init=0,capacity=2000)
+workedHours=d.Resource(env,'workedHours',init=0,capacity=2000,print_actions=True)
 
 truckent=d.Entity(env,'smallTruck',print_actions=True)
 truckent.attr['loadingDur']=dist.uniform(4,5)

@@ -66,6 +66,31 @@ class Entity:
         if print_actions:
             print(name + "(" + str(self.id) + ") is created, sim_time:", env.now)
 
+    def __getitem__(self, key):
+        """
+        Return the value associated with the given key.
+
+        Parameters:
+            key (hashable): The key for the value to retrieve.
+
+        Returns:
+            The value associated with the key.
+
+        Raises:
+            KeyError: If the key is not in the dictionary.
+        """
+        return self.attr[key]
+
+    def __setitem__(self, key, value):
+        """
+        Set the value associated with the given key.
+
+        Parameters:
+            key (hashable): The key for the value to set.
+            value (Any): The value to set for the key.
+        """
+        self.attr[key] = value
+
     def _activity(self, name, duration):
         """
         This method defines the activity that the entity is doing.

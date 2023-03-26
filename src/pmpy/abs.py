@@ -540,7 +540,7 @@ class general_resource():
         """
         return sum(self.waiting_time())/(self.env.now)
 
-class request():
+class Request():
     """
     A class defining the a priority request for capturing the resources.
     This class allows to keep all the requests in a sorted list of requests.
@@ -594,7 +594,7 @@ class resource(general_resource):
             lower values for this input show higher priority
         """ 
         super()._request(agent,amount)
-        pr=request(agent,amount)
+        pr=Request(agent,amount)
         agent.pending_requests.append(pr) #append priority request to the eneity
         self.request_list.append(pr)
         yield self.env.timeout(0) #? why do we need this?
@@ -618,7 +618,7 @@ class resource(general_resource):
                 r.agent._waiting_log=append(r.agent._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
 
     def cancel(self,priority_request):
-        if request in self.request_list:
+        if Request in self.request_list:
             self.request_list.remove(priority_request)
         else:
             print("warning: the request can not be cancled as it is not in the request list")

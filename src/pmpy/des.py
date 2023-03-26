@@ -210,7 +210,7 @@ class Entity:
                 return self.env.process(res.get(self, amount))
             elif type(res) == PriorityResource:
                 return self.env.process(res.get(self, amount, priority))
-            elif type(res) == preemptive_resource:
+            elif type(res) == PreemptiveResource:
                 if amount > 1:
                     print("Warning: amount of preemptive resource is always 1")
                 return res.get(self, priority, preempt)
@@ -259,7 +259,7 @@ class Entity:
             while a < 0:
                 a = amount.sample()
             amount = int(a)
-        if type(res) == preemptive_resource:
+        if type(res) == PreemptiveResource:
             if amount > 1:
                 amount = 1
                 print("Warning: amount of preemptive resource is always 1")
@@ -959,7 +959,7 @@ class PriorityResource(GeneralResource):
         return entity.env.process(self._check_all_requests())
 
 
-class preemptive_resource(GeneralResource):
+class PreemptiveResource(GeneralResource):
     """
     this class is under construction.
     """

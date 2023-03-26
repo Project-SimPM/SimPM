@@ -30,7 +30,7 @@ def p2(b,R):
 env=Environment()
 e1=Entity(env,'e1',print_actions=True)
 e2=Entity(env,'e2',print_actions=True)
-R=preemptive_resource(env,'Truck',print_actions=True)
+R=PreemptiveResource(env,'Truck',print_actions=True)
 env.process(p1(e1,R))
 env.process(p2(e2,R))
 

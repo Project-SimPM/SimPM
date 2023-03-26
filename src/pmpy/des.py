@@ -388,7 +388,7 @@ class Entity:
 """
 
 
-class general_resource:
+class GeneralResource:
     """
     The parent class for all of pmpy.resources
     """
@@ -717,7 +717,7 @@ class request:
         return self.priority == other_request.priority and self.time == other_request.time and self.amount == other_request.amount
 
 
-class resource(general_resource):
+class resource(GeneralResource):
     def __init__(self, env, name, init=1, capacity=1000, print_actions=False, log=True):
         """
         Defines a resource for which a priority queue is implemented.
@@ -853,7 +853,7 @@ class priority_request:
         return self > other_request or self == other_request
 
 
-class priority_resource(general_resource):
+class priority_resource(GeneralResource):
     def __init__(self, env, name, init=1, capacity=1000, print_actions=False, log=True):
         """
         Defines a resource for which a priority queue is implemented.
@@ -959,7 +959,7 @@ class priority_resource(general_resource):
         return entity.env.process(self._check_all_requests())
 
 
-class preemptive_resource(general_resource):
+class preemptive_resource(GeneralResource):
     """
     this class is under construction.
     """

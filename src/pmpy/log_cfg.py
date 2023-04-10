@@ -1,3 +1,56 @@
+"""
+## PmPy Logging Module
+
+---
+
+### Module-level variables
+ `logger` : This logger holds a `logging.Logger` object for logging messages in the "pmpy" package.
+
+---
+
+### Functions
+ `current_config()`: Returns the last instance of `LogConfig` wich its properties can change
+ 
+---
+
+## LogConfig Class
+ This module provides a  `LogConfig`  class that can be used to configure logging settings in a pmpy.
+ ### Overview
+ The  `LogConfig`  class allows developers to configure logging settings such as log output destination, log level, and log formatting. It provides a way to customize the logging behavior of an application based on specific requirements.
+ ### Class level variable:
+ -  `_last_instance` : A class level variable to hold the last instance created.
+ ### Properties:
+ -  `enabled` : A boolean property indicating whether the logging feature is enabled or disabled.
+-  `logger` : A  `logging.Logger`  object which can be used to log messages.
+-  `console_level` : A property used to get the console level as an integer.
+-  `file_level` : A property to get or set the log level of the file handler.
+-  `file_path` : A property to get the file path for the log file.
+ ### Methods:
+ -  `__init__(...)` : A constructor that initializes the  `LogConfig`  instance.
+-  `_configure_logger()` : A function that configures a logger to allow for logging of messages from the application.
+-  `last_instance(...)` : A class method that returns the last instance of the  `LogConfig`  class if one exists, otherwise it creates a new  `LogConfig`  with default parameters (enabled set to False, console_level set to logging.DEBUG, file_level set to logging.DEBUG, and file_path set to "pmpy.log").
+-  `current_config()` : A function that returns the last instance of  `LogConfig`  so that its properties can be changed.
+ ## Usage
+ To use the  `LogConfig`  class, simply create an instance with the desired parameters, such as:
+from log_cfg import LogConfig
+ log_cfg = LogConfig(enabled=True, console_level=logging.INFO, file_level=logging.WARNING, file_path="my_log.log")
+Once created, you can access the  `logger`  property to log messages, as well as use the other properties to get or set log levels and file paths as necessary.
+log_cfg.logger.info("This is an information message.")
+log_cfg.console_level = logging.WARNING
+log_cfg.file_path = "new_log_file.log"
+If you need to obtain the last instance of  `LogConfig`  that was created, you can use the  `last_instance()`  method:
+log_cfg = LogConfig.last_instance()
+Alternatively, you can use the  `current_config()`  function to obtain and modify the last instance:
+log_cfg = current_config()
+log_cfg.enabled = True
+
+---
+
+## Dependencies
+ This module requires the following modules:
+ -  `logging` 
+-  `colorlog`  (optional, for colorized console output)
+"""
 from __future__ import annotations
 import logging
 import colorlog
@@ -118,9 +171,9 @@ class LogConfig:
     
     @classmethod
     def last_instance(cls) -> LogConfig:
-        """This function returns the last instance of the LogConfig class if one exists, otherwise it creates a new LogConfig with enabled set to True, console_level set to logging.DEBUG, file_level set to logging.DEBUG, and file_path set to "pmpy.log"."""
+        """This function returns the last instance of the LogConfig class if one exists, otherwise it creates a new LogConfig with enabled set to False, console_level set to logging.DEBUG, file_level set to logging.DEBUG, and file_path set to "pmpy.log"."""
         if cls._last_instance is None:
-            return LogConfig(enabled=True, console_level=logging.DEBUG, file_level=logging.DEBUG,
+            return LogConfig(enabled=False, console_level=logging.DEBUG, file_level=logging.DEBUG,
                        file_path='pmpy.log')
         return cls._last_instance
 

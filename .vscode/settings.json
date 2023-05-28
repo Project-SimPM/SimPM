@@ -1,0 +1,12 @@
+{
+  // sets the path to the "src" folder of the workspace as an additional path for Python analysis in VS Code
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/src"
+  ],
+
+  // sets the "PYTHONPATH" environment variable in the integrated terminal of VS Code to include the "src" folder of the workspace. This allows Python to find and import modules located in the "src" folder.
+  "terminal.integrated.env.windows":
+  {
+    "PYTHONPATH": "${workspaceFolder}/src"
+  }
+}

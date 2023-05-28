@@ -3,13 +3,22 @@
 
 ---
 
+### Logging Levels:
+- `logging.DEBUG` = 10
+- `logging.INFO` = 20
+- `logging.WARNING` = 30
+- `logging.ERROR` = 40
+- `logging.CRITICAL` = 50
+
+---
+
 ### Module-level variables
- `logger` : This logger holds a `logging.Logger` object for logging messages in the "simpm" package.
+ `logger` : This logger holds a `logging.Logger` object for logging messages in the simpm package.
 
 ---
 
 ### Functions
- `current_config()`: Returns the last instance of `LogConfig` wich its properties can change
+ `log_config()`: Returns the `LogConfig` object that its properties can change
  
 ---
 
@@ -177,11 +186,38 @@ class LogConfig:
                        file_path='simpm.log')
         return cls._last_instance
 
-def current_config() -> LogConfig:
+def log_config() -> LogConfig:
     """ 
-    Returns the last instance of `LogConfig` that its properties can change
+    Returns the `LogConfig` object that its properties can change
     """
     return LogConfig.last_instance()
 
 logger = logging.getLogger("simpm")
-"""This logger holds a `logging.Logger` object for logging messages in the "simpm" package."""
+"""
+This logger holds a `logging.Logger` object for logging messages in the simpm package.
+
+## Levels:
+- `logging.DEBUG` = 10
+- `logging.INFO` = 20
+- `logging.WARNING` = 30
+- `logging.ERROR` = 40
+- `logging.CRITICAL` = 50
+
+## How To Use
+### Using `log` method
+```python
+logger.log(logging.DEBUG,"This is a DEBUG message")
+logger.log(logging.INFO,"This is an INFO message")
+logger.log(logging.WARNING,"This is a WARNING message")
+logger.log(logging.ERROR,"This is a ERROR message")
+logger.log(logging.CRITICAL,"This is a CRITICAL message")
+```
+### Using `debug`, `info`, `warning`, `error` and `critical` methods
+```python
+logger.debug("This is a DEBUG message")
+logger.info("This is an INFO message")
+logger.warning("This is a WARNING message")
+logger.error("This is a ERROR message")
+logger.critical(logging.CRITICAL,"This is a CRITICAL message")
+```
+"""

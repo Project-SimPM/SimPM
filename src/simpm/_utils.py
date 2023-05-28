@@ -1,5 +1,5 @@
 """
-Internal utility functions for the pmpy package.
+Internal utility functions for the SimPM package.
 
 These functions are intended for internal use only and are not part of the public API.
 """

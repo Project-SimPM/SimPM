@@ -131,5 +131,5 @@ dmypy.json
 # Temporary python file
 *.temp.py
 
-# VSCode settings
-.vscode
+# VSCode settings (include)
+# .vscode

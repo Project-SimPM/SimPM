@@ -12,10 +12,6 @@ import simpy
 from simpm.dist import distribution
 from simpm._utils import _swap_dict_keys_values
 
-# import matplotlib.pyplot as plt
-# from simpm.log_cfg import logger
-
-
 class Entity:
     """
     A class that defines an entity with dictionary-like attributes. Entities are virtual objects essential to useful for modeling dynamic systems.

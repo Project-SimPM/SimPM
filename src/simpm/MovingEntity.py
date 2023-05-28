@@ -1,14 +1,20 @@
 """
 Discrete Event Simulation for Project Management in Python.
 """
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir) 
+
 import simpy
 from numpy import array, append
 from pandas import DataFrame
 from bisect import insort_left
 import matplotlib.pyplot as plt
-from pmpy.dist import distribution
+from simpm.dist import distribution
 from matplotlib import animation, lines
-import pmpy.des as des
+import simpm.des as des
+
 
 """
 *****************************************
@@ -38,7 +44,7 @@ class agent_type():
         return xlist,ylist
         
         
-class agent:
+class agent(des.Entity):
     """
     A class that defines an Agents. Agents are virtual objects essential to useful for modeling dynamic systems. 
     Some examples of Agents can be: a customer, communication message, or any resource requiring service.
@@ -61,7 +67,7 @@ class agent:
     y: location y
         the location y of the agent in the environment
     """
-    def __init__(self,type:agent_type,location=(0,0),quantity=1,log=True):
+    def __init__(self,env:des.Environment,type:agent_type,location=(0,0),print_actions=False,log=True):
         """
         Creates an new instance for agent.
 
@@ -81,14 +87,18 @@ class agent:
             If equals True, various statistics will be collected for the agent
         
         """
+        super().__init__(env,type.name,print_actions,log)
         
+        self.env=env
+        self.name=type.name
         self.x=location[0]
         self.y=location[1]
         self.agent_type=type
+        self.name=type.name
         self.agent_type.agents.append(self)
-        self.quantity=quantity
-        self.log=log
-
+    
+        if type not in self.env.agents:
+            self.env.agents.append(type)
 
     def _move(self,move_name,speed,vector):
         '''

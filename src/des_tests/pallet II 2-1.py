@@ -3,8 +3,8 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
-import pmpy.des as des
-import pmpy.dist as dist
+import simpm.des as des
+import simpm.dist as dist
 import matplotlib as plt
 
 def create_pallets(factory:des.Environment,res,damage_pallets_factory):

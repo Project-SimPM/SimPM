@@ -1,11 +1,6 @@
 """
 Discrete Event Simulation for Project Management in Python.
 """
-import os,sys,inspect
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0,parentdir) 
-
 import simpy
 from numpy import array, append
 from pandas import DataFrame
@@ -14,7 +9,6 @@ import matplotlib.pyplot as plt
 from pmpy.dist import distribution
 from matplotlib import animation, lines
 import pmpy.des as des
-
 
 """
 *****************************************
@@ -546,7 +540,7 @@ class general_resource():
         """
         return sum(self.waiting_time())/(self.env.now)
 
-class request():
+class Request():
     """
     A class defining the a priority request for capturing the resources.
     This class allows to keep all the requests in a sorted list of requests.
@@ -559,7 +553,7 @@ class request():
         
     
 
-class resource(general_resource):
+class Resource(general_resource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         """
         Defines a resource for which a priority queue is implemented. 
@@ -600,7 +594,7 @@ class resource(general_resource):
             lower values for this input show higher priority
         """ 
         super()._request(agent,amount)
-        pr=request(agent,amount)
+        pr=Request(agent,amount)
         agent.pending_requests.append(pr) #append priority request to the eneity
         self.request_list.append(pr)
         yield self.env.timeout(0) #? why do we need this?
@@ -624,7 +618,7 @@ class resource(general_resource):
                 r.agent._waiting_log=append(r.agent._waiting_log,[[self.id,r.time,self.env.now,r.amount]],axis=0)
 
     def cancel(self,priority_request):
-        if request in self.request_list:
+        if Request in self.request_list:
             self.request_list.remove(priority_request)
         else:
             print("warning: the request can not be cancled as it is not in the request list")
@@ -695,7 +689,7 @@ class priority_request():
         return self>other_request or self==other_request
 
         
-class priority_resource(general_resource):
+class PriorityResource(general_resource):
     def __init__(self,env,name, init=1,capacity=1000,print_actions=False,log=True):
         """
         Defines a resource for which a priority queue is implemented. 
@@ -851,7 +845,7 @@ class preemptive_resource(general_resource):
 *****Environment Class*******************
 *****************************************
 """
-class environment(des.environment):
+class Environment(des.Environment):
     """
     This class defines the simulation environment. 
     All of the processes, entities and resources are defined in this class. 

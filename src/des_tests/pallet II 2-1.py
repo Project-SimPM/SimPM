@@ -7,7 +7,7 @@ import pmpy.des as des
 import pmpy.dist as dist
 import matplotlib as plt
 
-def create_pallets(factory:des.environment,res,damage_pallets_factory):
+def create_pallets(factory:des.Environment,res,damage_pallets_factory):
     while True :
             yield factory.do("work",dist.uniform(3,5))
             yield factory.add(res,10)    
@@ -43,17 +43,17 @@ def worker3_process(worker,site_pallets,installed_pallets) :
             if installed_pallets.level()>=20000:
                 break
                         
-env=des.environment()
-factory=des.entity(env,'factory')
-pallets=des.resource(env,'factrory_pallet',init=0,capacity=10000)
-site_pallets=des.resource(env,'site_pallet',init=0,capacity=10000)
-installed_pallets=des.resource(env,'installed_pallet',init=0,capacity=30000)
-worker1=des.entity(env,'woker')
-worker2=des.entity(env,'woker')
-worker3=des.entity(env,'woker')
+env=des.Environment()
+factory=des.Entity(env,'factory')
+pallets=des.Resource(env,'factrory_pallet',init=0,capacity=10000)
+site_pallets=des.Resource(env,'site_pallet',init=0,capacity=10000)
+installed_pallets=des.Resource(env,'installed_pallet',init=0,capacity=30000)
+worker1=des.Entity(env,'woker')
+worker2=des.Entity(env,'woker')
+worker3=des.Entity(env,'woker')
 truck=env.create_entities('truck',2)
-damage_pallets_site=des.resource(env,"damage_pallets_site",0)
-damage_pallets_factory=des.resource(env,"damage_pallets_site",0)
+damage_pallets_site=des.Resource(env,"damage_pallets_site",0)
+damage_pallets_factory=des.Resource(env,"damage_pallets_site",0)
 env.process(create_pallets(factory,pallets,damage_pallets_factory))
 env.process(truck_process(truck[0],pallets,site_pallets,damage_pallets_site,damage_pallets_factory))
 env.process(truck_process(truck[1],pallets,site_pallets,damage_pallets_site,damage_pallets_factory))

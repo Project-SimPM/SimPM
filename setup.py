@@ -2,19 +2,34 @@
 Followed from: https://github.com/cfengine/cf-remote
 More: https://youtu.be/U-aIPTS580s
 """
-from setuptools import setup
+import re
 import subprocess
+from setuptools import setup
 
-# Get the last tag from git
-pmpy_version = (
-    subprocess.run(["git", "describe", "--tags"], stdout=subprocess.PIPE)
-    .stdout.decode("utf-8")
-    .strip()
-)
+def get_version() -> str:
+    """get the last version tag from git
 
-# Check version validation
-assert "." in pmpy_version
+    Returns:
+        str: version tag
+    """
+    return subprocess.run(["git", "describe", "--tags"], stdout=subprocess.PIPE,check=False).stdout.decode("utf-8").strip()
 
-setup(
-    version=pmpy_version
-)
+def validate_version(version: str) -> bool:
+    """Validate Version (example: 1.0.1)
+
+    Args:
+        version (str): version
+
+    Returns:
+        bool: if it validates, returns True, else False
+    """
+    pattern = r'\d+\.\d+\.\d+'
+    return bool(re.match(pattern, version))
+
+
+# get version
+pmpy_version = get_version()
+# version validation
+assert validate_version(pmpy_version)
+# setup
+setup(version=pmpy_version)

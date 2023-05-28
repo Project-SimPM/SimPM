@@ -9,21 +9,21 @@ import matplotlib.pyplot as plt
 
 
 def f(a:MovingEntity.agent):
-    yield a.move("1",a.attr["speed"],[(.5,20)])
+    yield a.move("1",a._attributes["speed"],[(.5,20)])
 
 
 
-env=MovingEntity.environment((-10,100),(0,100))
+env=MovingEntity.Environment((-10,100),(0,100))
 atype=MovingEntity.agent_type("a",'o')
 btype=MovingEntity.agent_type("b",'^')
 a0=MovingEntity.agent(env,atype,(10,10))
-a0.attr["speed"]=1
+a0._attributes["speed"]=1
 a1=MovingEntity.agent(env,btype,(50,10))
-a1.attr["speed"]=.1
+a1._attributes["speed"]=.1
 a2=MovingEntity.agent(env,btype,(50,40))
-a2.attr["speed"]=.5
+a2._attributes["speed"]=.5
 a3=MovingEntity.agent(env,btype,(30,10))
-a3.attr["speed"]=.3
+a3._attributes["speed"]=.3
 env.process(f(a1))
 env.process(f(a2))
 env.process(f(a3))

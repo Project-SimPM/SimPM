@@ -1,3 +1,4 @@
+# Requirements for development
 pylint
-autopep8
+black
 ipykernel

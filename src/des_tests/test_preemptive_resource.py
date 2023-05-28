@@ -8,7 +8,7 @@ testing preemptive resources
 this is not working yet
 '''
 
-def p1(a:entity,R):
+def p1(a:Entity,R):
 
     yield a.get(R,1,False)
     yield a.interruptive_do('something',10)
@@ -27,10 +27,10 @@ def p2(b,R):
 
     
     
-env=environment()
-e1=entity(env,'e1',print_actions=True)
-e2=entity(env,'e2',print_actions=True)
-R=preemptive_resource(env,'Truck',print_actions=True)
+env=Environment()
+e1=Entity(env,'e1',print_actions=True)
+e2=Entity(env,'e2',print_actions=True)
+R=PreemptiveResource(env,'Truck',print_actions=True)
 env.process(p1(e1,R))
 env.process(p2(e2,R))
 

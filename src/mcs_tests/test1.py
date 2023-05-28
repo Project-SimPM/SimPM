@@ -3,8 +3,8 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
-import pmpy.mcs as mcs
-import pmpy.dist as dist
+import simpm.mcs as mcs
+import simpm.dist as dist
 import matplotlib.pyplot as plt
 def f():
     dur=0

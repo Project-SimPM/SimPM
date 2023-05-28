@@ -3,7 +3,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
-import pmpy.des as des
+import simpm.des as des
 
 def prcpm(list_priority):
     def a0(e,r):

@@ -28,8 +28,8 @@ def validate_version(version: str) -> bool:
 
 
 # get version
-pmpy_version = get_version()
+simpm_version = get_version()
 # version validation
-assert validate_version(pmpy_version)
+assert validate_version(simpm_version)
 # setup
-setup(version=pmpy_version)
+setup(version=simpm_version)

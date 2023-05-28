@@ -3,8 +3,8 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
-import pmpy.des as d
-import pmpy.dist as dist
+import simpm.des as d
+import simpm.dist as dist
 
 '''
 earthmoving example with repair

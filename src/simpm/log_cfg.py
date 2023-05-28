@@ -1,10 +1,10 @@
 """
-## PmPy Logging Module
+## SimPM Logging Module
 
 ---
 
 ### Module-level variables
- `logger` : This logger holds a `logging.Logger` object for logging messages in the "pmpy" package.
+ `logger` : This logger holds a `logging.Logger` object for logging messages in the "simpm" package.
 
 ---
 
@@ -14,7 +14,7 @@
 ---
 
 ## LogConfig Class
- This module provides a  `LogConfig`  class that can be used to configure logging settings in a pmpy.
+ This module provides a  `LogConfig`  class that can be used to configure logging settings in a simpm.
  ### Overview
  The  `LogConfig`  class allows developers to configure logging settings such as log output destination, log level, and log formatting. It provides a way to customize the logging behavior of an application based on specific requirements.
  ### Class level variable:
@@ -28,7 +28,7 @@
  ### Methods:
  -  `__init__(...)` : A constructor that initializes the  `LogConfig`  instance.
 -  `_configure_logger()` : A function that configures a logger to allow for logging of messages from the application.
--  `last_instance(...)` : A class method that returns the last instance of the  `LogConfig`  class if one exists, otherwise it creates a new  `LogConfig`  with default parameters (enabled set to False, console_level set to logging.DEBUG, file_level set to logging.DEBUG, and file_path set to "pmpy.log").
+-  `last_instance(...)` : A class method that returns the last instance of the  `LogConfig`  class if one exists, otherwise it creates a new  `LogConfig`  with default parameters (enabled set to False, console_level set to logging.DEBUG, file_level set to logging.DEBUG, and file_path set to "simpm.log").
 -  `current_config()` : A function that returns the last instance of  `LogConfig`  so that its properties can be changed.
  ## Usage
  To use the  `LogConfig`  class, simply create an instance with the desired parameters, such as:
@@ -72,13 +72,13 @@ class LogConfig:
             return self.log_instance.enabled
         
     def __init__(self, enabled=False, console_level=logging.DEBUG, file_level=logging.DEBUG, 
-                 file_path='pmpy.log'):     
+                 file_path='simpm.log'):     
         
         self.enabled = enabled
         """This boolean property indicates whether the feature is enabled or disabled."""
         
-        # pmpy logger instance
-        self._logger = logging.getLogger("pmpy")
+        # simpm logger instance
+        self._logger = logging.getLogger("simpm")
         
         self._console_level = console_level
         self._file_level = file_level
@@ -171,10 +171,10 @@ class LogConfig:
     
     @classmethod
     def last_instance(cls) -> LogConfig:
-        """This function returns the last instance of the LogConfig class if one exists, otherwise it creates a new LogConfig with enabled set to False, console_level set to logging.DEBUG, file_level set to logging.DEBUG, and file_path set to "pmpy.log"."""
+        """This function returns the last instance of the LogConfig class if one exists, otherwise it creates a new LogConfig with enabled set to False, console_level set to logging.DEBUG, file_level set to logging.DEBUG, and file_path set to "simpm.log"."""
         if cls._last_instance is None:
             return LogConfig(enabled=False, console_level=logging.DEBUG, file_level=logging.DEBUG,
-                       file_path='pmpy.log')
+                       file_path='simpm.log')
         return cls._last_instance
 
 def current_config() -> LogConfig:
@@ -183,5 +183,5 @@ def current_config() -> LogConfig:
     """
     return LogConfig.last_instance()
 
-logger = logging.getLogger("pmpy")
-"""This logger holds a `logging.Logger` object for logging messages in the "pmpy" package."""
+logger = logging.getLogger("simpm")
+"""This logger holds a `logging.Logger` object for logging messages in the "simpm" package."""

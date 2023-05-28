@@ -6,7 +6,7 @@ sys.path.insert(0,parentdir)
 Canceling a request for a resource to model "OR" for getting resources
 
 '''
-from pmpy.des import *
+from simpm.des import *
 
 def p1(a:Entity,R2,R):
     

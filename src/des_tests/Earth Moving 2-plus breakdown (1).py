@@ -4,7 +4,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
-import pmpy.des as des
+import simpm.des as des
 import numpy as np
 def truck_process(truck: des.Entity,loader_1,loader_2,dumped_dirt):
     while True:

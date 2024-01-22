@@ -9,7 +9,7 @@
 ![Github Issues](https://img.shields.io/github/issues/Project-SimPM/SimPM)
 ![Github Pull Requests](https://img.shields.io/github/issues-pr/Project-SimPM/SimPM)
 
-SimPM offers simulation tools in project management.
+SimPM offers a discrete event simulation library for project management in Python.
 
 Subpackages:
 - des (discrete event simulation)

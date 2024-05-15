@@ -27,5 +27,3 @@
 
 .. autoclass:: Resource
     :members:
-
-

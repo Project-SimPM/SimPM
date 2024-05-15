@@ -21,3 +21,4 @@ Contents
 .. toctree::
 
    api
+   api_reference/index

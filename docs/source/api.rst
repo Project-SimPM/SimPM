@@ -3,5 +3,7 @@ API
 
 .. autosummary::
    :toctree: generated
-
-   simpm.des
+   
+   des
+   dist
+   log_cfg

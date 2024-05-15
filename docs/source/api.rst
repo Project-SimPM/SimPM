@@ -4,4 +4,5 @@ API
 .. autosummary::
    :toctree: generated
    
-   simpm
+   simpm.des
+   simpm.dist

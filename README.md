@@ -1,9 +1,10 @@
 # SimPM - Simulation Tool in Project Management
 
 ![Github Workflow Deploy Package](https://img.shields.io/github/actions/workflow/status/Project-SimPM/SimPM/python-publish.yml?label=deploy)
+[![Documentation Status](https://readthedocs.org/projects/simpm/badge/?version=latest)](https://simpm.readthedocs.io/en/latest/?badge=latest)
 ![Github Release Version](https://img.shields.io/github/v/release/Project-SimPM/SimPM)
-![Github Release Date](https://img.shields.io/github/release-date/Project-SimPM/SimPM)
 ![PyPi Package Version](https://img.shields.io/pypi/v/simpm)
+![Github Release Date](https://img.shields.io/github/release-date/Project-SimPM/SimPM)
 ![PyPi Package Downloads](https://img.shields.io/pypi/dm/simpm)
 ![Github License](https://img.shields.io/github/license/Project-SimPM/SimPM)
 ![Github Issues](https://img.shields.io/github/issues/Project-SimPM/SimPM)

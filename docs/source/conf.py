@@ -4,6 +4,7 @@
 import sys
 import os
 from datetime import date
+import importlib.metadata
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -19,8 +20,12 @@ sys.path.insert(0, "../../src/simpm")
 project = "SimPM"
 copyright = f"2021-{date.today().year}, Project SimPM Team"
 author = 'Project SimPM Team'
-release = '0.1'
-version = '0.1.0'
+
+# The full version, including alpha/beta/rc tags.
+release: str = importlib.metadata.version('simpm')
+# The short X.Y version.
+version: str = '.'.join(release.split('.')[:2])
+
 
 # If your documentation needs a minimal Sphinx version, state it here.
 # needs_sphinx = '1.0'

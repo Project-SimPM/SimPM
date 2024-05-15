@@ -1,0 +1,5 @@
+=========
+``simpm``
+=========
+
+.. automodule:: simpm

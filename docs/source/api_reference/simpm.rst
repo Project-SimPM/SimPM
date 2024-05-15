@@ -1,5 +1,10 @@
 =========
-``simpm``
+``simpm`` --- Simulation Tool in Project Management
 =========
 
-.. automodule:: simpm
+.. autosummary::
+   :toctree: generated
+
+   simpm.des
+   simpm.dist
+   simpm.log_cfg

@@ -14,5 +14,5 @@ components.
 
    simpm
    simpm.des
-   simpy.dist
-   simpy.log_cfg
+   simpm.dist
+   simpm.log_cfg

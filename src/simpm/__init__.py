@@ -4,4 +4,4 @@ from simpm.des import *
 from simpm.dist import *
 from simpm.log_cfg import log_config, logger
 
-__version__ = "2.0.2"
+__version__ = "2.0.3"

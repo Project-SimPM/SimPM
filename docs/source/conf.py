@@ -61,9 +61,15 @@ intersphinx_disabled_domains = ['std']
 # a list of builtin themes.
 html_theme = 'sphinx_rtd_theme'
 
+html_static_path = ["_static"]
+
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = "images/simpm_logo.png"
+html_logo = "_static/simpm_logo.png"
+
+html_theme_options = {
+    "logo_only": True,
+}
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32

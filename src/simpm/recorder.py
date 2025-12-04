@@ -21,7 +21,14 @@ class SimulationObserver(Protocol):
     def on_resource_created(self, resource):
         ...
 
-    def on_activity_started(self, entity, activity_name: str, activity_id: int, start_time: float):
+    def on_activity_started(
+        self,
+        entity,
+        activity_name: str,
+        activity_id: int,
+        start_time: float,
+        duration_info: dict[str, Any] | None = None,
+    ):
         ...
 
     def on_activity_finished(self, entity, activity_name: str, activity_id: int, end_time: float):
@@ -67,6 +74,37 @@ class RunRecorder(SimulationObserver):
 
     def on_run_finished(self, env):
         self.end_time = env.now
+        # capture entity and resource log data that are only available after the run
+        for entity in env.entities:
+            ent_data = self.entities.get(entity.id)
+            if not ent_data:
+                continue
+            try:
+                ent_data["schedule_log"] = entity.schedule().to_dict(orient="records")
+                ent_data["status_log"] = entity.status_log().to_dict(orient="records")
+                ent_data["waiting_log"] = entity.waiting_log().to_dict(orient="records")
+                ent_data["waiting_time"] = entity.waiting_time().tolist()
+            except Exception:
+                # best effort capture; don't break finalization if a log is unavailable
+                pass
+
+        for res in env.resources:
+            res_data = self.resources.get(res.id)
+            if not res_data:
+                continue
+            try:
+                res_data["queue_log"] = res.queue_log().to_dict(orient="records")
+                res_data["status_log"] = res.status_log().to_dict(orient="records")
+                res_data["waiting_time"] = res.waiting_time().tolist()
+                res_data["stats"] = {
+                    "average_queue_length": res.average_queue_length(),
+                    "average_utilization": res.average_utilization(),
+                    "average_idleness": res.average_idleness(),
+                    "total_time_idle": res.total_time_idle(),
+                    "total_time_in_use": res.total_time_in_use(),
+                }
+            except Exception:
+                pass
 
     def on_entity_created(self, entity):
         self.entities[entity.id] = {
@@ -76,6 +114,10 @@ class RunRecorder(SimulationObserver):
             "activities": [],
             "logs": [],
             "attributes": dict(getattr(entity, "_attributes", {})),
+            "schedule_log": [],
+            "status_log": [],
+            "waiting_log": [],
+            "waiting_time": [],
         }
 
     def on_resource_created(self, resource):
@@ -87,9 +129,20 @@ class RunRecorder(SimulationObserver):
             "initial_level": getattr(resource.container, "_init", None),
             "usage": [],
             "logs": [],
+            "queue_log": [],
+            "status_log": [],
+            "waiting_time": [],
+            "stats": {},
         }
 
-    def on_activity_started(self, entity, activity_name: str, activity_id: int, start_time: float):
+    def on_activity_started(
+        self,
+        entity,
+        activity_name: str,
+        activity_id: int,
+        start_time: float,
+        duration_info: dict[str, Any] | None = None,
+    ):
         entity_data = self.entities.setdefault(
             entity.id,
             {
@@ -107,6 +160,8 @@ class RunRecorder(SimulationObserver):
                 "activity_name": activity_name,
                 "start": start_time,
                 "end": None,
+                "duration_info": duration_info,
+                "sampled_duration": duration_info.get("sampled_duration") if duration_info else None,
             }
         )
 
@@ -203,13 +258,27 @@ class StreamingRunRecorder(RunRecorder):
         super().on_resource_created(resource)
         self._enqueue("resource_created", {"resource": self.resources[resource.id]})
 
-    def on_activity_started(self, entity, activity_name: str, activity_id: int, start_time: float):
-        super().on_activity_started(entity, activity_name, activity_id, start_time)
+    def on_activity_started(
+        self,
+        entity,
+        activity_name: str,
+        activity_id: int,
+        start_time: float,
+        duration_info: dict[str, Any] | None = None,
+    ):
+        super().on_activity_started(entity, activity_name, activity_id, start_time, duration_info)
         self._enqueue(
             "activity_started",
             {
                 "entity_id": entity.id,
-                "activity": {"activity_id": activity_id, "activity_name": activity_name, "start": start_time, "end": None},
+                "activity": {
+                    "activity_id": activity_id,
+                    "activity_name": activity_name,
+                    "start": start_time,
+                    "end": None,
+                    "duration_info": duration_info,
+                    "sampled_duration": duration_info.get("sampled_duration") if duration_info else None,
+                },
             },
         )
 

@@ -263,6 +263,11 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
 def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     updated = dict(run_data)
     evt_type = event.get("event")
+    if isinstance(evt_type, dict):
+        updated_logs = list(updated.get("logs", []))
+        updated_logs.append(evt_type)
+        updated["logs"] = updated_logs
+        return updated
     if evt_type == "entity_created":
         updated_entities = list(updated.get("entities", []))
         updated_entities.append(event["entity"])
@@ -303,7 +308,7 @@ def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, A
                 break
         updated["resources"] = resources
     elif evt_type == "log":
-        log_event = event.get("event", {})
+        log_event = event.get("payload") or event.get("log_event") or event.get("event", {})
         updated_logs = list(updated.get("logs", []))
         updated_logs.append(log_event)
         updated["logs"] = updated_logs

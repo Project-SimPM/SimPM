@@ -15,34 +15,74 @@ except ImportError as exc:  # pragma: no cover - handled at runtime
     ) from exc
 
 
-NAV_STYLE = {"width": "25%", "borderRight": "1px solid #ddd", "padding": "8px", "overflowY": "auto", "height": "100vh"}
-CONTENT_STYLE = {"width": "75%", "padding": "12px"}
+CONTENT_STYLE = {"width": "100%", "padding": "12px"}
+
+BUTTON_BASE_STYLE = {
+    "borderRadius": "12px",
+    "border": "1px solid transparent",
+    "padding": "10px 14px",
+    "margin": "6px",
+    "cursor": "pointer",
+    "boxShadow": "0 1px 3px rgba(0, 0, 0, 0.15)",
+}
+
+ENTITY_BUTTON_STYLE = {
+    "backgroundColor": "#e6f4ea",
+    "borderColor": "#34a853",
+    "color": "#0b3d1b",
+}
+
+RESOURCE_BUTTON_STYLE = {
+    "backgroundColor": "#e6f0ff",
+    "borderColor": "#1a73e8",
+    "color": "#0b2a66",
+}
+
+ENVIRONMENT_BUTTON_STYLE = {
+    "backgroundColor": "#f1f3f4",
+    "borderColor": "#5f6368",
+    "color": "#202124",
+}
 
 
-def _nav_button(label: str, path: str, level: int = 0):
-    return html.Div(
-        html.Button(label, id={"type": "nav-node", "path": path}, n_clicks=0, style={"width": "100%", "textAlign": "left", "marginLeft": f"{level * 12}px"}),
+def _styled_button(label: str, path: str, style: dict[str, str]):
+    return html.Button(
+        label,
+        id={"type": "nav-node", "path": path},
+        n_clicks=0,
+        style={**BUTTON_BASE_STYLE, **style},
     )
 
 
-def build_nav_tree(run_data: dict[str, Any]):
+def build_selection_list(run_data: dict[str, Any]):
     entities = run_data.get("entities", [])
     resources = run_data.get("resources", [])
     env_name = run_data.get("environment", {}).get("name", "Environment")
 
-    items = [_nav_button(env_name, "environment")]
-    items.append(html.Div("Entities", style={"fontWeight": "bold", "marginTop": "8px"}))
-    for ent in entities:
-        ent_path = f"entity:{ent['id']}"
-        items.append(_nav_button(f"{ent['name']} (Entity {ent['id']})", ent_path, level=1))
-        for act in ent.get("activities", []):
-            act_path = f"activity:{ent['id']}:{act['activity_id']}"
-            items.append(_nav_button(f"{act['activity_name']} (Activity)", act_path, level=2))
-    items.append(html.Div("Resources", style={"fontWeight": "bold", "marginTop": "8px"}))
-    for res in resources:
-        res_path = f"resource:{res['id']}"
-        items.append(_nav_button(f"{res['name']} (Resource {res['id']})", res_path, level=1))
-    return items
+    def _section(title: str, children):
+        return html.Div(
+            [
+                html.Div(title, style={"fontWeight": "bold", "marginTop": "4px"}),
+                html.Div(children, style={"display": "flex", "flexWrap": "wrap", "marginTop": "4px"}),
+            ]
+        )
+
+    entity_buttons = [
+        _styled_button(f"{ent['name']} (Entity {ent['id']})", f"entity:{ent['id']}", ENTITY_BUTTON_STYLE)
+        for ent in entities
+    ]
+    resource_buttons = [
+        _styled_button(f"{res['name']} (Resource {res['id']})", f"resource:{res['id']}", RESOURCE_BUTTON_STYLE)
+        for res in resources
+    ]
+
+    return html.Div(
+        [
+            _section("Environment", _styled_button(env_name, "environment", ENVIRONMENT_BUTTON_STYLE)),
+            _section("Entities", entity_buttons or html.Div("No entities available.")),
+            _section("Resources", resource_buttons or html.Div("No resources available.")),
+        ]
+    )
 
 
 def _build_overview_cards(run_data: dict[str, Any]):
@@ -151,19 +191,15 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
             dcc.Interval(id="live-interval", interval=500, n_intervals=0, disabled=live_queue is None),
             html.Div(
                 [
-                    html.Div(id="nav-tree", style=NAV_STYLE),
-                    html.Div(
-                        [
-                            html.Div(id="detail-overview"),
-                            html.H4("Logs"),
-                            html.Div(id="detail-logs"),
-                        ],
-                        style=CONTENT_STYLE,
-                    ),
+                    html.Div(id="selection-list", style={"marginBottom": "16px"}),
+                    html.Div(id="detail-overview"),
+                    html.H4("Logs"),
+                    html.Div(id="detail-logs"),
                 ],
-                style={"display": "flex", "height": "100vh"},
+                style=CONTENT_STYLE,
             ),
-        ]
+        ],
+        style={"height": "100vh", "overflowY": "auto"},
     )
 
     @app.callback(Output("run-data", "data"), Input("live-interval", "n_intervals"), State("run-data", "data"))
@@ -178,9 +214,9 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
             changed = True
         return updated if changed else current_data
 
-    @app.callback(Output("nav-tree", "children"), Input("run-data", "data"))
-    def _render_tree(data):
-        return build_nav_tree(data)
+    @app.callback(Output("selection-list", "children"), Input("run-data", "data"))
+    def _render_selection(data):
+        return build_selection_list(data)
 
     @app.callback(
         Output("selected-node", "data"),

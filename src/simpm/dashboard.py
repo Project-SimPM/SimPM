@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from queue import Queue
 from statistics import fmean, median, pstdev
 from typing import Any
 
@@ -16,6 +15,8 @@ except ImportError as exc:  # pragma: no cover - handled at runtime
     raise ImportError(
         "Plotly Dash is required for dashboard mode. Install with `pip install dash plotly`."
     ) from exc
+
+from simpm.dashboard_data import collect_run_data
 
 
 CONTENT_STYLE = {"width": "100%", "padding": "12px"}
@@ -549,18 +550,26 @@ def _activity_distribution(entity: dict[str, Any], activity_id: int):
 
 
 def _resource_usage(resource: dict[str, Any]):
-    events = sorted(resource.get("usage", []), key=lambda x: x["time"])
-    if not events:
-        return html.Div("No usage events recorded for this resource.")
-    cumulative = []
-    total = 0
-    times = []
-    for event in events:
-        total += event.get("delta", 0)
-        times.append(event.get("time", 0))
-        cumulative.append(total)
-    fig = px.line(x=times, y=cumulative, labels={"x": "Time", "y": "Units in use"}, title="Resource utilization over time")
-    fig.update_layout(height=300)
+    status_log = resource.get("status_log", [])
+    if not status_log:
+        return html.Div("No status records available for this resource.")
+
+    times = [row.get("time") for row in status_log]
+    in_use = [row.get("in_use") for row in status_log]
+    queue = [row.get("queue_length") for row in status_log]
+
+    fig = px.step(
+        x=times,
+        y=[in_use, queue],
+        labels={"x": "Time", "value": "Count", "variable": "Series"},
+    )
+    fig.update_traces(mode="lines")
+    fig.update_layout(
+        height=320,
+        title="Resource usage and queue over time",
+        legend_title_text="",
+    )
+    fig.for_each_trace(lambda t: t.update(name="In use" if t.name == "wide_variable_0" else "Queue length"))
     return dcc.Graph(figure=fig)
 
 
@@ -597,13 +606,14 @@ def _resource_logs(resource: dict[str, Any]):
     return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
 
 
-def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash:
+def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
     app = Dash(__name__)
+    initial_data = collect_run_data(env).as_dict()
     app.layout = html.Div(
         [
-            dcc.Store(id="run-data", data=run_data),
+            dcc.Store(id="run-data", data=initial_data),
             dcc.Store(id="selected-node", data="environment"),
-            dcc.Interval(id="live-interval", interval=500, n_intervals=0, disabled=live_queue is None),
+            dcc.Interval(id="live-interval", interval=refresh_ms, n_intervals=0, disabled=not live),
             html.Div(
                 [
                     _build_tabs(),
@@ -618,17 +628,11 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
         style={"height": "100vh", "overflowY": "auto"},
     )
 
-    @app.callback(Output("run-data", "data"), Input("live-interval", "n_intervals"), State("run-data", "data"))
-    def _update_live_data(_, current_data):
-        if live_queue is None:
-            return current_data
-        updated = dict(current_data)
-        changed = False
-        while not live_queue.empty():
-            event = live_queue.get()
-            updated = _apply_event(updated, event)
-            changed = True
-        return updated if changed else current_data
+    @app.callback(Output("run-data", "data"), Input("live-interval", "n_intervals"), prevent_initial_call=True)
+    def _update_live_data(_):
+        if not live:
+            return dash.no_update
+        return collect_run_data(env).as_dict()
 
     def _default_path(tab_value: str, data: dict[str, Any]) -> str:
         if tab_value == "environment":
@@ -810,123 +814,15 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
     return app
 
 
-def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
-    updated = dict(run_data)
-    evt_raw = event.get("event")
-    if isinstance(evt_raw, dict):
-        log_event = evt_raw
-        updated_logs = list(updated.get("logs", []))
-        updated_logs.append(log_event)
-        updated["logs"] = updated_logs
-        return updated
-    evt_type = evt_raw
-    if evt_type == "entity_created":
-        updated_entities = list(updated.get("entities", []))
-        updated_entities.append(event["entity"])
-        updated["entities"] = updated_entities
-    elif evt_type == "resource_created":
-        updated_resources = list(updated.get("resources", []))
-        updated_resources.append(event["resource"])
-        updated["resources"] = updated_resources
-    elif evt_type in {"activity_started", "activity_finished"}:
-        ent_id = event.get("entity_id")
-        entities = list(updated.get("entities", []))
-        for ent in entities:
-            if ent.get("id") == ent_id:
-                if evt_type == "activity_started":
-                    ent.setdefault("activities", []).append(event.get("activity", {}))
-                else:
-                    for act in ent.get("activities", []):
-                        if act.get("activity_id") == event.get("activity_id") and act.get("end") is None:
-                            act["end"] = event.get("end_time")
-                            if act.get("start") is not None and act.get("end") is not None:
-                                act["duration"] = act["end"] - act["start"]
-                            break
-                break
-        updated["entities"] = entities
-    elif evt_type in {"resource_acquired", "resource_released"}:
-        res_id = event.get("resource_id")
-        resources = list(updated.get("resources", []))
-        for res in resources:
-            if res.get("id") == res_id:
-                res.setdefault("usage", []).append(
-                    {
-                        "time": event.get("time"),
-                        "delta": event.get("amount") if evt_type == "resource_acquired" else -event.get("amount"),
-                        "entity_id": event.get("entity_id"),
-                        "action": "acquired" if evt_type == "resource_acquired" else "released",
-                    }
-                )
-                break
-        updated["resources"] = resources
-    elif evt_type == "log":
-        log_event = event.get("payload") or event.get("log_event") or event.get("event", {})
-        updated_logs = list(updated.get("logs", []))
-        updated_logs.append(log_event)
-        updated["logs"] = updated_logs
-        # fan out to relevant scopes so log tabs populate in live dashboards
-        src_type = log_event.get("source_type")
-        if src_type == "entity":
-            ent_id = log_event.get("source_id")
-            for ent in updated.get("entities", []):
-                if ent.get("id") == ent_id:
-                    ent.setdefault("logs", []).append(log_event)
-                    break
-        elif src_type == "resource":
-            res_id = log_event.get("source_id")
-            for res in updated.get("resources", []):
-                if res.get("id") == res_id:
-                    res.setdefault("logs", []).append(log_event)
-                    break
-        elif src_type == "activity":
-            act_id = log_event.get("source_id")
-            ent_id = log_event.get("metadata", {}).get("entity_id")
-            for ent in updated.get("entities", []):
-                if ent_id is not None and ent.get("id") != ent_id:
-                    continue
-                ent.setdefault("logs", []).append(log_event)
-                if act_id is not None:
-                    ent.setdefault("activities", [])
-                    break
-        return updated
-    elif evt_type == "run_finished":
-        env_info = dict(updated.get("environment", {}))
-        time_info = dict(env_info.get("time", {}))
-        time_info["end"] = event.get("time")
-        env_info["time"] = time_info
-        updated["environment"] = env_info
-    elif evt_type == "entity_snapshot":
-        ent = event.get("entity", {})
-        entities = list(updated.get("entities", []))
-        for idx, existing in enumerate(entities):
-            if existing.get("id") == ent.get("id"):
-                entities[idx] = ent
-                break
-        else:
-            entities.append(ent)
-        updated["entities"] = entities
-    elif evt_type == "resource_snapshot":
-        res = event.get("resource", {})
-        resources = list(updated.get("resources", []))
-        for idx, existing in enumerate(resources):
-            if existing.get("id") == res.get("id"):
-                resources[idx] = res
-                break
-        else:
-            resources.append(res)
-        updated["resources"] = resources
-    return updated
-
-
-def run_post_dashboard(run_data: dict[str, Any], host: str = "127.0.0.1", port: int = 8050):
-    app = build_app(run_data)
+def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050):
+    app = build_app(env)
     runner, runner_name = _select_dash_runner(app)
     logger.info("Starting post-run dashboard with %s at http://%s:%s", runner_name, host, port)
     runner(host=host, port=port, debug=False)
 
 
-def run_live_dashboard(run_data: dict[str, Any], event_queue: Queue, host: str = "127.0.0.1", port: int = 8050):
-    app = build_app(run_data, live_queue=event_queue)
+def run_live_dashboard(env, host: str = "127.0.0.1", port: int = 8050):
+    app = build_app(env, live=True)
 
     logger.info("Launching live dashboard thread at http://%s:%s", host, port)
 

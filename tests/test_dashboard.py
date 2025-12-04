@@ -2,7 +2,6 @@ import importlib
 import logging
 import sys
 import types
-from queue import Queue
 
 import pytest
 
@@ -83,36 +82,20 @@ def dashboard_module(monkeypatch):
     sys.modules.pop("simpm.dashboard", None)
 
 
-def test_apply_event_updates_run_data(dashboard_module):
-    run_data = {"entities": [], "resources": [], "logs": []}
+def test_build_app_populates_initial_snapshot(monkeypatch, dashboard_module):
+    snapshot_data = {"environment": {}, "entities": ["ent"], "resources": ["res"], "logs": []}
 
-    updated = dashboard_module._apply_event(run_data, {"event": "entity_created", "entity": {"id": 1, "activities": []}})
-    updated = dashboard_module._apply_event(updated, {"event": "resource_created", "resource": {"id": 10, "usage": []}})
-    updated = dashboard_module._apply_event(
-        updated,
-        {"event": "activity_started", "entity_id": 1, "activity": {"activity_id": 5, "start": 0}},
-    )
-    updated = dashboard_module._apply_event(
-        updated,
-        {"event": "activity_finished", "entity_id": 1, "activity_id": 5, "end_time": 3},
-    )
-    updated = dashboard_module._apply_event(
-        updated,
-        {"event": "resource_acquired", "resource_id": 10, "entity_id": 1, "time": 0, "amount": 1},
-    )
-    updated = dashboard_module._apply_event(
-        updated,
-        {"event": "resource_released", "resource_id": 10, "entity_id": 1, "time": 2, "amount": 1},
-    )
-    updated = dashboard_module._apply_event(updated, {"event": "log", "event": {"message": "hello"}})
+    class DummySnapshot:
+        def as_dict(self):
+            return snapshot_data
 
-    entity = updated["entities"][0]
-    resource = updated["resources"][0]
+    monkeypatch.setattr(dashboard_module, "collect_run_data", lambda env: DummySnapshot())
 
-    assert len(entity["activities"]) == 1
-    assert entity["activities"][0]["duration"] == 3
-    assert [entry["action"] for entry in resource["usage"]] == ["acquired", "released"]
-    assert updated["logs"] == [{"message": "hello"}]
+    app = dashboard_module.build_app(env=object(), live=False)
+    layout_children = app.layout["args"][0]
+    run_store = next(child for child in layout_children if child["kwargs"].get("id") == "run-data")
+
+    assert run_store["kwargs"]["data"] == snapshot_data
 
 
 def test_run_live_dashboard_starts_thread(monkeypatch, dashboard_module):
@@ -136,10 +119,7 @@ def test_run_live_dashboard_starts_thread(monkeypatch, dashboard_module):
 
     monkeypatch.setattr(dashboard_module.threading, "Thread", _thread_factory)
 
-    run_data = {"entities": [], "resources": [], "logs": []}
-    queue = Queue()
-
-    app = dashboard_module.run_live_dashboard(run_data, queue, host="0.0.0.0", port=9000)
+    app = dashboard_module.run_live_dashboard(env=object(), host="0.0.0.0", port=9000)
 
     assert threads and threads[0].daemon is True
     assert threads[0].started is True
@@ -156,13 +136,13 @@ def test_dashboard_launch_logging(monkeypatch, caplog, dashboard_module):
         def run(self, host, port, debug=False):
             calls["method"] = ("run", (host, port, debug))
 
-    def _build_app(run_data, live_queue=None):
+    def _build_app(env, live=False, refresh_ms=500):
         return DummyApp()
 
     monkeypatch.setattr(dashboard_module, "build_app", _build_app)
 
     with caplog.at_level(logging.INFO):
-        dashboard_module.run_post_dashboard({"logs": []}, host="0.0.0.0", port=9100)
+        dashboard_module.run_post_dashboard(env=object(), host="0.0.0.0", port=9100)
 
     assert calls.get("method") == ("run_server", ("0.0.0.0", 9100, False))
     assert "Starting post-run dashboard" in caplog.text

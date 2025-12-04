@@ -4,7 +4,7 @@ from simpm import des
 from simpm.recorder import StreamingRunRecorder
 
 
-def test_entity_snapshots_include_logs_during_run():
+def test_streaming_recorder_emits_final_snapshot():
     env = des.Environment()
     loader = des.Resource(env, "loader", capacity=1, init=1)
     first, second = env.create_entities("truck", 2)
@@ -21,14 +21,9 @@ def test_entity_snapshots_include_logs_during_run():
     env.register_observer(recorder)
     env.run()
 
-    snapshots: dict[int, dict] = {}
-    while not recorder.event_queue.empty():
-        event = recorder.event_queue.get_nowait()
-        if event.get("event") == "entity_snapshot":
-            entity = event.get("entity", {})
-            snapshots[entity.get("id")] = entity
-
-    assert snapshots, "expected entity snapshots to be published"
-    assert snapshots[first.id]["schedule_log"], "first entity should record schedule entries"
-    assert snapshots[second.id]["status_log"], "waiting entity should record status changes"
-    assert snapshots[second.id]["waiting_log"], "waiting entity should report waiting episodes"
+    event = recorder.event_queue.get_nowait()
+    assert event["event"] == "run_finished"
+    data = event["run_data"]
+    assert len(data["entities"]) == 2
+    assert len(data["resources"]) == 1
+    assert any(ent.get("schedule_log") for ent in data["entities"])

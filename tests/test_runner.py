@@ -1,4 +1,5 @@
 import simpm.des as des
+from simpm import des
 from simpm.recorder import RunRecorder
 import simpm
 
@@ -29,8 +30,8 @@ def test_run_recorder_collects_basic_data():
     assert len(data["resources"]) == 1
     activities = data["entities"][0]["activities"]
     assert activities and activities[0]["duration"] == 2
-    usage = data["resources"][0]["usage"]
-    assert any(event["action"] == "acquired" for event in usage)
+    status = data["resources"][0]["status_log"]
+    assert status, "resource status log should be captured from the environment"
 
 
 def test_run_function_without_dashboard():

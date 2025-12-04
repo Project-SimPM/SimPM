@@ -1,6 +1,7 @@
 """Plotly Dash dashboard for SimPM runs."""
 from __future__ import annotations
 
+import json
 import threading
 from queue import Queue
 from typing import Any
@@ -42,6 +43,7 @@ ENVIRONMENT_BUTTON_STYLE = {
     "backgroundColor": "#f1f3f4",
     "borderColor": "#5f6368",
     "color": "#202124",
+    "borderRadius": "4px",
 }
 
 ACTIVITY_BUTTON_STYLE = {
@@ -90,6 +92,41 @@ def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return activities
 
 
+def _collect_logs(run_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Collect and flatten logs from environment, entities, and resources."""
+
+    seen: set[str] = set()
+    rows: list[dict[str, Any]] = []
+
+    def _push(log: dict[str, Any]):
+        key = json.dumps(log, sort_keys=True, default=str)
+        if key in seen:
+            return
+        seen.add(key)
+        entry = dict(log)
+        metadata = entry.pop("metadata", None)
+        if isinstance(metadata, dict):
+            for meta_key, meta_value in metadata.items():
+                entry[f"metadata.{meta_key}"] = meta_value
+        rows.append(entry)
+
+    for log in run_data.get("logs", []):
+        if isinstance(log, dict):
+            _push(log)
+
+    for entity in run_data.get("entities", []):
+        for log in entity.get("logs", []):
+            if isinstance(log, dict):
+                _push(log)
+
+    for resource in run_data.get("resources", []):
+        for log in resource.get("logs", []):
+            if isinstance(log, dict):
+                _push(log)
+
+    return rows
+
+
 def _section(title: str, children):
     return html.Div(
         [
@@ -105,7 +142,14 @@ def _build_tab_selection(run_data: dict[str, Any], tab: str):
     env_name = run_data.get("environment", {}).get("name", "Environment")
 
     if tab == "environment":
-        return _section("Environment", _styled_button(env_name, "environment", ENVIRONMENT_BUTTON_STYLE))
+        return _section(
+            "Environment",
+            _styled_button(
+                env_name,
+                "environment",
+                {**ENVIRONMENT_BUTTON_STYLE, "padding": "8px 12px", "margin": "0"},
+            ),
+        )
 
     if tab == "entities":
         entity_buttons = [
@@ -177,12 +221,16 @@ def _global_activity_plot(run_data: dict[str, Any]):
 
 
 def _environment_logs(run_data: dict[str, Any]):
-    logs = run_data.get("logs", [])
+    logs = _collect_logs(run_data)
     if not logs:
         return html.Div("No logs collected for this run.")
+    columns = [
+        {"name": col, "id": col}
+        for col in sorted({k for row in logs for k in row.keys()})
+    ]
     return dash_table.DataTable(
         data=logs,
-        columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())],
+        columns=columns,
         page_size=10,
         style_table={"overflowX": "auto"},
     )

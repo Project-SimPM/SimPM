@@ -35,10 +35,6 @@ BUTTON_BASE_STYLE = {
 def _select_dash_runner(app: Dash):
     """Return the callable used to run a Dash app and its name for logging."""
 
-    run_method = getattr(app, "run", None)
-    if callable(run_method):
-        return run_method, "run"
-
     try:
         run_server_method = getattr(app, "run_server")
     except Exception:  # pragma: no cover - Dash may raise on obsolete attrs
@@ -46,6 +42,10 @@ def _select_dash_runner(app: Dash):
 
     if callable(run_server_method):
         return run_server_method, "run_server"
+
+    run_method = getattr(app, "run", None)
+    if callable(run_method):
+        return run_method, "run"
 
     raise RuntimeError("Dash app provides neither 'run' nor 'run_server' methods")
 

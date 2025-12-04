@@ -335,25 +335,38 @@ class Entity:
         if self._current_timeout is not None and not self._current_timeout.triggered:
             self._current_timeout.fail(cause)
 
+        activity_name = self._current_interruptible
+
+        if activity_name is None:
+            if self.print_actions:
+                print(
+                    f"{self.name}({self.id}) was preempted but no activity was recorded as running, sim_time: {self.env.now}"
+                )
+            return
+
         if self.print_actions:
-            print(self.name + "(" + str(self.id) + ") finished", name, ", sim_time:", self.env.now)
+            print(self.name + "(" + str(self.id) + ") finished", activity_name, ", sim_time:", self.env.now)
         if self.log:
-            self._status_log = append(self._status_log, [[self.env.now, self._status_codes["finish"], self.act_dic[name]]], axis=0)
+            self._status_log = append(
+                self._status_log,
+                [[self.env.now, self._status_codes["finish"], self.act_dic[activity_name]]],
+                axis=0,
+            )
 
         self.env._notify_observers(
             "on_activity_finished",
             entity=self,
-            activity_name=name,
-            activity_id=self.act_dic[name],
+            activity_name=activity_name,
+            activity_id=self.act_dic[activity_name],
             end_time=self.env.now,
         )
 
         if self.log:
             self.env.log_event(
                 source_type="activity",
-                source_id=self.act_dic[name],
-                message=f"Activity {name} finished",
-                metadata={"entity_id": self.id, "activity_name": name},
+                source_id=self.act_dic[activity_name],
+                message=f"Activity {activity_name} finished",
+                metadata={"entity_id": self.id, "activity_name": activity_name},
             )
 
     @property

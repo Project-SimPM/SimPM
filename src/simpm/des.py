@@ -39,6 +39,15 @@ def _describe_duration(duration: Any) -> dict[str, Any]:
         "parameters": duration,
         "sampled_duration": duration,
     }
+class Preempted(Exception):
+    """Exception raised when an interruptible activity is preempted by a resource."""
+
+    def __init__(self, by, resource, usage_since):
+        super().__init__("Activity preempted")
+        self.by = by
+        self.resource = resource
+        self.usage_since = usage_since
+
 
 class Entity:
     """
@@ -84,6 +93,8 @@ class Entity:
         self.print_actions: bool = print_actions
         self.log: bool = log
         self.using_resources = {}  # a dictionary showing all the resources an entity is using
+        self._current_interruptible: str | None = None
+        self._current_timeout: Event | None = None
 
         # ***logs
         self._schedule_log = array([[0, 0, 0]])  # act_id,act_start_time,act_finish_time
@@ -301,13 +312,28 @@ class Entity:
             )
 
         done_in = duration_value
-        while done_in:
-            try:
-                start = self.env.now
-                yield self.env.timeout(done_in)
-                done_in = 0
-            except simpy.Interrupt:
-                done_in -= self.env.now - start
+        self._current_interruptible = name
+        try:
+            while done_in:
+                try:
+                    start = self.env.now
+                    self._current_timeout = self.env.timeout(done_in)
+                    yield self._current_timeout
+                    done_in = 0
+                except simpy.Interrupt:
+                    done_in -= self.env.now - start
+                except Preempted:
+                    done_in -= self.env.now - start
+                    raise
+        finally:
+            self._current_timeout = None
+            self._current_interruptible = None
+
+    def _on_preempted(self, resource, cause: Preempted):
+        """Propagate a preemption into the current interruptible activity."""
+
+        if self._current_timeout is not None and not self._current_timeout.triggered:
+            self._current_timeout.fail(cause)
 
         if self.print_actions:
             print(self.name + "(" + str(self.id) + ") finished", name, ", sim_time:", self.env.now)
@@ -415,14 +441,14 @@ class Entity:
                 while a < 0:
                     a = amount.sample()
                 amount = int(a)
-            if type(res) == Resource:
-                return self.env.process(res.get(self, amount))
-            elif type(res) == PriorityResource:
-                return self.env.process(res.get(self, amount, priority))
-            elif type(res) == PreemptiveResource:
+            if isinstance(res, PreemptiveResource):
                 if amount > 1:
                     print("Warning: amount of preemptive resource is always 1")
-                return res.get(self, priority, preempt)
+                return self.env.process(res.get(self, amount, priority, preempt))
+            if isinstance(res, PriorityResource):
+                return self.env.process(res.get(self, amount, priority))
+            if isinstance(res, Resource):
+                return self.env.process(res.get(self, amount))
         except:
             print("simpm: error in get")
 
@@ -1097,6 +1123,23 @@ class PriorityRequest:
         return self > other_request or self == other_request
 
 
+class PreemptiveRequest:
+    """Request type used for preemptive resources."""
+
+    def __init__(self, entity, amount, priority, preempt, env):
+        self.time = env.now
+        self.entity = entity
+        self.amount = amount
+        self.priority = priority
+        self.preempt = preempt
+        self.flag = simpy.Container(env, init=0)
+        self.usage_since = None
+        self.key = (self.priority, self.time, not self.preempt)
+
+    def __lt__(self, other_request):
+        return self.key < other_request.key
+
+
 class PriorityResource(GeneralResource):
     def __init__(self, env, name, init=1, capacity=1000, print_actions=False, log=True):
         """
@@ -1204,79 +1247,99 @@ class PriorityResource(GeneralResource):
 
 
 class PreemptiveResource(GeneralResource):
-    """
-    this class is under construction.
-    """
+    """Resource with priority-based preemption (capacity is assumed to be 1)."""
 
     def __init__(self, env, name, print_actions=False, log=True):
-        """
-        Defines a resource for which a priority queue is implemented.
-
-        Parameters
-        ----------
-        env:simpm.environment
-            The environment for the entity
-        name : string
-            Name of the resource
-        capacity: int
-            Maximum capacity for the resource, defualt value is 1000.
-        init: int
-            Initial number of resources, defualt value is 1.
-        print_actions : bool
-            If equal to True, the changes in the resource will be printed in console.
-            defualt value is False
-        log: bool
-            If equals True, various statistics will be collected for the resource.
-            defualt value is True.
-        """
         super().__init__(env, name, 1, 1, print_actions, log)
+        self._users: list[PreemptiveRequest] = []
+        self._queue: list[PreemptiveRequest] = []
 
-        self.resource = simpy.PreemptiveResource(env, 1)
-        self._active_requests: dict[int, Event] = {}
+    def level(self):  # type: ignore[override]
+        return self.idle
 
-    def get(self, entity, priority: int, preempt: bool = False):
-        super()._request(entity, 1)
-        acquired = self.env.event()
-        release_signal = self.env.event()
+    def idle(self):  # type: ignore[override]
+        return self.idle
 
-        def _monitor_request():
-            req = self.resource.request(priority=priority, preempt=preempt)
-            try:
-                yield req
-            except simpy.Interrupt:
-                # Interrupted before acquisition; nothing to clean up.
+    def get(self, entity, amount=1, priority: int = 1, preempt: bool = False):
+        if amount > 1:
+            print("Warning: amount of preemptive resource is always 1")
+            amount = 1
+
+        super()._request(entity, amount)
+        request = PreemptiveRequest(entity, amount, priority, preempt, env=self.env)
+
+        if self.idle >= amount and not self._users:
+            self._grant(request)
+            yield request.flag.get(1)
+            return
+
+        if preempt:
+            victim = self._select_victim(request)
+            if victim is not None:
+                self._preempt(victim, request)
+                yield request.flag.get(1)
                 return
 
-            self._active_requests[entity.id] = release_signal
-            super(PreemptiveResource, self)._get(entity, 1)
-            acquired.succeed(req)
-
-            try:
-                yield release_signal
-            except simpy.Interrupt:
-                # If preempted, log the return of the resource
-                self._active_requests.pop(entity.id, None)
-                super(PreemptiveResource, self)._put(entity, 1)
-                return
-
-            yield self.resource.release(req)
-            self._active_requests.pop(entity.id, None)
-            super(PreemptiveResource, self)._put(entity, 1)
-
-        self.env.process(_monitor_request())
-        return acquired
+        insort_left(self._queue, request)
+        yield request.flag.get(1)
 
     def put(self, entity, request=None):
-        # to be added: when waiting to ptu pack soemthing some logs should be calculated
-        if request is None:
-            request = self._active_requests.get(entity.id)
-        if request is None:
-            # The request was likely preempted and already returned.
+        active_request = None
+        for r in self._users:
+            if r.entity == entity:
+                active_request = r
+                break
+
+        if active_request is None:
             return self.env.event().succeed()
 
-        if not request.triggered:
-            request.succeed()
-        return request
+        self._users.remove(active_request)
+        super()._put(entity, active_request.amount)
+        return self.env.process(self._check_queue())
+
+    def _grant(self, request: PreemptiveRequest):
+        if request in self._queue:
+            self._queue.remove(request)
+        self._users.append(request)
+        request.usage_since = self.env.now
+        request.flag.put(1)
+        super()._get(request.entity, request.amount)
+        if self.log:
+            self._queue_log = append(
+                self._queue_log,
+                [[request.entity.id, request.time, self.env.now, request.amount]],
+                axis=0,
+            )
+        if request.entity.log:
+            request.entity._waiting_log = append(
+                request.entity._waiting_log,
+                [[self.id, request.time, self.env.now, request.amount]],
+                axis=0,
+            )
+
+    def _check_queue(self):
+        yield self.env.timeout(0)
+        while self.idle > 0 and self._queue:
+            next_request = self._queue.pop(0)
+            self._grant(next_request)
+
+    def _select_victim(self, new_request: PreemptiveRequest):
+        if not self._users:
+            return None
+        current = self._users[0]
+        if current.key > new_request.key:
+            return current
+        return None
+
+    def _preempt(self, victim: PreemptiveRequest, new_request: PreemptiveRequest):
+        if victim in self._users:
+            self._users.remove(victim)
+        super()._put(victim.entity, victim.amount)
+        victim.entity._on_preempted(
+            resource=self,
+            cause=Preempted(by=new_request.entity, resource=self, usage_since=victim.usage_since),
+        )
+        self._grant(new_request)
 
 
 """

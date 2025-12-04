@@ -70,25 +70,47 @@ def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         name_to_ids: dict[str, set[int]] = {}
         for act in entity.get("activities", []):
             name = act.get("activity_name", "Activity")
-            activity_entry = activities.setdefault(name, {"durations": [], "logs": [], "instances": []})
+            activity_entry = activities.setdefault(
+                name,
+                {
+                    "durations": [],
+                    "logs": [],
+                    "instances": [],
+                    "duration_specs": [],
+                    "sampled_durations": [],
+                },
+            )
             activity_entry["instances"].append({"entity_id": entity.get("id"), **act})
             if act.get("duration") is not None:
                 activity_entry["durations"].append(act["duration"])
+            if act.get("duration_info"):
+                activity_entry["duration_specs"].append(act["duration_info"])
+            if act.get("sampled_duration") is not None:
+                activity_entry["sampled_durations"].append(act["sampled_duration"])
             name_to_ids.setdefault(name, set()).add(act.get("activity_id"))
 
         for log in entity.get("logs", []):
             act_name = log.get("activity_name")
             if act_name:
-                activities.setdefault(act_name, {"durations": [], "logs": [], "instances": []})["logs"].append(log)
+                activities.setdefault(
+                    act_name,
+                    {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
+                )["logs"].append(log)
                 continue
             if log.get("source_type") == "activity":
                 for candidate_name, activity_ids in name_to_ids.items():
                     if log.get("source_id") in activity_ids:
-                        activities.setdefault(candidate_name, {"durations": [], "logs": [], "instances": []})["logs"].append(log)
+                        activities.setdefault(
+                            candidate_name,
+                            {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
+                        )["logs"].append(log)
                         break
     for log in run_data.get("logs", []):
         if log.get("activity_name"):
-            activities.setdefault(log["activity_name"], {"durations": [], "logs": [], "instances": []})["logs"].append(log)
+            activities.setdefault(
+                log["activity_name"],
+                {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
+            )["logs"].append(log)
     return activities
 
 
@@ -125,6 +147,13 @@ def _collect_logs(run_data: dict[str, Any]) -> list[dict[str, Any]]:
                 _push(log)
 
     return rows
+
+
+def _data_table(records: list[dict[str, Any]], empty_message: str, page_size: int = 10):
+    if not records:
+        return html.Div(empty_message)
+    columns = [{"name": col, "id": col} for col in sorted({k for row in records for k in row.keys()})]
+    return dash_table.DataTable(data=records, columns=columns, page_size=page_size, style_table={"overflowX": "auto"})
 
 
 def _section(title: str, children):
@@ -188,14 +217,17 @@ def _build_tabs():
         )
     # Fallback for environments where dcc.Tabs is unavailable. RadioItems still provides
     # a "value" property, keeping existing callbacks functional even without tab
-    # components.
-    return dcc.RadioItems(
-        id="section-tabs",
-        options=tabs,
-        value="environment",
-        inline=True,
-        labelStyle={"marginRight": "12px"},
-    )
+    # components. If RadioItems is also unavailable (e.g., in minimal test stubs),
+    # return a basic Div with the expected props so callbacks can bind safely.
+    if hasattr(dcc, "RadioItems"):
+        return dcc.RadioItems(
+            id="section-tabs",
+            options=tabs,
+            value="environment",
+            inline=True,
+            labelStyle={"marginRight": "12px"},
+        )
+    return html.Div("Environment", id="section-tabs", value="environment", style={"marginBottom": "12px"})
 
 
 def _build_overview_cards(run_data: dict[str, Any]):
@@ -263,15 +295,26 @@ def _entity_timeline(entity: dict[str, Any]):
 
 
 def _entity_logs(entity: dict[str, Any]):
-    logs = entity.get("logs", [])
-    if not logs:
-        return html.Div("No logs collected for this entity.")
-    return dash_table.DataTable(
-        data=logs,
-        columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())],
-        page_size=10,
-        style_table={"overflowX": "auto"},
+    sections = []
+
+    sections.append(html.Div([html.H5("Schedule log"), _data_table(entity.get("schedule_log", []), "No schedule recorded.")]))
+    sections.append(html.Div([html.H5("Status log"), _data_table(entity.get("status_log", []), "No status changes recorded.")]))
+    sections.append(
+        html.Div([html.H5("Waiting episodes"), _data_table(entity.get("waiting_log", []), "No waiting episodes recorded.")])
     )
+
+    waiting_times = entity.get("waiting_time") or []
+    if waiting_times:
+        fig = px.histogram(x=waiting_times, nbins=15, labels={"x": "Duration"}, title="Waiting time distribution")
+        fig.update_layout(height=250)
+        sections.append(dcc.Graph(figure=fig))
+    else:
+        sections.append(html.Div("No waiting durations recorded."))
+
+    logs = entity.get("logs", [])
+    sections.append(html.Div([html.H5("Event log"), _data_table(logs, "No logs collected for this entity.")]))
+
+    return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
 
 
 def _activity_distribution(entity: dict[str, Any], activity_id: int):
@@ -297,6 +340,32 @@ def _resource_usage(resource: dict[str, Any]):
     fig = px.line(x=times, y=cumulative, labels={"x": "Time", "y": "Units in use"}, title="Resource utilization over time")
     fig.update_layout(height=300)
     return dcc.Graph(figure=fig)
+
+
+def _resource_logs(resource: dict[str, Any]):
+    sections = []
+    sections.append(html.Div([html.H5("Queue log"), _data_table(resource.get("queue_log", []), "No queue log recorded.")]))
+    sections.append(html.Div([html.H5("Status log"), _data_table(resource.get("status_log", []), "No status log recorded.")]))
+
+    waiting_times = resource.get("waiting_time") or []
+    if waiting_times:
+        fig = px.histogram(x=waiting_times, nbins=15, labels={"x": "Duration"}, title="Waiting times for resource")
+        fig.update_layout(height=250)
+        sections.append(dcc.Graph(figure=fig))
+    else:
+        sections.append(html.Div("No waiting durations recorded."))
+
+    stats = resource.get("stats", {}) or {}
+    if stats:
+        stat_rows = [{"Metric": k.replace("_", " ").title(), "Value": v} for k, v in stats.items()]
+        sections.append(_data_table(stat_rows, "No statistics available.", page_size=5))
+    else:
+        sections.append(html.Div("No statistics available."))
+
+    logs = resource.get("logs", [])
+    sections.append(html.Div([html.H5("Event log"), _data_table(logs, "No logs collected for this resource.")]))
+
+    return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
 
 
 def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash:
@@ -431,6 +500,56 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
             else:
                 duration_graph = html.Div("No duration data available for this activity name.")
 
+            seen_specs: set[str] = set()
+            spec_rows = []
+            for spec in activity_data.get("duration_specs", []):
+                spec_key = json.dumps(spec, sort_keys=True, default=str)
+                if spec_key in seen_specs:
+                    continue
+                seen_specs.add(spec_key)
+                spec_rows.append(
+                    {
+                        "Type": spec.get("type", "-"),
+                        "Parameters": json.dumps(spec.get("parameters"), default=str),
+                        "Last sampled": spec.get("sampled_duration"),
+                    }
+                )
+
+            distribution_table = dash_table.DataTable(
+                data=spec_rows,
+                columns=[{"name": k, "id": k} for k in ["Type", "Parameters", "Last sampled"]],
+                page_size=5,
+                style_table={"overflowX": "auto"},
+            ) if spec_rows else html.Div("No distribution metadata recorded for this activity name.")
+
+            sample_rows = []
+            for inst in activity_data.get("instances", []):
+                if inst.get("sampled_duration") is None:
+                    continue
+                duration_info = inst.get("duration_info") or {}
+                sample_rows.append(
+                    {
+                        "Entity": inst.get("entity_id"),
+                        "Activity ID": inst.get("activity_id"),
+                        "Sampled duration": inst.get("sampled_duration"),
+                        "Distribution": duration_info.get("type", "-"),
+                        "Parameters": json.dumps(duration_info.get("parameters"), default=str),
+                    }
+                )
+
+            sampled_table = dash_table.DataTable(
+                data=sample_rows,
+                columns=[
+                    {"name": "Entity", "id": "Entity"},
+                    {"name": "Activity ID", "id": "Activity ID"},
+                    {"name": "Sampled duration", "id": "Sampled duration"},
+                    {"name": "Distribution", "id": "Distribution"},
+                    {"name": "Parameters", "id": "Parameters"},
+                ],
+                page_size=10,
+                style_table={"overflowX": "auto"},
+            ) if sample_rows else html.Div("No sampled durations recorded for this activity name.")
+
             logs = activity_data.get("logs", [])
             log_table = dash_table.DataTable(
                 data=logs,
@@ -443,25 +562,19 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 html.H3(activity_name),
                 html.Div(f"Instances observed: {len(activity_data.get('instances', []))}", style={"marginBottom": "4px"}),
             ])
-            return html.Div([summary, duration_graph]), log_table
+            return html.Div([summary, duration_graph, html.H4("Duration definitions"), distribution_table, html.H4("Sampled durations"), sampled_table]), log_table
 
         if selected.startswith("resource:"):
             res_id = int(selected.split(":")[1])
             resource = next((r for r in data.get("resources", []) if r.get("id") == res_id), None)
             if not resource:
                 return html.Div("Resource not found."), html.Div()
-            logs = resource.get("logs", [])
-            log_table = dash_table.DataTable(
-                data=logs,
-                columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
-                page_size=10,
-            ) if logs else html.Div("No logs for this resource.")
             overview = html.Div([
                 html.H3(resource.get("name", "Resource")),
                 html.Div(f"Type: {resource.get('type', '-')}", style={"marginBottom": "4px"}),
                 html.Div(f"Capacity: {resource.get('capacity', '-')}", style={"marginBottom": "4px"}),
             ])
-            return html.Div([overview, _resource_usage(resource)]), log_table
+            return html.Div([overview, _resource_usage(resource)]), _resource_logs(resource)
 
         return html.Div("Select a node to inspect."), html.Div()
 
@@ -470,12 +583,14 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
 
 def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     updated = dict(run_data)
-    evt_type = event.get("event")
-    if isinstance(evt_type, dict):
+    evt_raw = event.get("event")
+    if isinstance(evt_raw, dict):
+        log_event = evt_raw
         updated_logs = list(updated.get("logs", []))
-        updated_logs.append(evt_type)
+        updated_logs.append(log_event)
         updated["logs"] = updated_logs
         return updated
+    evt_type = evt_raw
     if evt_type == "entity_created":
         updated_entities = list(updated.get("entities", []))
         updated_entities.append(event["entity"])
@@ -520,6 +635,57 @@ def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, A
         updated_logs = list(updated.get("logs", []))
         updated_logs.append(log_event)
         updated["logs"] = updated_logs
+        # fan out to relevant scopes so log tabs populate in live dashboards
+        src_type = log_event.get("source_type")
+        if src_type == "entity":
+            ent_id = log_event.get("source_id")
+            for ent in updated.get("entities", []):
+                if ent.get("id") == ent_id:
+                    ent.setdefault("logs", []).append(log_event)
+                    break
+        elif src_type == "resource":
+            res_id = log_event.get("source_id")
+            for res in updated.get("resources", []):
+                if res.get("id") == res_id:
+                    res.setdefault("logs", []).append(log_event)
+                    break
+        elif src_type == "activity":
+            act_id = log_event.get("source_id")
+            ent_id = log_event.get("metadata", {}).get("entity_id")
+            for ent in updated.get("entities", []):
+                if ent_id is not None and ent.get("id") != ent_id:
+                    continue
+                ent.setdefault("logs", []).append(log_event)
+                if act_id is not None:
+                    ent.setdefault("activities", [])
+                    break
+        return updated
+    elif evt_type == "run_finished":
+        env_info = dict(updated.get("environment", {}))
+        time_info = dict(env_info.get("time", {}))
+        time_info["end"] = event.get("time")
+        env_info["time"] = time_info
+        updated["environment"] = env_info
+    elif evt_type == "entity_snapshot":
+        ent = event.get("entity", {})
+        entities = list(updated.get("entities", []))
+        for idx, existing in enumerate(entities):
+            if existing.get("id") == ent.get("id"):
+                entities[idx] = ent
+                break
+        else:
+            entities.append(ent)
+        updated["entities"] = entities
+    elif evt_type == "resource_snapshot":
+        res = event.get("resource", {})
+        resources = list(updated.get("resources", []))
+        for idx, existing in enumerate(resources):
+            if existing.get("id") == res.get("id"):
+                resources[idx] = res
+                break
+        else:
+            resources.append(res)
+        updated["resources"] = resources
     return updated
 
 

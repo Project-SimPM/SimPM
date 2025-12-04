@@ -70,47 +70,25 @@ def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         name_to_ids: dict[str, set[int]] = {}
         for act in entity.get("activities", []):
             name = act.get("activity_name", "Activity")
-            activity_entry = activities.setdefault(
-                name,
-                {
-                    "durations": [],
-                    "logs": [],
-                    "instances": [],
-                    "duration_specs": [],
-                    "sampled_durations": [],
-                },
-            )
+            activity_entry = activities.setdefault(name, {"durations": [], "logs": [], "instances": []})
             activity_entry["instances"].append({"entity_id": entity.get("id"), **act})
             if act.get("duration") is not None:
                 activity_entry["durations"].append(act["duration"])
-            if act.get("duration_info"):
-                activity_entry["duration_specs"].append(act["duration_info"])
-            if act.get("sampled_duration") is not None:
-                activity_entry["sampled_durations"].append(act["sampled_duration"])
             name_to_ids.setdefault(name, set()).add(act.get("activity_id"))
 
         for log in entity.get("logs", []):
             act_name = log.get("activity_name")
             if act_name:
-                activities.setdefault(
-                    act_name,
-                    {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
-                )["logs"].append(log)
+                activities.setdefault(act_name, {"durations": [], "logs": [], "instances": []})["logs"].append(log)
                 continue
             if log.get("source_type") == "activity":
                 for candidate_name, activity_ids in name_to_ids.items():
                     if log.get("source_id") in activity_ids:
-                        activities.setdefault(
-                            candidate_name,
-                            {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
-                        )["logs"].append(log)
+                        activities.setdefault(candidate_name, {"durations": [], "logs": [], "instances": []})["logs"].append(log)
                         break
     for log in run_data.get("logs", []):
         if log.get("activity_name"):
-            activities.setdefault(
-                log["activity_name"],
-                {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
-            )["logs"].append(log)
+            activities.setdefault(log["activity_name"], {"durations": [], "logs": [], "instances": []})["logs"].append(log)
     return activities
 
 
@@ -210,17 +188,14 @@ def _build_tabs():
         )
     # Fallback for environments where dcc.Tabs is unavailable. RadioItems still provides
     # a "value" property, keeping existing callbacks functional even without tab
-    # components. If RadioItems is also unavailable (e.g., in minimal test stubs),
-    # return a basic Div with the expected props so callbacks can bind safely.
-    if hasattr(dcc, "RadioItems"):
-        return dcc.RadioItems(
-            id="section-tabs",
-            options=tabs,
-            value="environment",
-            inline=True,
-            labelStyle={"marginRight": "12px"},
-        )
-    return html.Div("Environment", id="section-tabs", value="environment", style={"marginBottom": "12px"})
+    # components.
+    return dcc.RadioItems(
+        id="section-tabs",
+        options=tabs,
+        value="environment",
+        inline=True,
+        labelStyle={"marginRight": "12px"},
+    )
 
 
 def _build_overview_cards(run_data: dict[str, Any]):
@@ -456,56 +431,6 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
             else:
                 duration_graph = html.Div("No duration data available for this activity name.")
 
-            seen_specs: set[str] = set()
-            spec_rows = []
-            for spec in activity_data.get("duration_specs", []):
-                spec_key = json.dumps(spec, sort_keys=True, default=str)
-                if spec_key in seen_specs:
-                    continue
-                seen_specs.add(spec_key)
-                spec_rows.append(
-                    {
-                        "Type": spec.get("type", "-"),
-                        "Parameters": json.dumps(spec.get("parameters"), default=str),
-                        "Last sampled": spec.get("sampled_duration"),
-                    }
-                )
-
-            distribution_table = dash_table.DataTable(
-                data=spec_rows,
-                columns=[{"name": k, "id": k} for k in ["Type", "Parameters", "Last sampled"]],
-                page_size=5,
-                style_table={"overflowX": "auto"},
-            ) if spec_rows else html.Div("No distribution metadata recorded for this activity name.")
-
-            sample_rows = []
-            for inst in activity_data.get("instances", []):
-                if inst.get("sampled_duration") is None:
-                    continue
-                duration_info = inst.get("duration_info") or {}
-                sample_rows.append(
-                    {
-                        "Entity": inst.get("entity_id"),
-                        "Activity ID": inst.get("activity_id"),
-                        "Sampled duration": inst.get("sampled_duration"),
-                        "Distribution": duration_info.get("type", "-"),
-                        "Parameters": json.dumps(duration_info.get("parameters"), default=str),
-                    }
-                )
-
-            sampled_table = dash_table.DataTable(
-                data=sample_rows,
-                columns=[
-                    {"name": "Entity", "id": "Entity"},
-                    {"name": "Activity ID", "id": "Activity ID"},
-                    {"name": "Sampled duration", "id": "Sampled duration"},
-                    {"name": "Distribution", "id": "Distribution"},
-                    {"name": "Parameters", "id": "Parameters"},
-                ],
-                page_size=10,
-                style_table={"overflowX": "auto"},
-            ) if sample_rows else html.Div("No sampled durations recorded for this activity name.")
-
             logs = activity_data.get("logs", [])
             log_table = dash_table.DataTable(
                 data=logs,
@@ -518,7 +443,7 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 html.H3(activity_name),
                 html.Div(f"Instances observed: {len(activity_data.get('instances', []))}", style={"marginBottom": "4px"}),
             ])
-            return html.Div([summary, duration_graph, html.H4("Duration definitions"), distribution_table, html.H4("Sampled durations"), sampled_table]), log_table
+            return html.Div([summary, duration_graph]), log_table
 
         if selected.startswith("resource:"):
             res_id = int(selected.split(":")[1])

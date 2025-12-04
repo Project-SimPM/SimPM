@@ -44,6 +44,12 @@ ENVIRONMENT_BUTTON_STYLE = {
     "color": "#202124",
 }
 
+ACTIVITY_BUTTON_STYLE = {
+    "backgroundColor": "#fff4e6",
+    "borderColor": "#f9ab00",
+    "color": "#6a4a00",
+}
+
 
 def _styled_button(label: str, path: str, style: dict[str, str]):
     return html.Button(
@@ -54,34 +60,92 @@ def _styled_button(label: str, path: str, style: dict[str, str]):
     )
 
 
-def build_selection_list(run_data: dict[str, Any]):
+def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Aggregate activities and logs keyed by activity name."""
+
+    activities: dict[str, dict[str, Any]] = {}
+    for entity in run_data.get("entities", []):
+        name_to_ids: dict[str, set[int]] = {}
+        for act in entity.get("activities", []):
+            name = act.get("activity_name", "Activity")
+            activity_entry = activities.setdefault(name, {"durations": [], "logs": [], "instances": []})
+            activity_entry["instances"].append({"entity_id": entity.get("id"), **act})
+            if act.get("duration") is not None:
+                activity_entry["durations"].append(act["duration"])
+            name_to_ids.setdefault(name, set()).add(act.get("activity_id"))
+
+        for log in entity.get("logs", []):
+            act_name = log.get("activity_name")
+            if act_name:
+                activities.setdefault(act_name, {"durations": [], "logs": [], "instances": []})["logs"].append(log)
+                continue
+            if log.get("source_type") == "activity":
+                for candidate_name, activity_ids in name_to_ids.items():
+                    if log.get("source_id") in activity_ids:
+                        activities.setdefault(candidate_name, {"durations": [], "logs": [], "instances": []})["logs"].append(log)
+                        break
+    for log in run_data.get("logs", []):
+        if log.get("activity_name"):
+            activities.setdefault(log["activity_name"], {"durations": [], "logs": [], "instances": []})["logs"].append(log)
+    return activities
+
+
+def _section(title: str, children):
+    return html.Div(
+        [
+            html.Div(title, style={"fontWeight": "bold", "marginTop": "4px"}),
+            html.Div(children, style={"display": "flex", "flexWrap": "wrap", "marginTop": "4px"}),
+        ]
+    )
+
+
+def _build_tab_selection(run_data: dict[str, Any], tab: str):
     entities = run_data.get("entities", [])
     resources = run_data.get("resources", [])
     env_name = run_data.get("environment", {}).get("name", "Environment")
 
-    def _section(title: str, children):
-        return html.Div(
-            [
-                html.Div(title, style={"fontWeight": "bold", "marginTop": "4px"}),
-                html.Div(children, style={"display": "flex", "flexWrap": "wrap", "marginTop": "4px"}),
-            ]
-        )
+    if tab == "environment":
+        return _section("Environment", _styled_button(env_name, "environment", ENVIRONMENT_BUTTON_STYLE))
 
-    entity_buttons = [
-        _styled_button(f"{ent['name']} (Entity {ent['id']})", f"entity:{ent['id']}", ENTITY_BUTTON_STYLE)
-        for ent in entities
-    ]
-    resource_buttons = [
-        _styled_button(f"{res['name']} (Resource {res['id']})", f"resource:{res['id']}", RESOURCE_BUTTON_STYLE)
-        for res in resources
-    ]
-
-    return html.Div(
-        [
-            _section("Environment", _styled_button(env_name, "environment", ENVIRONMENT_BUTTON_STYLE)),
-            _section("Entities", entity_buttons or html.Div("No entities available.")),
-            _section("Resources", resource_buttons or html.Div("No resources available.")),
+    if tab == "entities":
+        entity_buttons = [
+            _styled_button(f"{ent['name']} (Entity {ent['id']})", f"entity:{ent['id']}", ENTITY_BUTTON_STYLE)
+            for ent in entities
         ]
+        return _section("Entities", entity_buttons or html.Div("No entities available."))
+
+    if tab == "resources":
+        resource_buttons = [
+            _styled_button(f"{res['name']} (Resource {res['id']})", f"resource:{res['id']}", RESOURCE_BUTTON_STYLE)
+            for res in resources
+        ]
+        return _section("Resources", resource_buttons or html.Div("No resources available."))
+
+    activity_map = _activity_name_map(run_data)
+    activity_buttons = [
+        _styled_button(f"{name} ({len(data['instances'])} instances)", f"activity-name:{name}", ACTIVITY_BUTTON_STYLE)
+        for name, data in sorted(activity_map.items())
+    ]
+    return _section("Activities", activity_buttons or html.Div("No activities available."))
+
+
+def _build_tabs():
+    tabs = [
+        {"label": "Environment", "value": "environment"},
+        {"label": "Entities", "value": "entities"},
+        {"label": "Resources", "value": "resources"},
+        {"label": "Activities", "value": "activities"},
+    ]
+    if hasattr(dcc, "Tabs") and hasattr(dcc, "Tab"):
+        return dcc.Tabs(
+            id="section-tabs",
+            value="environment",
+            children=[dcc.Tab(label=tab["label"], value=tab["value"]) for tab in tabs],
+        )
+    return html.Div(
+        [html.Div(tab["label"]) for tab in tabs],
+        id="section-tabs",
+        value="environment",
     )
 
 
@@ -191,6 +255,7 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
             dcc.Interval(id="live-interval", interval=500, n_intervals=0, disabled=live_queue is None),
             html.Div(
                 [
+                    _build_tabs(),
                     html.Div(id="selection-list", style={"marginBottom": "16px"}),
                     html.Div(id="detail-overview"),
                     html.H4("Logs"),
@@ -214,21 +279,37 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
             changed = True
         return updated if changed else current_data
 
-    @app.callback(Output("selection-list", "children"), Input("run-data", "data"))
-    def _render_selection(data):
-        return build_selection_list(data)
+    def _default_path(tab_value: str, data: dict[str, Any]) -> str:
+        if tab_value == "environment":
+            return "environment"
+        if tab_value == "entities":
+            entities = data.get("entities", [])
+            return f"entity:{entities[0]['id']}" if entities else "entities"
+        if tab_value == "resources":
+            resources = data.get("resources", [])
+            return f"resource:{resources[0]['id']}" if resources else "resources"
+        activity_map = _activity_name_map(data)
+        return f"activity-name:{sorted(activity_map.keys())[0]}" if activity_map else "activities"
+
+    @app.callback(Output("selection-list", "children"), Input("run-data", "data"), Input("section-tabs", "value"))
+    def _render_selection(data, tab_value):
+        return _build_tab_selection(data, tab_value)
 
     @app.callback(
         Output("selected-node", "data"),
         Input({"type": "nav-node", "path": dash.ALL}, "n_clicks"),
+        Input("section-tabs", "value"),
         State("selected-node", "data"),
+        State("run-data", "data"),
         prevent_initial_call=True,
     )
-    def _select_node(clicks, current):
+    def _select_node(clicks, tab_value, current, data):
         ctx = callback_context
         if not ctx.triggered:
             return current
         trig = ctx.triggered_id
+        if trig == "section-tabs":
+            return _default_path(tab_value, data)
         if isinstance(trig, dict):
             return trig.get("path", current)
         return current
@@ -242,6 +323,9 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 _global_activity_plot(data),
             ]), _environment_logs(data)
 
+        if selected == "entities":
+            return html.Div("Select an entity to inspect."), html.Div()
+
         if selected.startswith("entity:"):
             ent_id = int(selected.split(":")[1])
             entity = next((e for e in data.get("entities", []) if e.get("id") == ent_id), None)
@@ -252,6 +336,9 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 html.Div(f"Type: {entity.get('type', '-')}", style={"marginBottom": "4px"}),
                 _entity_timeline(entity),
             ]), _entity_logs(entity)
+
+        if selected == "resources":
+            return html.Div("Select a resource to inspect."), html.Div()
 
         if selected.startswith("activity:"):
             _, ent_id, act_id = selected.split(":")
@@ -272,6 +359,38 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 page_size=10,
             ) if logs else html.Div("No logs for this activity.")
             return html.Div([overview, _activity_distribution(entity, int(act_id))]), log_table
+
+        if selected == "activities":
+            return html.Div("Select an activity to inspect."), html.Div()
+
+        if selected.startswith("activity-name:"):
+            activity_name = selected.split(":", 1)[1]
+            activity_map = _activity_name_map(data)
+            activity_data = activity_map.get(activity_name)
+            if not activity_data:
+                return html.Div("Activity not found."), html.Div()
+
+            durations = activity_data.get("durations", [])
+            if durations:
+                fig = px.histogram(x=durations, labels={"x": "Duration"}, nbins=15, title="Duration distribution")
+                fig.update_layout(height=300)
+                duration_graph = dcc.Graph(figure=fig)
+            else:
+                duration_graph = html.Div("No duration data available for this activity name.")
+
+            logs = activity_data.get("logs", [])
+            log_table = dash_table.DataTable(
+                data=logs,
+                columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
+                page_size=10,
+                style_table={"overflowX": "auto"},
+            ) if logs else html.Div("No logs for this activity name.")
+
+            summary = html.Div([
+                html.H3(activity_name),
+                html.Div(f"Instances observed: {len(activity_data.get('instances', []))}", style={"marginBottom": "4px"}),
+            ])
+            return html.Div([summary, duration_graph]), log_table
 
         if selected.startswith("resource:"):
             res_id = int(selected.split(":")[1])
@@ -358,5 +477,11 @@ def run_post_dashboard(run_data: dict[str, Any], host: str = "127.0.0.1", port: 
 
 def run_live_dashboard(run_data: dict[str, Any], event_queue: Queue, host: str = "127.0.0.1", port: int = 8050):
     app = build_app(run_data, live_queue=event_queue)
-    threading.Thread(target=lambda: app.run(host=host, port=port, debug=False), daemon=True).start()
+    def _run_app():
+        if hasattr(app, "run"):
+            app.run(host=host, port=port, debug=False)
+        else:
+            app.run_server(host=host, port=port, debug=False)
+
+    threading.Thread(target=_run_app, daemon=True).start()
     return app

@@ -543,7 +543,7 @@ def _entity_logs(entity: dict[str, Any]):
         )
     )
 
-    waiting_times = entity.get("waiting_time") or []
+    waiting_times = list(entity.get("waiting_time") or [])
     if waiting_times:
         sections.append(
             html.Div(
@@ -631,7 +631,7 @@ def _resource_logs(resource: dict[str, Any]):
         )
     )
 
-    waiting_times = resource.get("waiting_time") or []
+    waiting_times = list(resource.get("waiting_time") or [])
     if waiting_times:
         sections.append(
             html.Div(

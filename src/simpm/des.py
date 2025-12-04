@@ -200,7 +200,11 @@ class Entity:
             self.last_act_id += 1
             self.act_dic[name] = self.last_act_id
         if self.log:
-            self._schedule_log = append(self._schedule_log, [[self.act_dic[name], self.env.now, self.env.now + duration]], axis=0)
+            self._schedule_log = append(
+                self._schedule_log,
+                [[self.act_dic[name], self.env.now, self.env.now + duration_value]],
+                axis=0,
+            )
             self._status_log = append(self._status_log, [[self.env.now, self._status_codes["start"], self.act_dic[name]]], axis=0)
 
         self.env._notify_observers(
@@ -267,7 +271,11 @@ class Entity:
             self.last_act_id += 1
             self.act_dic[name] = self.last_act_id
         if self.log:
-            self._schedule_log = append(self._schedule_log, [[self.act_dic[name], self.env.now, self.env.now + duration]], axis=0)
+            self._schedule_log = append(
+                self._schedule_log,
+                [[self.act_dic[name], self.env.now, self.env.now + duration_value]],
+                axis=0,
+            )
             self._status_log = append(self._status_log, [[self.env.now, self._status_codes["start"], self.act_dic[name]]], axis=0)
 
         self.env._notify_observers(

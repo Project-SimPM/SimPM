@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import threading
 from queue import Queue
+from statistics import fmean, median, pstdev
 from typing import Any
 
 try:
@@ -149,6 +150,83 @@ def _collect_logs(run_data: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _describe(values: list[float]) -> list[dict[str, Any]]:
+    """Return descriptive statistics for a series of numeric values."""
+
+    if not values:
+        return []
+    ordered = sorted(values)
+    stats = [
+        {"Metric": "Count", "Value": len(ordered)},
+        {"Metric": "Min", "Value": ordered[0]},
+        {"Metric": "Max", "Value": ordered[-1]},
+        {"Metric": "Mean", "Value": fmean(ordered)},
+        {"Metric": "Median", "Value": median(ordered)},
+    ]
+    if len(ordered) > 1:
+        stats.append({"Metric": "Std Dev", "Value": pstdev(ordered)})
+    return stats
+
+
+def _stat_grid(stats: list[dict[str, Any]]):
+    if not stats:
+        return html.Div("No statistics available.")
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Div(stat["Metric"], style={"fontWeight": "bold"}),
+                    html.Div(f"{stat['Value']}", style={"fontSize": "0.95rem"}),
+                ],
+                style={
+                    "background": "#f8fafc",
+                    "border": "1px solid #e2e8f0",
+                    "borderRadius": "10px",
+                    "padding": "10px 12px",
+                    "flex": "1 1 160px",
+                    "boxShadow": "0 1px 3px rgba(0,0,0,0.05)",
+                },
+            )
+            for stat in stats
+        ],
+        style={"display": "flex", "flexWrap": "wrap", "gap": "8px", "margin": "4px 0"},
+    )
+
+
+def _distribution_tabs(values: list[float], title: str, x_label: str = "Value"):
+    if not values:
+        return html.Div("No data available for this distribution.")
+
+    def _histogram(histnorm: str | None = None, cumulative: bool = False):
+        fig = px.histogram(
+            x=values,
+            labels={"x": x_label},
+            nbins=min(30, max(5, len(values))),
+            histnorm=histnorm,
+            title=title,
+        )
+        if cumulative:
+            fig.update_traces(cumulative_enabled=True)
+        fig.update_layout(height=320, margin={"t": 48, "r": 16, "l": 16, "b": 24})
+        return fig
+
+    def _box():
+        fig = px.box(y=values, labels={"y": x_label}, points="all", title=title)
+        fig.update_layout(height=320, margin={"t": 48, "r": 16, "l": 16, "b": 24})
+        return fig
+
+    tabs = [
+        dcc.Tab(label="Histogram", children=dcc.Graph(figure=_histogram())),
+        dcc.Tab(label="PDF", children=dcc.Graph(figure=_histogram(histnorm="probability density"))),
+        dcc.Tab(label="CDF", children=dcc.Graph(figure=_histogram(histnorm="probability", cumulative=True))),
+        dcc.Tab(label="Box", children=dcc.Graph(figure=_box())),
+    ]
+
+    if hasattr(dcc, "Tabs") and hasattr(dcc, "Tab"):
+        return dcc.Tabs(children=tabs)
+    return html.Div([tab.children for tab in tabs])
+
+
 def _data_table(records: list[dict[str, Any]], empty_message: str, page_size: int = 10):
     if not records:
         return html.Div(empty_message)
@@ -233,33 +311,93 @@ def _build_tabs():
 def _build_overview_cards(run_data: dict[str, Any]):
     env = run_data.get("environment", {})
     end_time = env.get("time", {}).get("end")
-    return html.Div(
-        [
-            html.H3(env.get("name", "Environment")),
-            html.Div(f"Run ID: {env.get('run_id', '-')}", style={"marginBottom": "4px"}),
-            html.Div(f"Simulation time: 0 → {end_time if end_time is not None else '-'}"),
-        ]
-    )
+    entities = run_data.get("entities", [])
+    resources = run_data.get("resources", [])
+    activities = [act for ent in entities for act in ent.get("activities", []) if act.get("duration") is not None]
+    duration_stats = _describe([act["duration"] for act in activities if act.get("duration") is not None])
+
+    cards = [
+        html.Div(
+            [
+                html.Div(env.get("name", "Environment"), style={"fontWeight": "bold", "fontSize": "1.05rem"}),
+                html.Div(f"Run ID: {env.get('run_id', '-')}", style={"color": "#5f6368"}),
+                html.Div(f"Time span: 0 → {end_time if end_time is not None else '-'}"),
+            ],
+            style={
+                "background": "linear-gradient(135deg, #f0f4ff, #fdfdfd)",
+                "border": "1px solid #dbe4ff",
+                "borderRadius": "12px",
+                "padding": "12px 14px",
+                "boxShadow": "0 1px 4px rgba(0,0,0,0.08)",
+            },
+        ),
+        html.Div(
+            _stat_grid(
+                [
+                    {"Metric": "Entities", "Value": len(entities)},
+                    {"Metric": "Resources", "Value": len(resources)},
+                    {"Metric": "Activities", "Value": len(activities)},
+                ]
+            ),
+            style={"background": "#fff", "padding": "8px", "borderRadius": "10px", "border": "1px solid #e8eaed"},
+        ),
+    ]
+
+    if duration_stats:
+        cards.append(
+            html.Div(
+                [
+                    html.Div("Activity durations", style={"fontWeight": "bold"}),
+                    _stat_grid(duration_stats),
+                ],
+                style={"background": "#fff", "padding": "8px", "borderRadius": "10px", "border": "1px solid #e8eaed"},
+            )
+        )
+
+    return html.Div(cards, style={"display": "grid", "gridGap": "10px"})
 
 
 def _global_activity_plot(run_data: dict[str, Any]):
     durations = []
-    names = []
     for ent in run_data.get("entities", []):
         for act in ent.get("activities", []):
             if act.get("duration") is not None:
                 durations.append(act["duration"])
-                names.append(act["activity_name"])
     if not durations:
         return html.Div("No activity data available.")
-    fig = px.histogram(x=durations, labels={"x": "Duration"}, nbins=20, title="Activity durations")
-    fig.update_layout(height=300)
-    return dcc.Graph(figure=fig)
+    return html.Div(
+        [
+            html.Div("Activity duration statistics", style={"fontWeight": "bold", "marginBottom": "6px"}),
+            _stat_grid(_describe(durations)),
+            _distribution_tabs(durations, "Activity duration distribution", x_label="Duration"),
+        ],
+        style={"display": "grid", "gridGap": "8px"},
+    )
 
 
 def _environment_logs(run_data: dict[str, Any]):
     logs = _collect_logs(run_data)
     sections = []
+
+    entity_waits = [t for ent in run_data.get("entities", []) for t in (ent.get("waiting_time") or [])]
+    resource_waits = [t for res in run_data.get("resources", []) for t in (res.get("waiting_time") or [])]
+    summary_cards = []
+    if entity_waits:
+        summary_cards.append(
+            html.Div(
+                [html.Div("Entity waiting durations", style={"fontWeight": "bold"}), _stat_grid(_describe(entity_waits))],
+                style={"padding": "8px 0"},
+            )
+        )
+    if resource_waits:
+        summary_cards.append(
+            html.Div(
+                [html.Div("Resource waiting durations", style={"fontWeight": "bold"}), _stat_grid(_describe(resource_waits))],
+                style={"padding": "8px 0"},
+            )
+        )
+    if summary_cards:
+        sections.append(html.Div(summary_cards, style={"display": "grid", "gridGap": "8px"}))
 
     if logs:
         columns = [
@@ -292,7 +430,15 @@ def _environment_logs(run_data: dict[str, Any]):
         "No waiting episodes recorded across entities.",
         page_size=10,
     )
-    sections.append(html.Div([html.H5("Entity waiting episodes"), waiting_table]))
+    sections.append(
+        html.Div(
+            [
+                html.H5("Entity waiting episodes"),
+                waiting_table,
+                _distribution_tabs(entity_waits, "Entity waiting durations", x_label="Duration"),
+            ]
+        )
+    )
 
     resource_queue_rows = []
     for res in run_data.get("resources", []):
@@ -304,7 +450,15 @@ def _environment_logs(run_data: dict[str, Any]):
         "No queue activity recorded across resources.",
         page_size=10,
     )
-    sections.append(html.Div([html.H5("Resource queue log"), queue_table]))
+    sections.append(
+        html.Div(
+            [
+                html.H5("Resource queue log"),
+                queue_table,
+                _distribution_tabs(resource_waits, "Resource waiting durations", x_label="Duration"),
+            ]
+        )
+    )
 
     return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
 
@@ -341,9 +495,16 @@ def _entity_logs(entity: dict[str, Any]):
 
     waiting_times = entity.get("waiting_time") or []
     if waiting_times:
-        fig = px.histogram(x=waiting_times, nbins=15, labels={"x": "Duration"}, title="Waiting time distribution")
-        fig.update_layout(height=250)
-        sections.append(dcc.Graph(figure=fig))
+        sections.append(
+            html.Div(
+                [
+                    html.Div("Waiting time statistics", style={"fontWeight": "bold"}),
+                    _stat_grid(_describe(waiting_times)),
+                    _distribution_tabs(waiting_times, "Waiting time distribution", x_label="Duration"),
+                ],
+                style={"display": "grid", "gridGap": "6px"},
+            )
+        )
     else:
         sections.append(html.Div("No waiting durations recorded."))
 
@@ -357,9 +518,13 @@ def _activity_distribution(entity: dict[str, Any], activity_id: int):
     durations = [act["duration"] for act in entity.get("activities", []) if act.get("activity_id") == activity_id and act.get("duration") is not None]
     if not durations:
         return html.Div("No duration data available for this activity.")
-    fig = px.histogram(x=durations, labels={"x": "Duration"}, nbins=10, title="Activity duration distribution")
-    fig.update_layout(height=300)
-    return dcc.Graph(figure=fig)
+    return html.Div(
+        [
+            _stat_grid(_describe(durations)),
+            _distribution_tabs(durations, "Activity duration distribution", x_label="Duration"),
+        ],
+        style={"display": "grid", "gridGap": "6px"},
+    )
 
 
 def _resource_usage(resource: dict[str, Any]):
@@ -385,9 +550,16 @@ def _resource_logs(resource: dict[str, Any]):
 
     waiting_times = resource.get("waiting_time") or []
     if waiting_times:
-        fig = px.histogram(x=waiting_times, nbins=15, labels={"x": "Duration"}, title="Waiting times for resource")
-        fig.update_layout(height=250)
-        sections.append(dcc.Graph(figure=fig))
+        sections.append(
+            html.Div(
+                [
+                    html.Div("Waiting time statistics", style={"fontWeight": "bold"}),
+                    _stat_grid(_describe(waiting_times)),
+                    _distribution_tabs(waiting_times, "Waiting times for resource", x_label="Duration"),
+                ],
+                style={"display": "grid", "gridGap": "6px"},
+            )
+        )
     else:
         sections.append(html.Div("No waiting durations recorded."))
 

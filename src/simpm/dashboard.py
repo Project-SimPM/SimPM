@@ -94,8 +94,7 @@ def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
     activities: dict[str, dict[str, Any]] = {}
     for entity in run_data.get("entities", []):
-        name_to_ids: dict[str, set[int]] = {}
-        for act in entity.get("activities", []):
+        for act in _activities_from_schedule(entity):
             name = act.get("activity_name", "Activity")
             activity_entry = activities.setdefault(
                 name,
@@ -114,7 +113,6 @@ def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
                 activity_entry["duration_specs"].append(act["duration_info"])
             if act.get("sampled_duration") is not None:
                 activity_entry["sampled_durations"].append(act["sampled_duration"])
-            name_to_ids.setdefault(name, set()).add(act.get("activity_id"))
 
         for log in entity.get("logs", []):
             act_name = log.get("activity_name")
@@ -123,21 +121,42 @@ def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
                     act_name,
                     {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
                 )["logs"].append(log)
-                continue
-            if log.get("source_type") == "activity":
-                for candidate_name, activity_ids in name_to_ids.items():
-                    if log.get("source_id") in activity_ids:
-                        activities.setdefault(
-                            candidate_name,
-                            {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
-                        )["logs"].append(log)
-                        break
-    for log in run_data.get("logs", []):
-        if log.get("activity_name"):
-            activities.setdefault(
-                log["activity_name"],
-                {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
-            )["logs"].append(log)
+            elif log.get("source_type") == "activity" and "metadata" in log:
+                metadata = log.get("metadata", {}) or {}
+                if "activity_name" in metadata:
+                    log = {**log, **{f"metadata.{k}": v for k, v in metadata.items()}}
+                    activities.setdefault(
+                        metadata["activity_name"],
+                        {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
+                    )["logs"].append(log)
+    return activities
+
+
+def _activities_from_schedule(entity: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize activity instances from an entity's schedule log."""
+
+    activities: list[dict[str, Any]] = []
+    for rec in entity.get("schedule_log", []) or []:
+        activity_name = rec.get("activity") or rec.get("activity_name")
+        start = rec.get("start_time") or rec.get("start")
+        end = rec.get("finish_time") or rec.get("end")
+        duration = None
+        if start is not None and end is not None:
+            try:
+                duration = float(end) - float(start)
+            except Exception:
+                duration = None
+        activities.append(
+            {
+                "activity_id": rec.get("activity_id"),
+                "activity_name": activity_name,
+                "start": start,
+                "end": end,
+                "duration": duration,
+                "duration_info": rec.get("duration_info"),
+                "sampled_duration": rec.get("sampled_duration"),
+            }
+        )
     return activities
 
 
@@ -347,7 +366,12 @@ def _build_overview_cards(run_data: dict[str, Any]):
     end_time = env.get("time", {}).get("end")
     entities = run_data.get("entities", [])
     resources = run_data.get("resources", [])
-    activities = [act for ent in entities for act in ent.get("activities", []) if act.get("duration") is not None]
+    activities = [
+        act
+        for ent in entities
+        for act in _activities_from_schedule(ent)
+        if act.get("duration") is not None
+    ]
     duration_stats = _describe([act["duration"] for act in activities if act.get("duration") is not None])
 
     cards = [
@@ -386,11 +410,12 @@ def _build_overview_cards(run_data: dict[str, Any]):
 
 
 def _global_activity_plot(run_data: dict[str, Any]):
-    durations = []
-    for ent in run_data.get("entities", []):
-        for act in ent.get("activities", []):
-            if act.get("duration") is not None:
-                durations.append(act["duration"])
+    durations = [
+        act["duration"]
+        for ent in run_data.get("entities", [])
+        for act in _activities_from_schedule(ent)
+        if act.get("duration") is not None
+    ]
     if not durations:
         return html.Div("No activity data available.")
     return html.Div(
@@ -496,23 +521,19 @@ def _environment_logs(run_data: dict[str, Any]):
 
 
 def _entity_timeline(entity: dict[str, Any]):
-    activities = entity.get("activities", [])
+    schedule = entity.get("schedule_log", []) or []
     rows = []
-    for act in activities:
-        if act.get("end") is None:
+    for entry in schedule:
+        start = entry.get("start_time") or entry.get("start")
+        end = entry.get("finish_time") or entry.get("end")
+        if start is None or end is None:
             continue
-        rows.append(
-            {
-                "Task": act["activity_name"],
-                "Start": act["start"],
-                "Finish": act["end"],
-            }
-        )
+        rows.append({"Task": entry.get("activity") or entry.get("activity_name"), "Start": start, "Finish": end})
     if not rows:
         return html.Div("No completed activities to visualize.")
     fig = px.timeline(rows, x_start="Start", x_end="Finish", y="Task")
     fig.update_yaxes(autorange="reversed")
-    fig.update_layout(height=300)
+    fig.update_layout(height=300, margin={"t": 40, "b": 30, "l": 60, "r": 20})
     return dcc.Graph(figure=fig)
 
 
@@ -568,7 +589,11 @@ def _entity_logs(entity: dict[str, Any]):
 
 
 def _activity_distribution(entity: dict[str, Any], activity_id: int):
-    durations = [act["duration"] for act in entity.get("activities", []) if act.get("activity_id") == activity_id and act.get("duration") is not None]
+    durations = [
+        act["duration"]
+        for act in _activities_from_schedule(entity)
+        if act.get("activity_id") == activity_id and act.get("duration") is not None
+    ]
     if not durations:
         return html.Div("No duration data available for this activity.")
     return html.Div(
@@ -589,18 +614,18 @@ def _resource_usage(resource: dict[str, Any]):
     in_use = [row.get("in_use") for row in status_log]
     queue = [row.get("queue_length") for row in status_log]
 
-    fig = px.step(
-        x=times,
-        y=[in_use, queue],
-        labels={"x": "Time", "value": "Count", "variable": "Series"},
-    )
-    fig.update_traces(mode="lines")
+    fig = px.step(x=times, y=in_use, labels={"x": "Time", "y": "Count"})
+    fig.update_traces(name="In use", mode="lines")
+
+    if any(val is not None for val in queue):
+        fig.add_scatter(x=times, y=queue, mode="lines", name="Queue length", line_shape="hv")
+
     fig.update_layout(
         height=320,
         title="Resource usage and queue over time",
         legend_title_text="",
+        margin={"t": 50, "b": 40, "l": 60, "r": 20},
     )
-    fig.for_each_trace(lambda t: t.update(name="In use" if t.name == "wide_variable_0" else "Queue length"))
     return dcc.Graph(figure=fig)
 
 
@@ -615,6 +640,12 @@ def _resource_logs(resource: dict[str, Any]):
     sections.append(
         html.Div(
             [html.H5("Status log", className="section-title"), _data_table(resource.get("status_log", []), "No status log recorded.")],
+            className="panel-card",
+        )
+    )
+    sections.append(
+        html.Div(
+            [html.H5("Waiting episodes", className="section-title"), _data_table(resource.get("waiting_log", []), "No waiting episodes recorded.")],
             className="panel-card",
         )
     )
@@ -769,7 +800,9 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
             entity = next((e for e in data.get("entities", []) if e.get("id") == int(ent_id)), None)
             if not entity:
                 return html.Div("Activity not found."), html.Div()
-            activity = next((a for a in entity.get("activities", []) if a.get("activity_id") == int(act_id)), None)
+            activity = next(
+                (a for a in _activities_from_schedule(entity) if a.get("activity_id") == int(act_id)), None
+            )
             if not activity:
                 return html.Div("Activity not found."), html.Div()
             overview = html.Div([

@@ -14,6 +14,7 @@ Contents
    :caption: Start here
 
    getting-started
+   concepts/des-background
    concepts/project-modeling
 
 .. toctree::

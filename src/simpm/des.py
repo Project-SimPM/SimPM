@@ -15,30 +15,6 @@ if TYPE_CHECKING:  # pragma: no cover - type hinting only
 from simpm.dist import distribution
 from simpm._utils import _swap_dict_keys_values
 
-
-def _describe_duration(duration: Any) -> dict[str, Any]:
-    """Normalize duration inputs (fixed or distributions) and record the sample."""
-
-    def _sample_positive(dist: distribution) -> float:
-        sampled = -1
-        while sampled < 0:
-            sampled = dist.sample()
-        return sampled
-
-    if isinstance(duration, distribution):
-        sampled_duration = _sample_positive(duration)
-        return {
-            "type": getattr(duration, "dist_type", type(duration).__name__),
-            "parameters": getattr(duration, "params", None),
-            "sampled_duration": sampled_duration,
-        }
-
-    return {
-        "type": "fixed" if duration is not None else "unknown",
-        "parameters": duration,
-        "sampled_duration": duration,
-    }
-
 class Entity:
     """
     A class that defines an entity with dictionary-like attributes. Entities are virtual objects essential to useful for modeling dynamic systems.
@@ -191,8 +167,11 @@ class Entity:
         Duration : float, int, or distribution
             The duration of that activity
         """
-        duration_info = _describe_duration(duration)
-        duration_value = duration_info["sampled_duration"]
+        if isinstance(duration, distribution):
+            d = -1
+            while d < 0:
+                d = duration.sample()
+            duration = d
         if self.print_actions:
             print(self.name + "(" + str(self.id) + ") started", name, ", sim_time:", self.env.now)
 
@@ -209,7 +188,6 @@ class Entity:
             activity_name=name,
             activity_id=self.act_dic[name],
             start_time=self.env.now,
-            duration_info=duration_info,
         )
 
         if self.log:
@@ -217,14 +195,10 @@ class Entity:
                 source_type="activity",
                 source_id=self.act_dic[name],
                 message=f"Activity {name} started",
-                metadata={
-                    "entity_id": self.id,
-                    "activity_name": name,
-                    "duration": duration_info,
-                },
+                metadata={"entity_id": self.id, "activity_name": name},
             )
 
-        yield self.env.timeout(duration_value)
+        yield self.env.timeout(duration)
 
         if self.print_actions:
             print(self.name + "(" + str(self.id) + ") finished", name, ", sim_time:", self.env.now)
@@ -258,8 +232,11 @@ class Entity:
         Duration : float, int, or distribution
             The duration of that activity
         """
-        duration_info = _describe_duration(duration)
-        duration_value = duration_info["sampled_duration"]
+        if isinstance(duration, distribution):
+            d = -1
+            while d < 0:
+                d = duration.sample()
+            duration = d
         if self.print_actions:
             print(self.name + "(" + str(self.id) + ") started", name, ", sim_time:", self.env.now)
 
@@ -276,7 +253,6 @@ class Entity:
             activity_name=name,
             activity_id=self.act_dic[name],
             start_time=self.env.now,
-            duration_info=duration_info,
         )
 
         if self.log:
@@ -284,14 +260,10 @@ class Entity:
                 source_type="activity",
                 source_id=self.act_dic[name],
                 message=f"Activity {name} started",
-                metadata={
-                    "entity_id": self.id,
-                    "activity_name": name,
-                    "duration": duration_info,
-                },
+                metadata={"entity_id": self.id, "activity_name": name},
             )
 
-        done_in = duration_value
+        done_in = duration
         while done_in:
             try:
                 start = self.env.now
@@ -371,15 +343,26 @@ class Entity:
             the process for the activity
         """
         try:
+            if isinstance(dur, distribution):
+                d = -1
+                while d < 0:
+                    d = dur.sample()
+                dur = d
+
             return self.env.process(self._activity(name, dur))
         except:
             print("simpm: error in  duration of activity", name)
 
     def interruptive_do(self, name, dur):
         try:
-            return self.env.process(self._interruptive_activity(name, dur))
+            if isinstance(dur, distribution):
+                d = -1
+                while d < 0:
+                    d = dur.sample()
+                dur = d
         except:
             print("simpm: error in  duration of activity", name)
+        return self.env.process(self._interruptive_activity(name, dur))
 
     def get(self, res, amount=1, priority=1, preempt: bool = False):
         """

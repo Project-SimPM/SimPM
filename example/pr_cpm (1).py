@@ -3,6 +3,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
+import simpm
 import simpm.des as des
 
 def prcpm(list_priority):
@@ -106,7 +107,7 @@ def prcpm(list_priority):
     p5=env.process(a5(en[5],res))
     p6=env.process(a6(en[6],res))
 
-    env.run()
+    simpm.run(env, dashboard="post")
     return(env.now)
 
 

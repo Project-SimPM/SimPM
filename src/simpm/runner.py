@@ -1,4 +1,10 @@
-"""User-facing entry point for running simulations with optional dashboards."""
+"""User-facing entry point for running simulations with optional dashboards.
+
+``simpm.run`` simply forwards to ``env.run`` when dashboards are disabled, so
+existing scripts that call ``env.run`` continue to work. Use this wrapper when
+you want to launch the live or post-run dashboard without changing your
+simulation code.
+"""
 from __future__ import annotations
 
 from typing import Any

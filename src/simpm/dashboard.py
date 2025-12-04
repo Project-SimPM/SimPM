@@ -31,6 +31,24 @@ BUTTON_BASE_STYLE = {
     "boxShadow": "0 1px 3px rgba(0, 0, 0, 0.15)",
 }
 
+
+def _select_dash_runner(app: Dash):
+    """Return the callable used to run a Dash app and its name for logging."""
+
+    run_method = getattr(app, "run", None)
+    if callable(run_method):
+        return run_method, "run"
+
+    try:
+        run_server_method = getattr(app, "run_server")
+    except Exception:  # pragma: no cover - Dash may raise on obsolete attrs
+        run_server_method = None
+
+    if callable(run_server_method):
+        return run_server_method, "run_server"
+
+    raise RuntimeError("Dash app provides neither 'run' nor 'run_server' methods")
+
 ENTITY_BUTTON_STYLE = {
     "backgroundColor": "#e6f4ea",
     "borderColor": "#34a853",
@@ -902,12 +920,9 @@ def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, A
 
 def run_post_dashboard(run_data: dict[str, Any], host: str = "127.0.0.1", port: int = 8050):
     app = build_app(run_data)
-    if hasattr(app, "run_server"):
-        logger.info("Starting post-run dashboard with run_server at http://%s:%s", host, port)
-        app.run_server(host=host, port=port, debug=False)
-    else:
-        logger.info("Starting post-run dashboard with run at http://%s:%s", host, port)
-        app.run(host=host, port=port, debug=False)
+    runner, runner_name = _select_dash_runner(app)
+    logger.info("Starting post-run dashboard with %s at http://%s:%s", runner_name, host, port)
+    runner(host=host, port=port, debug=False)
 
 
 def run_live_dashboard(run_data: dict[str, Any], event_queue: Queue, host: str = "127.0.0.1", port: int = 8050):
@@ -916,12 +931,9 @@ def run_live_dashboard(run_data: dict[str, Any], event_queue: Queue, host: str =
     logger.info("Launching live dashboard thread at http://%s:%s", host, port)
 
     def _run_app():
-        if hasattr(app, "run"):
-            logger.debug("Running live dashboard via run()")
-            app.run(host=host, port=port, debug=False)
-        else:
-            logger.debug("Running live dashboard via run_server()")
-            app.run_server(host=host, port=port, debug=False)
+        runner, runner_name = _select_dash_runner(app)
+        logger.debug("Running live dashboard via %s()", runner_name)
+        runner(host=host, port=port, debug=False)
 
     threading.Thread(target=_run_app, daemon=True).start()
     return app

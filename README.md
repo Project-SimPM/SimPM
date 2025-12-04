@@ -21,6 +21,31 @@ Getting started quickly:
 ```
 pip install simpm
 ```
+
+### Dashboard mode
+SimPM can visualize runs in a Plotly Dash dashboard. Install the optional dependencies and run your environment with ``dashboard`` set to ``"post"`` to launch an interactive summary once the simulation finishes:
+
+```
+pip install simpm[dash]
+
+import simpm.des as des
+import simpm
+
+env = des.Environment()
+worker = env.create_entities("worker", 1, log=True)[0]
+machine = des.Resource(env, "machine", init=1, capacity=1, log=True)
+
+def job(entity, resource):
+    yield entity.get(resource, 1)
+    yield entity.do("work", 2)
+    yield entity.put(resource, 1)
+
+env.process(job(worker, machine))
+
+simpm.run(env, dashboard="post", host="127.0.0.1", port=8050)
+```
+
+Use ``dashboard="live"`` to watch the simulation progress in real time, or ``dashboard="none"`` to disable the dashboard entirely.
 ## Community
 - [Github Discussions](https://github.com/Project-SimPM/SimPM/discussions)
 

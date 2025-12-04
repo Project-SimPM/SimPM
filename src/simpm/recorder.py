@@ -21,7 +21,14 @@ class SimulationObserver(Protocol):
     def on_resource_created(self, resource):
         ...
 
-    def on_activity_started(self, entity, activity_name: str, activity_id: int, start_time: float):
+    def on_activity_started(
+        self,
+        entity,
+        activity_name: str,
+        activity_id: int,
+        start_time: float,
+        duration_info: dict[str, Any] | None = None,
+    ):
         ...
 
     def on_activity_finished(self, entity, activity_name: str, activity_id: int, end_time: float):
@@ -89,7 +96,14 @@ class RunRecorder(SimulationObserver):
             "logs": [],
         }
 
-    def on_activity_started(self, entity, activity_name: str, activity_id: int, start_time: float):
+    def on_activity_started(
+        self,
+        entity,
+        activity_name: str,
+        activity_id: int,
+        start_time: float,
+        duration_info: dict[str, Any] | None = None,
+    ):
         entity_data = self.entities.setdefault(
             entity.id,
             {
@@ -107,6 +121,8 @@ class RunRecorder(SimulationObserver):
                 "activity_name": activity_name,
                 "start": start_time,
                 "end": None,
+                "duration_info": duration_info,
+                "sampled_duration": duration_info.get("sampled_duration") if duration_info else None,
             }
         )
 
@@ -203,13 +219,27 @@ class StreamingRunRecorder(RunRecorder):
         super().on_resource_created(resource)
         self._enqueue("resource_created", {"resource": self.resources[resource.id]})
 
-    def on_activity_started(self, entity, activity_name: str, activity_id: int, start_time: float):
-        super().on_activity_started(entity, activity_name, activity_id, start_time)
+    def on_activity_started(
+        self,
+        entity,
+        activity_name: str,
+        activity_id: int,
+        start_time: float,
+        duration_info: dict[str, Any] | None = None,
+    ):
+        super().on_activity_started(entity, activity_name, activity_id, start_time, duration_info)
         self._enqueue(
             "activity_started",
             {
                 "entity_id": entity.id,
-                "activity": {"activity_id": activity_id, "activity_name": activity_name, "start": start_time, "end": None},
+                "activity": {
+                    "activity_id": activity_id,
+                    "activity_name": activity_name,
+                    "start": start_time,
+                    "end": None,
+                    "duration_info": duration_info,
+                    "sampled_duration": duration_info.get("sampled_duration") if duration_info else None,
+                },
             },
         )
 

@@ -42,8 +42,8 @@ def _describe_duration(duration: Any) -> dict[str, Any]:
 class Preempted(Exception):
     """Exception raised when an interruptible activity is preempted by a resource."""
 
-    def __init__(self, by, resource, usage_since):
-        super().__init__("Activity preempted")
+    def __init__(self, by, resource, usage_since, message: str = "Activity preempted"):
+        super().__init__(message, by, resource, usage_since)
         self.by = by
         self.resource = resource
         self.usage_since = usage_since
@@ -93,6 +93,7 @@ class Entity:
         self.print_actions: bool = print_actions
         self.log: bool = log
         self.using_resources = {}  # a dictionary showing all the resources an entity is using
+        self._current_process: simpy.events.Process | None = None
         self._current_interruptible: str | None = None
         self._current_timeout: Event | None = None
 
@@ -320,20 +321,23 @@ class Entity:
                     self._current_timeout = self.env.timeout(done_in)
                     yield self._current_timeout
                     done_in = 0
-                except simpy.Interrupt:
+                except simpy.Interrupt as interrupt:
                     done_in -= self.env.now - start
+                    if isinstance(interrupt.cause, Preempted):
+                        return
                 except Preempted:
                     done_in -= self.env.now - start
-                    raise
+                    return
         finally:
             self._current_timeout = None
             self._current_interruptible = None
+            self._current_process = None
 
     def _on_preempted(self, resource, cause: Preempted):
         """Propagate a preemption into the current interruptible activity."""
 
-        if self._current_timeout is not None and not self._current_timeout.triggered:
-            self._current_timeout.fail(cause)
+        if self._current_process is not None and not self._current_process.triggered:
+            self._current_process.interrupt(cause)
 
         activity_name = self._current_interruptible
 
@@ -425,7 +429,8 @@ class Entity:
 
     def interruptive_do(self, name, dur):
         try:
-            return self.env.process(self._interruptive_activity(name, dur))
+            self._current_process = self.env.process(self._interruptive_activity(name, dur))
+            return self._current_process
         except:
             print("simpm: error in  duration of activity", name)
 
@@ -1352,7 +1357,8 @@ class PreemptiveResource(GeneralResource):
             resource=self,
             cause=Preempted(by=new_request.entity, resource=self, usage_since=victim.usage_since),
         )
-        self._grant(new_request)
+        insort_left(self._queue, new_request)
+        self.env.process(self._check_queue())
 
 
 """

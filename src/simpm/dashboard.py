@@ -19,7 +19,11 @@ except ImportError as exc:  # pragma: no cover - handled at runtime
 from simpm.dashboard_data import collect_run_data
 
 
-CONTENT_STYLE = {"width": "100%", "padding": "12px"}
+CONTENT_STYLE = {
+    "maxWidth": "1240px",
+    "margin": "0 auto",
+    "padding": "0 18px 32px",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -200,18 +204,11 @@ def _stat_grid(stats: list[dict[str, Any]]):
                     html.Div(stat["Metric"], style={"fontWeight": "bold"}),
                     html.Div(f"{stat['Value']}", style={"fontSize": "0.95rem"}),
                 ],
-                style={
-                    "background": "#f8fafc",
-                    "border": "1px solid #e2e8f0",
-                    "borderRadius": "10px",
-                    "padding": "10px 12px",
-                    "flex": "1 1 160px",
-                    "boxShadow": "0 1px 3px rgba(0,0,0,0.05)",
-                },
+                className="mini-card",
             )
             for stat in stats
         ],
-        style={"display": "flex", "flexWrap": "wrap", "gap": "8px", "margin": "4px 0"},
+        className="mini-card-grid",
     )
 
 
@@ -253,15 +250,21 @@ def _data_table(records: list[dict[str, Any]], empty_message: str, page_size: in
     if not records:
         return html.Div(empty_message)
     columns = [{"name": col, "id": col} for col in sorted({k for row in records for k in row.keys()})]
-    return dash_table.DataTable(data=records, columns=columns, page_size=page_size, style_table={"overflowX": "auto"})
+    return dash_table.DataTable(
+        data=records,
+        columns=columns,
+        page_size=page_size,
+        style_table={"overflowX": "auto"},
+    )
 
 
 def _section(title: str, children):
     return html.Div(
         [
-            html.Div(title, style={"fontWeight": "bold", "marginTop": "4px"}),
-            html.Div(children, style={"display": "flex", "flexWrap": "wrap", "marginTop": "4px"}),
-        ]
+            html.Div(title, className="section-title"),
+            html.Div(children, className="nav-pill-grid"),
+        ],
+        className="panel-card selection-card",
     )
 
 
@@ -313,7 +316,16 @@ def _build_tabs():
         return dcc.Tabs(
             id="section-tabs",
             value="environment",
-            children=[dcc.Tab(label=tab["label"], value=tab["value"]) for tab in tabs],
+            className="main-tabs",
+            children=[
+                dcc.Tab(
+                    label=tab["label"],
+                    value=tab["value"],
+                    className="tab-item",
+                    selected_className="tab-item--selected",
+                )
+                for tab in tabs
+            ],
         )
     # Fallback for environments where dcc.Tabs is unavailable. RadioItems still provides
     # a "value" property, keeping existing callbacks functional even without tab
@@ -345,13 +357,7 @@ def _build_overview_cards(run_data: dict[str, Any]):
                 html.Div(f"Run ID: {env.get('run_id', '-')}", style={"color": "#5f6368"}),
                 html.Div(f"Time span: 0 → {end_time if end_time is not None else '-'}"),
             ],
-            style={
-                "background": "linear-gradient(135deg, #f0f4ff, #fdfdfd)",
-                "border": "1px solid #dbe4ff",
-                "borderRadius": "12px",
-                "padding": "12px 14px",
-                "boxShadow": "0 1px 4px rgba(0,0,0,0.08)",
-            },
+            className="stat-card stat-card--accent",
         ),
         html.Div(
             _stat_grid(
@@ -361,7 +367,7 @@ def _build_overview_cards(run_data: dict[str, Any]):
                     {"Metric": "Activities", "Value": len(activities)},
                 ]
             ),
-            style={"background": "#fff", "padding": "8px", "borderRadius": "10px", "border": "1px solid #e8eaed"},
+            className="stat-card",
         ),
     ]
 
@@ -372,11 +378,11 @@ def _build_overview_cards(run_data: dict[str, Any]):
                     html.Div("Activity durations", style={"fontWeight": "bold"}),
                     _stat_grid(duration_stats),
                 ],
-                style={"background": "#fff", "padding": "8px", "borderRadius": "10px", "border": "1px solid #e8eaed"},
+                className="stat-card",
             )
         )
 
-    return html.Div(cards, style={"display": "grid", "gridGap": "10px"})
+    return html.Div(cards, className="card-grid")
 
 
 def _global_activity_plot(run_data: dict[str, Any]):
@@ -389,11 +395,11 @@ def _global_activity_plot(run_data: dict[str, Any]):
         return html.Div("No activity data available.")
     return html.Div(
         [
-            html.Div("Activity duration statistics", style={"fontWeight": "bold", "marginBottom": "6px"}),
+            html.Div("Activity duration statistics", className="section-title"),
             _stat_grid(_describe(durations)),
             _distribution_tabs(durations, "Activity duration distribution", x_label="Duration"),
         ],
-        style={"display": "grid", "gridGap": "8px"},
+        className="panel-card",
     )
 
 
@@ -407,15 +413,15 @@ def _environment_logs(run_data: dict[str, Any]):
     if entity_waits:
         summary_cards.append(
             html.Div(
-                [html.Div("Entity waiting durations", style={"fontWeight": "bold"}), _stat_grid(_describe(entity_waits))],
-                style={"padding": "8px 0"},
+                [html.Div("Entity waiting durations", className="section-title"), _stat_grid(_describe(entity_waits))],
+                className="panel-card",
             )
         )
     if resource_waits:
         summary_cards.append(
             html.Div(
-                [html.Div("Resource waiting durations", style={"fontWeight": "bold"}), _stat_grid(_describe(resource_waits))],
-                style={"padding": "8px 0"},
+                [html.Div("Resource waiting durations", className="section-title"), _stat_grid(_describe(resource_waits))],
+                className="panel-card",
             )
         )
     if summary_cards:
@@ -429,7 +435,7 @@ def _environment_logs(run_data: dict[str, Any]):
         sections.append(
             html.Div(
                 [
-                    html.H5("Event log"),
+                    html.H5("Event log", className="section-title"),
                     dash_table.DataTable(
                         data=logs,
                         columns=columns,
@@ -437,10 +443,12 @@ def _environment_logs(run_data: dict[str, Any]):
                         style_table={"overflowX": "auto"},
                     ),
                 ]
+                ,
+                className="panel-card",
             )
         )
     else:
-        sections.append(html.Div("No logs collected for this run."))
+        sections.append(html.Div("No logs collected for this run.", className="panel-card"))
 
     waiting_rows = []
     for ent in run_data.get("entities", []):
@@ -455,10 +463,11 @@ def _environment_logs(run_data: dict[str, Any]):
     sections.append(
         html.Div(
             [
-                html.H5("Entity waiting episodes"),
+                html.H5("Entity waiting episodes", className="section-title"),
                 waiting_table,
                 _distribution_tabs(entity_waits, "Entity waiting durations", x_label="Duration"),
-            ]
+            ],
+            className="panel-card",
         )
     )
 
@@ -475,14 +484,15 @@ def _environment_logs(run_data: dict[str, Any]):
     sections.append(
         html.Div(
             [
-                html.H5("Resource queue log"),
+                html.H5("Resource queue log", className="section-title"),
                 queue_table,
                 _distribution_tabs(resource_waits, "Resource waiting durations", x_label="Duration"),
-            ]
+            ],
+            className="panel-card",
         )
     )
 
-    return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
+    return html.Div(sections, className="panel-stack")
 
 
 def _entity_timeline(entity: dict[str, Any]):
@@ -509,10 +519,26 @@ def _entity_timeline(entity: dict[str, Any]):
 def _entity_logs(entity: dict[str, Any]):
     sections = []
 
-    sections.append(html.Div([html.H5("Schedule log"), _data_table(entity.get("schedule_log", []), "No schedule recorded.")]))
-    sections.append(html.Div([html.H5("Status log"), _data_table(entity.get("status_log", []), "No status changes recorded.")]))
     sections.append(
-        html.Div([html.H5("Waiting episodes"), _data_table(entity.get("waiting_log", []), "No waiting episodes recorded.")])
+        html.Div(
+            [html.H5("Schedule log", className="section-title"), _data_table(entity.get("schedule_log", []), "No schedule recorded.")],
+            className="panel-card",
+        )
+    )
+    sections.append(
+        html.Div(
+            [html.H5("Status log", className="section-title"), _data_table(entity.get("status_log", []), "No status changes recorded.")],
+            className="panel-card",
+        )
+    )
+    sections.append(
+        html.Div(
+            [
+                html.H5("Waiting episodes", className="section-title"),
+                _data_table(entity.get("waiting_log", []), "No waiting episodes recorded."),
+            ],
+            className="panel-card",
+        )
     )
 
     waiting_times = entity.get("waiting_time") or []
@@ -520,20 +546,25 @@ def _entity_logs(entity: dict[str, Any]):
         sections.append(
             html.Div(
                 [
-                    html.Div("Waiting time statistics", style={"fontWeight": "bold"}),
+                    html.Div("Waiting time statistics", className="section-title"),
                     _stat_grid(_describe(waiting_times)),
                     _distribution_tabs(waiting_times, "Waiting time distribution", x_label="Duration"),
                 ],
-                style={"display": "grid", "gridGap": "6px"},
+                className="panel-card",
             )
         )
     else:
-        sections.append(html.Div("No waiting durations recorded."))
+        sections.append(html.Div("No waiting durations recorded.", className="panel-card"))
 
     logs = entity.get("logs", [])
-    sections.append(html.Div([html.H5("Event log"), _data_table(logs, "No logs collected for this entity.")]))
+    sections.append(
+        html.Div(
+            [html.H5("Event log", className="section-title"), _data_table(logs, "No logs collected for this entity.")],
+            className="panel-card",
+        )
+    )
 
-    return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
+    return html.Div(sections, className="panel-stack")
 
 
 def _activity_distribution(entity: dict[str, Any], activity_id: int):
@@ -575,35 +606,54 @@ def _resource_usage(resource: dict[str, Any]):
 
 def _resource_logs(resource: dict[str, Any]):
     sections = []
-    sections.append(html.Div([html.H5("Queue log"), _data_table(resource.get("queue_log", []), "No queue log recorded.")]))
-    sections.append(html.Div([html.H5("Status log"), _data_table(resource.get("status_log", []), "No status log recorded.")]))
+    sections.append(
+        html.Div(
+            [html.H5("Queue log", className="section-title"), _data_table(resource.get("queue_log", []), "No queue log recorded.")],
+            className="panel-card",
+        )
+    )
+    sections.append(
+        html.Div(
+            [html.H5("Status log", className="section-title"), _data_table(resource.get("status_log", []), "No status log recorded.")],
+            className="panel-card",
+        )
+    )
 
     waiting_times = resource.get("waiting_time") or []
     if waiting_times:
         sections.append(
             html.Div(
                 [
-                    html.Div("Waiting time statistics", style={"fontWeight": "bold"}),
+                    html.Div("Waiting time statistics", className="section-title"),
                     _stat_grid(_describe(waiting_times)),
                     _distribution_tabs(waiting_times, "Waiting times for resource", x_label="Duration"),
                 ],
-                style={"display": "grid", "gridGap": "6px"},
+                className="panel-card",
             )
         )
     else:
-        sections.append(html.Div("No waiting durations recorded."))
+        sections.append(html.Div("No waiting durations recorded.", className="panel-card"))
 
     stats = resource.get("stats", {}) or {}
     if stats:
         stat_rows = [{"Metric": k.replace("_", " ").title(), "Value": v} for k, v in stats.items()]
-        sections.append(_data_table(stat_rows, "No statistics available.", page_size=5))
+        sections.append(
+            html.Div(
+                _data_table(stat_rows, "No statistics available.", page_size=5), className="panel-card"
+            )
+        )
     else:
-        sections.append(html.Div("No statistics available."))
+        sections.append(html.Div("No statistics available.", className="panel-card"))
 
     logs = resource.get("logs", [])
-    sections.append(html.Div([html.H5("Event log"), _data_table(logs, "No logs collected for this resource.")]))
+    sections.append(
+        html.Div(
+            [html.H5("Event log", className="section-title"), _data_table(logs, "No logs collected for this resource.")],
+            className="panel-card",
+        )
+    )
 
-    return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
+    return html.Div(sections, className="panel-stack")
 
 
 def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
@@ -617,15 +667,18 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
             html.Div(
                 [
                     _build_tabs(),
-                    html.Div(id="selection-list", style={"marginBottom": "16px"}),
-                    html.Div(id="detail-overview"),
-                    html.H4("Logs"),
-                    html.Div(id="detail-logs"),
+                    html.Div(id="selection-list", className="panel-wrapper"),
+                    html.Div(id="detail-overview", className="panel-wrapper"),
+                    html.Div(
+                        [html.H4("Logs", className="section-title"), html.Div(id="detail-logs")],
+                        className="panel-card",
+                    ),
                 ],
                 style=CONTENT_STYLE,
+                className="main-container",
             ),
         ],
-        style={"height": "100vh", "overflowY": "auto"},
+        className="app-shell",
     )
 
     @app.callback(Output("run-data", "data"), Input("live-interval", "n_intervals"), prevent_initial_call=True)
@@ -672,11 +725,16 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
     @app.callback(Output("detail-overview", "children"), Output("detail-logs", "children"), Input("selected-node", "data"), State("run-data", "data"))
     def _render_detail(selected, data):
         if selected == "environment":
-            return html.Div([
-                _build_overview_cards(data),
-                html.H4("Global activity overview"),
-                _global_activity_plot(data),
-            ]), _environment_logs(data)
+            return (
+                html.Div(
+                    [
+                        html.Div(_build_overview_cards(data), className="panel-card"),
+                        _global_activity_plot(data),
+                    ],
+                    className="panel-stack",
+                ),
+                _environment_logs(data),
+            )
 
         if selected == "entities":
             return html.Div("Select an entity to inspect."), html.Div()
@@ -686,11 +744,22 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
             entity = next((e for e in data.get("entities", []) if e.get("id") == ent_id), None)
             if not entity:
                 return html.Div("Entity not found."), html.Div()
-            return html.Div([
-                html.H3(f"Entity {entity['id']}"),
-                html.Div(f"Type: {entity.get('type', '-')}", style={"marginBottom": "4px"}),
-                _entity_timeline(entity),
-            ]), _entity_logs(entity)
+            return (
+                html.Div(
+                    [
+                        html.Div(
+                            [
+                                html.H3(f"Entity {entity['id']}", className="section-title"),
+                                html.Div(f"Type: {entity.get('type', '-')}", style={"marginBottom": "4px"}),
+                                _entity_timeline(entity),
+                            ],
+                            className="panel-card",
+                        )
+                    ],
+                    className="panel-stack",
+                ),
+                _entity_logs(entity),
+            )
 
         if selected == "resources":
             return html.Div("Select a resource to inspect."), html.Div()
@@ -704,7 +773,7 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
             if not activity:
                 return html.Div("Activity not found."), html.Div()
             overview = html.Div([
-                html.H3(activity.get("activity_name", "Activity")),
+                html.H3(activity.get("activity_name", "Activity"), className="section-title"),
                 html.Div(f"Entity {entity['id']}"),
             ])
             logs = [log for log in entity.get("logs", []) if log.get("source_type") == "activity" and log.get("source_id") == int(act_id)]
@@ -713,7 +782,7 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
                 columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
                 page_size=10,
             ) if logs else html.Div("No logs for this activity.")
-            return html.Div([overview, _activity_distribution(entity, int(act_id))]), log_table
+            return html.Div([overview, _activity_distribution(entity, int(act_id))], className="panel-stack"), log_table
 
         if selected == "activities":
             return html.Div("Select an activity to inspect."), html.Div()
@@ -784,18 +853,31 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
             ) if sample_rows else html.Div("No sampled durations recorded for this activity name.")
 
             logs = activity_data.get("logs", [])
-            log_table = dash_table.DataTable(
-                data=logs,
-                columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
-                page_size=10,
-                style_table={"overflowX": "auto"},
-            ) if logs else html.Div("No logs for this activity name.")
+                log_table = dash_table.DataTable(
+                    data=logs,
+                    columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
+                    page_size=10,
+                    style_table={"overflowX": "auto"},
+                ) if logs else html.Div("No logs for this activity name.")
 
             summary = html.Div([
-                html.H3(activity_name),
+                html.H3(activity_name, className="section-title"),
                 html.Div(f"Instances observed: {len(activity_data.get('instances', []))}", style={"marginBottom": "4px"}),
             ])
-            return html.Div([summary, duration_graph, html.H4("Duration definitions"), distribution_table, html.H4("Sampled durations"), sampled_table]), log_table
+            return (
+                html.Div(
+                    [
+                        summary,
+                        duration_graph,
+                        html.H4("Duration definitions", className="section-title"),
+                        distribution_table,
+                        html.H4("Sampled durations", className="section-title"),
+                        sampled_table,
+                    ],
+                    className="panel-stack",
+                ),
+                log_table,
+            )
 
         if selected.startswith("resource:"):
             res_id = int(selected.split(":")[1])
@@ -803,11 +885,11 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
             if not resource:
                 return html.Div("Resource not found."), html.Div()
             overview = html.Div([
-                html.H3(resource.get("name", "Resource")),
+                html.H3(resource.get("name", "Resource"), className="section-title"),
                 html.Div(f"Type: {resource.get('type', '-')}", style={"marginBottom": "4px"}),
                 html.Div(f"Capacity: {resource.get('capacity', '-')}", style={"marginBottom": "4px"}),
             ])
-            return html.Div([overview, _resource_usage(resource)]), _resource_logs(resource)
+            return html.Div([overview, _resource_usage(resource)], className="panel-stack"), _resource_logs(resource)
 
         return html.Div("Select a node to inspect."), html.Div()
 

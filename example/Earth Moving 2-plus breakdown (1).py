@@ -15,23 +15,23 @@ def truck_process(truck: des.Entity,loader_1,loader_2,dumped_dirt):
          truck.cancel(loader_2,1)
      elif truck.not_pending(loader_2):
          L=loader_2
-         truck.cancel(loader_1,1) 
+         truck.cancel(loader_1,1)
      start_load_list.append(env.now)
-     yield truck.do("loading",truck._attributes["load_dur"])
+     yield truck.do("loading",truck.load_dur)
      yield truck.put(L,1)
-     yield truck.add(dumped_dirt,truck._attributes["capacity"])
+     yield truck.add(dumped_dirt,truck.capacity)
      start_haul_list.append(env.now)
-     yield truck.do("hauling",truck._attributes["haul_dur"])
-     yield truck.do("dumping",truck._attributes["dump_dur"])
-     yield truck.do("returning",truck._attributes["return_dur"])
+     yield truck.do("hauling",truck.haul_dur)
+     yield truck.do("dumping",truck.dump_dur)
+     yield truck.do("returning",truck.return_dur)
      if dumped_dirt.level()>10000:
          break
-     
+
 def loader_breakdown_proc(repair_man,loader):
     while True:
-        yield repair_man.do("wait",loader.attr['time_betwin_break'])
+        yield repair_man.do("wait",loader.time_betwin_break)
         yield repair_man.get(loader,1,1)
-        yield repair_man.do("repairing",loader.attr['time_to_fix'])
+        yield repair_man.do("repairing",loader.time_to_fix)
         yield repair_man.put(loader,1)
         
         
@@ -43,26 +43,26 @@ start_haul_list=[]
 large_trucks=[]
 small_trucks=[]
 loader_1=des.PriorityResource(env,"Loader1",1,print_actions=True)
-loader_1.attr['time_betwin_break']=500
-loader_1.attr['time_to_fix']=20
+loader_1.time_betwin_break=500
+loader_1.time_to_fix=20
 loader_2=des.PriorityResource(env,"Loader2",1,print_actions=True)
-loader_2.attr['time_betwin_break']=600
-loader_2.attr['time_to_fix']=25
+loader_2.time_betwin_break=600
+loader_2.time_to_fix=25
 for i in range(4):
     large_trucks.append(des.Entity(env,"truck"))
-    large_trucks[i].attr["capacity"]=20
-    large_trucks[i].attr["load_dur"]=5
-    large_trucks[i].attr["haul_dur"]=35
-    large_trucks[i].attr["dump_dur"]=2
-    large_trucks[i].attr["return_dur"]=20
+    large_trucks[i].capacity=20
+    large_trucks[i].load_dur=5
+    large_trucks[i].haul_dur=35
+    large_trucks[i].dump_dur=2
+    large_trucks[i].return_dur=20
     p=env.process(truck_process(large_trucks[i],loader_1,loader_2,dumped_dirt))
 for i in range(3):
     small_trucks.append(des.Entity(env,"truck"))
-    small_trucks[i].attr["capacity"]=15
-    small_trucks[i].attr["load_dur"]=3
-    small_trucks[i].attr["haul_dur"]=25
-    small_trucks[i].attr["dump_dur"]=1.5
-    small_trucks[i].attr["return_dur"]=13
+    small_trucks[i].capacity=15
+    small_trucks[i].load_dur=3
+    small_trucks[i].haul_dur=25
+    small_trucks[i].dump_dur=1.5
+    small_trucks[i].return_dur=13
     env.process(truck_process(small_trucks[i],loader_1,loader_2,dumped_dirt))
 
 

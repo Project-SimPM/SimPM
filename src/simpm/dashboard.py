@@ -237,8 +237,6 @@ def _environment_logs(run_data: dict[str, Any]):
         data=logs,
         columns=columns,
         page_size=10,
-        page_action="native",
-        page_current=0,
         style_table={"overflowX": "auto"},
     )
 
@@ -272,8 +270,6 @@ def _entity_logs(entity: dict[str, Any]):
         data=logs,
         columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())],
         page_size=10,
-        page_action="native",
-        page_current=0,
         style_table={"overflowX": "auto"},
     )
 
@@ -414,8 +410,6 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 data=logs,
                 columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
                 page_size=10,
-                page_action="native",
-                page_current=0,
             ) if logs else html.Div("No logs for this activity.")
             return html.Div([overview, _activity_distribution(entity, int(act_id))]), log_table
 
@@ -442,8 +436,6 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 data=logs,
                 columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
                 page_size=10,
-                page_action="native",
-                page_current=0,
                 style_table={"overflowX": "auto"},
             ) if logs else html.Div("No logs for this activity name.")
 
@@ -463,8 +455,6 @@ def build_app(run_data: dict[str, Any], live_queue: Queue | None = None) -> Dash
                 data=logs,
                 columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
                 page_size=10,
-                page_action="native",
-                page_current=0,
             ) if logs else html.Div("No logs for this resource.")
             overview = html.Div([
                 html.H3(resource.get("name", "Resource")),

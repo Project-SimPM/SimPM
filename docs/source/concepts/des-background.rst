@@ -104,19 +104,25 @@ The usual steps are:
 How SimPM fits in
 -----------------
 
-SimPM provides:
+General-purpose discrete-event simulation (DES) libraries such as
+`SimPy <https://simpy.readthedocs.io/>`_ are widely used to model
+queues and process flows. SimPy is a well-known open-source Python
+library for this purpose.
 
-* :class:`simpm.des.Environment` – the simulation world and clock.
-* :class:`simpm.des.Entity` – entities with attributes and life-cycle processes.
-* :class:`simpm.des.Resource`, :class:`simpm.des.PriorityResource`,
-  :class:`simpm.des.PreemptiveResource` – different resource types and priority
-  behaviors.
-* :mod:`simpm.dist` – distributions for stochastic durations and quantities.
-* Logging utilities – methods on entities and resources that automatically collect
-  queue lengths, waiting times, utilization, and schedules.
+SimPM adopts the same idea of process-based DES — you describe how a
+system evolves over time using Python code, while an environment
+advances the simulation clock and processes events in order. It
+focuses specifically on project and construction management:
 
-If you are new to DES, read this page once to understand the vocabulary, then move on
-to the SimPM-specific tutorials where these ideas are implemented in code.
+* Simulation time is interpreted as project time.
+* Entities typically represent activities, work packages, or work items.
+* Resources represent crews, equipment, or other limited project capacities.
+* Distributions and logging are tuned for completion time, risk, and
+  resource-usage questions.
+
+You do not need prior experience with SimPy or other DES tools to use
+SimPM. You can treat it as a focused project-simulation toolkit built
+on these well-established ideas.
 
 Where to go next
 ----------------

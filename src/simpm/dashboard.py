@@ -853,12 +853,12 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
             ) if sample_rows else html.Div("No sampled durations recorded for this activity name.")
 
             logs = activity_data.get("logs", [])
-                log_table = dash_table.DataTable(
-                    data=logs,
-                    columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
-                    page_size=10,
-                    style_table={"overflowX": "auto"},
-                ) if logs else html.Div("No logs for this activity name.")
+            log_table = dash_table.DataTable(
+                data=logs,
+                columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
+                page_size=10,
+                style_table={"overflowX": "auto"},
+            ) if logs else html.Div("No logs for this activity name.")
 
             summary = html.Div([
                 html.H3(activity_name, className="section-title"),

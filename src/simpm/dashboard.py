@@ -254,7 +254,7 @@ def _data_table(records: list[dict[str, Any]], empty_message: str, page_size: in
         data=records,
         columns=columns,
         page_size=page_size,
-        style_table={"overflowX": "auto"},
+        style_table={"overflowX": "auto", "overflowY": "auto", "maxHeight": "360px"},
     )
 
 

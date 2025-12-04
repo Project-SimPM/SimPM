@@ -781,6 +781,13 @@ class GeneralResource:
         amount : int
             The number of requested resouces
         """
+        if amount <= 0:
+            raise ValueError("Requested resource amount must be positive")
+        if amount > self.container.capacity:
+            raise ValueError(
+                f"Requested amount {amount} exceeds capacity {self.container.capacity} for resource {self.name}"
+            )
+
         self.queue_length += 1
         if self.print_actions or entity.print_actions:
             print(entity.name + "(" + str(entity.id) + ")" + " requested", str(amount), self.name + "(s)" + "(" + str(self.id) + ")" + ", sim_time:", self.env.now)
@@ -839,6 +846,11 @@ class GeneralResource:
         amount : int
             The number of added resouces
         """
+        if self.container.level + amount > self.container.capacity:
+            raise ValueError(
+                f"Adding {amount} to {self.name} exceeds capacity {self.container.capacity}; current level is {self.container.level}"
+            )
+
         if self.print_actions or entity.print_actions:
             print(entity.name + "(" + str(entity.id) + ")" + " added " + str(amount), self.name + "(s)" + "(" + str(self.id) + ")" + ", sim_time:", self.env.now)
         if self.log:
@@ -1041,6 +1053,10 @@ class Resource(GeneralResource):
         amount : int
             The number of resouces to be added
         """
+        if self.container.level + amount > self.container.capacity:
+            raise ValueError(
+                f"Adding {amount} to {self.name} exceeds capacity {self.container.capacity}; current level is {self.container.level}"
+            )
         yield self.container.put(amount)
         super()._add(entity, amount)
         return entity.env.process(self._check_all_requests())
@@ -1056,6 +1072,10 @@ class Resource(GeneralResource):
         amount : int
             The number of resouces to be added
         """
+        if self.container.level + amount > self.container.capacity:
+            raise ValueError(
+                f"Putting back {amount} to {self.name} exceeds capacity {self.container.capacity}; current level is {self.container.level}"
+            )
         yield self.container.put(amount)
         super()._put(entity, amount)
         return entity.env.process(self._check_all_requests())

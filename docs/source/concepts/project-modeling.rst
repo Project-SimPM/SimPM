@@ -1,36 +1,193 @@
 Project modeling concepts in SimPM
 ==================================
 
-SimPM models project management systems using discrete-event simulation.
+SimPM models project-management and construction systems using
+discrete-event simulation (DES). This page connects the basic DES ideas
+from :doc:`des-background` to the concrete modeling blocks in SimPM.
+
+.. contents:: On this page
+   :local:
 
 Key building blocks
 -------------------
 
-* **Environment** (:class:`simpm.des.Environment`):
-  the simulation world and event scheduler.
-* **Entities** (:class:`simpm.des.Entity`):
-  things that move through the system (e.g., work packages, tasks).
-* **Resources** (:class:`simpm.des.Resource` and variants):
-  crews, equipment, or other limited capacities.
-* **Distributions** (:mod:`simpm.dist`):
-  probabilistic durations and quantities
-  (e.g., :func:`simpm.dist.norm`, :func:`simpm.dist.triang`).
+SimPM exposes the usual DES concepts as Python objects:
+
+* **Environment** (:class:`simpm.des.Environment`) – the simulation world
+  and event scheduler. It keeps the current simulation time (``env.now``)
+  and manages all active processes.
+
+* **Entities** (:class:`simpm.des.Entity`) – things that move through the
+  system. In project-management, entities can represent:
+
+  * trucks in an earthmoving operation,
+  * tasks or work packages in a schedule,
+  * crews, modules, or other units of work.
+
+* **Resources** (:class:`simpm.des.Resource` and variants) – limited
+  capacities that entities compete for:
+
+  * crews, cranes, loaders, trucks, excavators,
+  * storage yards or other constrained capacities,
+  * priority or preemptive resources when some users have higher priority.
+
+* **Distributions** (:mod:`simpm.dist`) – probabilistic durations and
+  quantities (e.g., :func:`simpm.dist.norm`, :func:`simpm.dist.triang`,
+  :func:`simpm.dist.expon`). These are used to sample uncertain activity
+  durations, travel times, or production rates.
+
+Entities and their attributes
+-----------------------------
+
+Each entity instance has:
+
+* a **name** and **id** (e.g., ``"truck_3"``),
+* a reference to the **environment** it belongs to,
+* an ``attr`` dictionary for arbitrary user-defined attributes.
+
+Example attributes:
+
+* creation time (when the entity entered the system),
+* due date or deadline,
+* priority class,
+* batch size or load size.
+
+You usually create entities using
+:meth:`simpm.des.Environment.create_entities`, which can also enable
+logging:
+
+.. code-block:: python
+
+   import simpm.des as des
+
+   env = des.Environment("Example")
+   trucks = env.create_entities("truck", 10, log=True)
+
+The *life-cycle* of each entity is described by a **process** – a
+Python generator that yields operations such as requesting resources,
+waiting for durations, or adding output to an inventory.
+
+Resources, queues, and priorities
+---------------------------------
+
+Resources represent capacities that can be shared across entities.
+SimPM provides:
+
+* :class:`simpm.des.Resource` – basic capacity with FIFO queueing.
+* :class:`simpm.des.PriorityResource` – entities can request with a
+  priority value; higher-priority requests jump ahead in the queue.
+* :class:`simpm.des.PreemptiveResource` – high-priority users can
+  interrupt lower-priority holders (preemption).
+* :class:`simpm.des.GeneralResource` – a generic resource wrapper used
+  internally in some cases.
+
+The typical pattern in an entity process is:
+
+.. code-block:: python
+
+   def task(entity, crew):
+       # Request 1 unit of crew capacity
+       yield entity.get(crew, 1)
+       # Perform the work
+       yield entity.do("work", 10)
+       # Release the crew
+       yield entity.put(crew, 1)
+
+Whenever capacity is not immediately available, the entity waits in the
+resource queue. SimPM can log:
+
+* how long entities waited (waiting time),
+* how many entities were in the queue (queue length),
+* how busy the resource was (utilization).
+
+Processes and the environment
+-----------------------------
+
+In SimPM, processes are plain Python generator functions that describe
+what happens to an entity over time:
+
+* **`yield entity.do("name", duration)`** – wait for a given duration
+  (deterministic or sampled from a distribution).
+* **`yield entity.get(resource, amount, priority=...)`** – request
+  capacity from a resource; the process is suspended until the request
+  is granted.
+* **`yield entity.put(resource, amount)`** – release capacity back to
+  the resource.
+* **`yield entity.add(resource, amount)`** – add output (e.g., cubic
+  meters of excavated material) to an inventory-like resource.
+
+You attach processes to the environment with :meth:`env.process` and
+run the simulation with either :meth:`env.run` or :func:`simpm.run`
+(which can also start a dashboard):
+
+.. code-block:: python
+
+   import simpm
+   import simpm.des as des
+
+   env = des.Environment("Small example")
+   crew = des.Resource(env, "Crew", init=1, capacity=1, log=True)
+   job = env.create_entities("job", 1, log=True)[0]
+
+   def job_process(entity, crew_res):
+       yield entity.get(crew_res, 1)
+       yield entity.do("work", 8)
+       yield entity.put(crew_res, 1)
+
+   env.process(job_process(job, crew))
+   simpm.run(env, dashboard="none")
+
+Logging and performance measures
+--------------------------------
+
+A key feature of SimPM is built-in logging for entities and resources
+when ``log=True`` is set.
+
+Typical project-management measures include:
+
+* **Resource utilization** – fraction of time a crew or machine is busy.
+* **Queue length** – how many entities were waiting over time.
+* **Waiting time** – how long each entity spent waiting for resources.
+* **Throughput / production** – how much volume or how many jobs were
+  completed in a given time.
+* **Completion time** – when a project or process finishes.
+
+Examples of log accessors:
+
+* ``resource.status_log()`` – time-stamped changes in resource
+  allocation and queue length.
+* ``resource.waiting_time()`` – per-request waiting times.
+* ``resource.average_utilization()`` – average utilization over the
+  run.
+* ``entity.schedule()`` – the activity-level schedule of a single
+  entity (start/finish times for each named activity).
+
+These are used extensively in the tutorials:
+
+* :doc:`../tutorials/hello-simpm` – basic earthmoving system.
+* :doc:`../tutorials/schedule-risk` – Monte Carlo schedule risk.
+* :doc:`../tutorials/resource-bottlenecks` – priority and resource
+  competition.
 
 Basic workflow
 --------------
 
+A typical modeling workflow in SimPM is:
+
 1. Define the environment and random seeds.
-2. Declare resources with capacities (crews, machines).
-3. Define processes/activities that:
-   * Request resources
-   * Wait for durations drawn from distributions
-   * Release resources
-4. Run the environment for a specified horizon.
-5. Analyze logs and statistics (queue lengths, utilization, total duration).
+2. Declare resources with capacities (crews, machines, inventories).
+3. Define entity types and their processes (life-cycles).
+4. Attach processes to the environment using ``env.process(...)``.
+5. Run the environment using :func:`simpm.run` or :meth:`env.run`.
+6. Analyze logs and statistics (queue lengths, utilization, waiting
+   times, total duration, production).
 
 Where to go next
 ----------------
 
 * :doc:`../getting-started` for your first minimal run.
 * :doc:`../tutorials/hello-simpm` for a full project example.
-* :doc:`../tutorials/schedule-risk` for Monte Carlo schedule risk.
+* :doc:`../tutorials/schedule-risk` for Monte Carlo schedule risk
+  analysis.
+* :doc:`../tutorials/resource-bottlenecks` for priority and bottleneck
+  behavior.

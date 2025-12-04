@@ -5,77 +5,156 @@ It provides functionality for defining and working with various probability
 distributions, as well as computing essential 
 statistical measures for decision-making and risk assessment.
 '''
+from dataclasses import dataclass
+from typing import Callable, Dict, Iterable, Optional, Tuple
+
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats as st
-import matplotlib.pyplot as plt
 
-def fit(data,dist_type,method='mle'):
-    '''
-    Fit a distribution on data
 
-    Parameters:
-    -----------
+@dataclass
+class FitResult:
+    """Container for the results of fitting a distribution.
+
+    Attributes
+    ----------
+    dist_type : str
+        The type of distribution fitted.
+    params : tuple
+        The parameters returned by the fitting routine.
+    scipy_dist : scipy.stats.rv_continuous
+        The fitted SciPy distribution instance.
+    ks : float
+        Kolmogorov–Smirnov statistic computed against the fitted CDF.
+    wrapper : Optional[distribution]
+        Convenience wrapper mirroring :mod:`simpm.dist` distribution classes.
+    """
+
+    dist_type: str
+    params: Tuple[float, ...]
+    scipy_dist: st.rv_continuous
+    ks: float
+    wrapper: Optional["distribution"] = None
+
+
+def _validate_data(data: Iterable[float]) -> np.ndarray:
+    array = np.asarray(data, dtype=float).reshape(-1)
+    if array.size == 0:
+        raise ValueError("Data must contain at least one observation.")
+    if np.isnan(array).any() or np.isinf(array).any():
+        raise ValueError("Data must not contain NaN or infinite values.")
+    return array
+
+
+def fit(data: Iterable[float], dist_type: str, method: str = "mle") -> FitResult:
+    """
+    Fit a distribution on data and return a structured result.
+
+    Parameters
+    ----------
     data : array_like
         The data to fit the distribution to.
     dist_type : str
-        The type of distribution to fit. Supported distribution types are 'triang', 'norm', 'beta', 'trapz', and 'expon'.
+        The type of distribution to fit. Supported types are ``"triang"``,
+        ``"norm"``, ``"beta"``, ``"trapz"``, and ``"expon"``.
     method : str, optional
-        The method to use for fitting the distribution. Default is 'mle' (maximum likelihood estimation).
+        The method to use for fitting the distribution. Default is ``"mle"``
+        (maximum likelihood estimation).
 
-    Returns:
-    --------
-    fitted_distribution : object
-        An object representing the fitted distribution.
-
-    Raises:
+    Returns
     -------
-    ValueError
-        If the distribution type is not recognized.
-    '''
+    FitResult
+        Structured fitting result containing the SciPy distribution, wrapper
+        instance, and Kolmogorov–Smirnov statistic.
 
-    try:
-        data=np.concatenate(data).ravel()
-    except:
-        pass
-    a=None
-    if dist_type=='triang':
-        dist_type='triang'
-        params=st.triang.fit(data)
-        dist=st.triang(params[0],loc=params[1],scale=params[2])
-        a=triang(0,1,2)
-        a.dist=dist
-        
-    elif dist_type=='norm' :
-        dist_type='norm'
-        params=st.norm.fit(data,method=method)
-        dist=st.norm(loc=params[0],scale=params[1])
-        a=norm(0,1)
-        a.dist=dist
-       
-    elif dist_type=='beta' :
-            dist_type='beta'
-            params=st.beta.fit(data,method=method)
-            dist=st.beta(params[0],params[1],loc=params[2],scale=params[3])
-            a=beta(1,1,0,1)
-            a.dist=dist
-            
-    elif dist_type=='trapz' :
-            dist_type='trapz'
-            params=st.trapz.fit(data,method=method)
-            
-            dist=st.trapz(params[0],params[1],loc=params[2],scale=params[3])
-            a=trapz(1,2,3,4)
-            a.dist=dist
-    elif dist_type == 'expon':
-        params = st.expon.fit(data)
-        dist = st.expon(scale=params[0])
-        a = expon(0)
-        a.dist = dist
-    else:
-        raise("Distribution type is not recognized!")
-        return
-    a.ks=st.kstest(data,a.dist.cdf)[0]
-    return a
+    Raises
+    ------
+    ValueError
+        If the distribution type is not recognized or the input data are
+        invalid.
+
+    Examples
+    --------
+    >>> from simpm import dist
+    >>> result = dist.fit([0.1, 0.3, 0.5], "beta")
+    >>> isinstance(result.wrapper, dist.beta)
+    True
+    >>> round(result.ks, 3)
+    0.0
+    """
+
+    normalized_type = str(dist_type).strip().lower()
+    data_array = _validate_data(data)
+
+    registry: Dict[str, Callable[[np.ndarray, str], FitResult]] = {
+        "triang": fit_triang,
+        "norm": fit_norm,
+        "beta": fit_beta,
+        "trapz": fit_trapz,
+        "expon": fit_expon,
+    }
+
+    if normalized_type not in registry:
+        raise ValueError(f"Distribution type '{dist_type}' is not recognized.")
+
+    return registry[normalized_type](data_array, method)
+
+
+def _validate_positive(value: float, name: str) -> None:
+    if value <= 0:
+        raise ValueError(f"{name} must be positive.")
+
+
+def _compute_ks(data: np.ndarray, scipy_dist: st.rv_continuous) -> float:
+    return st.kstest(data, scipy_dist.cdf)[0]
+
+
+def fit_norm(data: np.ndarray, method: str = "mle") -> FitResult:
+    params = st.norm.fit(data, method=method)
+    scipy_dist = st.norm(loc=params[0], scale=params[1])
+    wrapper = make_norm(params[0], params[1])
+    ks = _compute_ks(data, scipy_dist)
+    return FitResult("norm", tuple(params), scipy_dist, ks, wrapper)
+
+
+def fit_beta(data: np.ndarray, method: str = "mle") -> FitResult:
+    params = st.beta.fit(data, method=method)
+    scipy_dist = st.beta(params[0], params[1], loc=params[2], scale=params[3])
+    wrapper = make_beta(params[0], params[1], params[2], params[2] + params[3])
+    ks = _compute_ks(data, scipy_dist)
+    return FitResult("beta", tuple(params), scipy_dist, ks, wrapper)
+
+
+def fit_triang(data: np.ndarray, method: str = "mle") -> FitResult:  # pylint: disable=unused-argument
+    params = st.triang.fit(data)
+    scipy_dist = st.triang(params[0], loc=params[1], scale=params[2])
+    lower = params[1]
+    upper = params[1] + params[2]
+    mode = params[1] + params[0] * params[2]
+    wrapper = make_triang(lower, mode, upper)
+    ks = _compute_ks(data, scipy_dist)
+    return FitResult("triang", tuple(params), scipy_dist, ks, wrapper)
+
+
+def fit_trapz(data: np.ndarray, method: str = "mle") -> FitResult:
+    params = st.trapz.fit(data, method=method)
+    scipy_dist = st.trapz(params[0], params[1], loc=params[2], scale=params[3])
+    a = params[2]
+    d = params[2] + params[3]
+    b = a + params[0] * params[3]
+    c = a + params[1] * params[3]
+    wrapper = make_trapz(a, b, c, d)
+    ks = _compute_ks(data, scipy_dist)
+    return FitResult("trapz", tuple(params), scipy_dist, ks, wrapper)
+
+
+def fit_expon(data: np.ndarray, method: str = "mle") -> FitResult:  # pylint: disable=unused-argument
+    params = st.expon.fit(data, floc=0)
+    scipy_dist = st.expon(scale=params[1])
+    wrapper = make_expon(params[1])
+    ks = _compute_ks(data, scipy_dist)
+    return FitResult("expon", (params[1],), scipy_dist, ks, wrapper)
     
 class distribution():
     '''
@@ -343,6 +422,13 @@ class uniform(distribution):
         self.params = [a, b]
         self.dist = st.uniform(loc=a, scale=b - a)
 
+
+def make_uniform(a: float, b: float) -> "uniform":
+    """Create a uniform distribution with validation."""
+    if a >= b:
+        raise ValueError("Lower bound must be less than upper bound.")
+    return uniform(a, b)
+
 class norm(distribution):
     '''
     Defines a normal distribution.
@@ -371,6 +457,12 @@ class norm(distribution):
         self.dist_type = 'norm'
         self.params = [mean, std]
         self.dist = st.norm(loc=mean, scale=std)
+
+
+def make_norm(mean: float, std: float) -> "norm":
+    """Create a normal distribution with validation."""
+    _validate_positive(std, "Standard deviation")
+    return norm(mean, std)
 
 class triang(distribution):
     '''
@@ -405,6 +497,15 @@ class triang(distribution):
         c_value = (b - a) / Scale
         self.params = [c_value, Loc, Scale]
         self.dist = st.triang(c_value, loc=Loc, scale=Scale)
+
+
+def make_triang(a: float, b: float, c: float) -> "triang":
+    """Create a triangular distribution with validation."""
+    if a >= c:
+        raise ValueError("Lower bound must be less than upper bound.")
+    if not (a <= b <= c):
+        raise ValueError("Mode must lie between lower and upper bounds.")
+    return triang(a, b, c)
 
 class trapz(distribution):
     '''
@@ -443,6 +544,15 @@ class trapz(distribution):
         self.params = [C, D, Loc, Scale]
         self.dist = st.trapz(C, D, loc=Loc, scale=Scale)
 
+
+def make_trapz(a: float, b: float, c: float, d: float) -> "trapz":
+    """Create a trapezoidal distribution with validation."""
+    if a >= d:
+        raise ValueError("Lower bound must be less than upper bound.")
+    if not (a <= b <= c <= d):
+        raise ValueError("Parameters must satisfy a <= b <= c <= d.")
+    return trapz(a, b, c, d)
+
 class beta(distribution):
     '''
     Defines a beta distribution.
@@ -478,6 +588,15 @@ class beta(distribution):
         self.params = [a, b, Loc, Scale]
         self.dist = st.beta(a, b, loc=Loc, scale=Scale)
 
+
+def make_beta(a: float, b: float, minp: float, maxp: float) -> "beta":
+    """Create a beta distribution with validation."""
+    _validate_positive(a, "Alpha")
+    _validate_positive(b, "Beta")
+    if minp >= maxp:
+        raise ValueError("Minimum bound must be less than maximum bound.")
+    return beta(a, b, minp, maxp)
+
 class expon(distribution):
     '''
     Defines an exponential distribution.
@@ -505,6 +624,12 @@ class expon(distribution):
         Scale = mean
         self.params = [Scale]
         self.dist = st.expon(scale=Scale)
+
+
+def make_expon(mean: float) -> "expon":
+    """Create an exponential distribution with validation."""
+    _validate_positive(mean, "Mean")
+    return expon(mean)
 
 class empirical(distribution):
     '''
@@ -671,22 +796,3 @@ class empirical(distribution):
             A random sample from the empirical distribution.
         '''
         return np.random.choice(self.data)
-
-def tests():
-    def test1():
-        mydist=norm(4,1)
-        mydist.plot_cdf()
-        mydist.plot_pdf()
-    def test2():
-        mydist=norm(3,5)
-        data=mydist.samples(100)
-        dist=fit(data,"norm","mm")
-        dist.plot_pdf()
-    def test3():
-        data=[2,3,4,5,6,7,2,3,4,4,5,6]
-        mdist=fit(data,"beta","mm")
-        mdist.plot_pdf()
-        print(mdist.percentile(90))
-    test3()
-
-#tests()

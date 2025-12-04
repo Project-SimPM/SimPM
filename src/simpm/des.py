@@ -2,12 +2,15 @@
 Discrete Event Simulation for Project Management in Python.
 """
 from __future__ import annotations
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from bisect import insort_left
 from pandas import DataFrame
 from numpy import array, append, nansum
 import simpy
+
+if TYPE_CHECKING:  # pragma: no cover - type hinting only
+    from simpm.recorder import SimulationObserver
 
 from simpm.dist import distribution
 from simpm._utils import _swap_dict_keys_values
@@ -66,6 +69,8 @@ class Entity:
 
         if print_actions:
             print(name + "(" + str(self.id) + ") is created, sim_time:", env.now)
+
+        self.env._notify_observers("on_entity_created", entity=self)
 
     def __str__(self) -> str:
         """This method returns a string representation of the User object, with the user name and ID."""
@@ -177,12 +182,44 @@ class Entity:
             self._schedule_log = append(self._schedule_log, [[self.act_dic[name], self.env.now, self.env.now + duration]], axis=0)
             self._status_log = append(self._status_log, [[self.env.now, self._status_codes["start"], self.act_dic[name]]], axis=0)
 
+        self.env._notify_observers(
+            "on_activity_started",
+            entity=self,
+            activity_name=name,
+            activity_id=self.act_dic[name],
+            start_time=self.env.now,
+        )
+
+        if self.log:
+            self.env.log_event(
+                source_type="activity",
+                source_id=self.act_dic[name],
+                message=f"Activity {name} started",
+                metadata={"entity_id": self.id, "activity_name": name},
+            )
+
         yield self.env.timeout(duration)
 
         if self.print_actions:
             print(self.name + "(" + str(self.id) + ") finished", name, ", sim_time:", self.env.now)
         if self.log:
             self._status_log = append(self._status_log, [[self.env.now, self._status_codes["finish"], self.act_dic[name]]], axis=0)
+
+        self.env._notify_observers(
+            "on_activity_finished",
+            entity=self,
+            activity_name=name,
+            activity_id=self.act_dic[name],
+            end_time=self.env.now,
+        )
+
+        if self.log:
+            self.env.log_event(
+                source_type="activity",
+                source_id=self.act_dic[name],
+                message=f"Activity {name} finished",
+                metadata={"entity_id": self.id, "activity_name": name},
+            )
 
     def _interruptive_activity(self, name, duration):
         """
@@ -210,24 +247,51 @@ class Entity:
             self._schedule_log = append(self._schedule_log, [[self.act_dic[name], self.env.now, self.env.now + duration]], axis=0)
             self._status_log = append(self._status_log, [[self.env.now, self._status_codes["start"], self.act_dic[name]]], axis=0)
 
-        # yield self.env.timeout(duration)
+        self.env._notify_observers(
+            "on_activity_started",
+            entity=self,
+            activity_name=name,
+            activity_id=self.act_dic[name],
+            start_time=self.env.now,
+        )
+
+        if self.log:
+            self.env.log_event(
+                source_type="activity",
+                source_id=self.act_dic[name],
+                message=f"Activity {name} started",
+                metadata={"entity_id": self.id, "activity_name": name},
+            )
 
         done_in = duration
         while done_in:
             try:
-                # Working on the part
                 start = self.env.now
-                print("preemptive activity started at time", start)
                 yield self.env.timeout(done_in)
                 done_in = 0
             except simpy.Interrupt:
-                print("preemptive activity interrupted at time:", self.env.now)
-                done_in -= self.env.now - start  # How much time left?
-                print("some time is left:", done_in)
+                done_in -= self.env.now - start
+
         if self.print_actions:
             print(self.name + "(" + str(self.id) + ") finished", name, ", sim_time:", self.env.now)
         if self.log:
             self._status_log = append(self._status_log, [[self.env.now, self._status_codes["finish"], self.act_dic[name]]], axis=0)
+
+        self.env._notify_observers(
+            "on_activity_finished",
+            entity=self,
+            activity_name=name,
+            activity_id=self.act_dic[name],
+            end_time=self.env.now,
+        )
+
+        if self.log:
+            self.env.log_event(
+                source_type="activity",
+                source_id=self.act_dic[name],
+                message=f"Activity {name} finished",
+                metadata={"entity_id": self.id, "activity_name": name},
+            )
 
     @property
     def attributes(self) -> dict[str, Any]:
@@ -551,6 +615,8 @@ class GeneralResource:
         self._status_log = array([[0, 0, 0, 0]])  # time,in-use,idle,queue-length
         self._queue_log = array([[0, 0, 0, 0]])  # entityid,startTime,endTime,amount
 
+        self.env._notify_observers("on_resource_created", resource=self)
+
     def queue_log(self):
         """
 
@@ -719,6 +785,22 @@ class GeneralResource:
             entity._status_log = append(entity._status_log, [[self.env.now, entity._status_codes["get"], self.id]], axis=0)
         entity.using_resources[self] = amount
 
+        self.env._notify_observers(
+            "on_resource_acquired",
+            entity=entity,
+            resource=self,
+            amount=amount,
+            time=self.env.now,
+        )
+
+        if self.log:
+            self.env.log_event(
+                source_type="resource",
+                source_id=self.id,
+                message=f"Resource {self.name} acquired",
+                metadata={"entity_id": entity.id, "amount": amount},
+            )
+
     def _add(self, entity, amount):
         """
         Calculate needed logs when an entity add to the resource.
@@ -767,6 +849,22 @@ class GeneralResource:
 
         if entity.log:
             entity._status_log = append(entity._status_log, [[entity._status_codes["put"], self.id, self.env.now]], axis=0)
+
+        self.env._notify_observers(
+            "on_resource_released",
+            entity=entity,
+            resource=self,
+            amount=amount,
+            time=self.env.now,
+        )
+
+        if self.log:
+            self.env.log_event(
+                source_type="resource",
+                source_id=self.id,
+                message=f"Resource {self.name} released",
+                metadata={"entity_id": entity.id, "amount": amount},
+            )
 
     def level(self):
         """
@@ -1148,11 +1246,17 @@ class Environment(simpy.Environment):
 
     """
 
-    def __init__(self):
+    def __init__(self, name: str = "Environment"):
         """
         Creates an instance of the simulation environment
+
+        Parameters
+        ----------
+        name: str
+            Human readable name for the environment.
         """
         super().__init__()
+        self.name = name
         self.last_entity_id = 0
         self.entities: list[Entity] = []
         self.entity_names: dict[int, str] = {}
@@ -1161,6 +1265,30 @@ class Environment(simpy.Environment):
         self.resource_names = {}
         self.run_number = 0
         self.finishedTime = []
+        self._observers: list[SimulationObserver] = []
+
+    def register_observer(self, observer: SimulationObserver):
+        """Register a new simulation observer."""
+        self._observers.append(observer)
+
+    def _notify_observers(self, method_name: str, **kwargs):
+        for observer in self._observers:
+            if hasattr(observer, method_name):
+                getattr(observer, method_name)(**kwargs)
+
+    def log_event(self, source_type: str, source_id: Any, message: str, time: float | None = None, metadata: dict | None = None):
+        """Send a log-style event to observers if logging is enabled."""
+        event_time = time if time is not None else self.now
+        self._notify_observers(
+            "on_log_event",
+            event={
+                "time": event_time,
+                "source_type": source_type,
+                "source_id": source_id,
+                "message": message,
+                "metadata": metadata or {},
+            },
+        )
 
     def create_entities(self, name, total_number, print_actions=False, log=True):
         """
@@ -1185,3 +1313,11 @@ class Environment(simpy.Environment):
         for i in range(total_number):
             Entities.append(Entity(self, name, print_actions, log))
         return Entities
+
+    def run(self, *args, **kwargs):
+        """Run the simulation while notifying registered observers."""
+        self.run_number += 1
+        self._notify_observers("on_run_started", env=self)
+        result = super().run(*args, **kwargs)
+        self._notify_observers("on_run_finished", env=self)
+        return result

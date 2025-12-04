@@ -3,5 +3,6 @@
 from simpm.des import *
 from simpm.dist import *
 from simpm.log_cfg import log_config, logger
+from simpm.runner import run
 
 __version__ = "2.0.3"

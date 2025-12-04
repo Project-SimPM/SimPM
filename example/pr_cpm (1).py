@@ -113,3 +113,4 @@ def prcpm(list_priority):
 
 list_pr=[1,2,1,1,3,1,1]
 print(prcpm(list_pr))
+

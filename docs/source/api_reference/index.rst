@@ -10,6 +10,7 @@ components.
    :maxdepth: 1
 
    simpm
+   simpm.dashboard
    simpm.des
    simpm.dist
    simpm.log_cfg

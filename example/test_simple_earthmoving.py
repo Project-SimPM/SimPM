@@ -2,6 +2,7 @@ import os,sys,inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
+import simpm
 import simpm.des as des
 def truck_process(truck:des.Entity,loader:des.Resource,dumped_dirt:des.Resource):
     while True:
@@ -19,7 +20,7 @@ loader=des.Resource(env,"loader")
 dumped_dirt=des.Resource(env,"dirt",init=0,capacity=100000)
 for t in truck:
     env.process(truck_process(t,loader,dumped_dirt))
-env.run()
+simpm.run(env, dashboard="post")
 print(env.now)
 print(truck[0].schedule())
 print(truck[0].waiting_time())

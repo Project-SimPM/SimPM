@@ -2,6 +2,7 @@ import os,sys,inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
+import simpm
 from simpm.des import *
 '''
 testing preemptive resources
@@ -34,4 +35,4 @@ R=PreemptiveResource(env,'Truck',print_actions=True)
 env.process(p1(e1,R))
 env.process(p2(e2,R))
 
-env.run()
+simpm.run(env, dashboard="post")

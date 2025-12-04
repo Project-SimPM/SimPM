@@ -23,7 +23,7 @@ pip install simpm
 ```
 
 ### Dashboard mode
-SimPM can visualize runs in a Plotly Dash dashboard. Install the optional dependencies and run your environment with ``dashboard`` set to ``"post"`` to launch an interactive summary once the simulation finishes:
+``simpm.run`` is a convenience wrapper around ``env.run`` that optionally starts a dashboard after (or during) execution. You can continue to call ``env.run`` directly for headless runs; switch to ``simpm.run`` when you want dashboards without changing your simulation logic. Install the optional dependencies and run your environment with ``dashboard`` set to ``"post"`` to launch an interactive summary once the simulation finishes:
 
 ```
 pip install simpm[dash]

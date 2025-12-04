@@ -9,6 +9,7 @@ Created on Sun Nov 28 22:43:01 2021
 @author: naima
 """
 
+import simpm
 import simpm.des as des
 import simpm.dist as dist
 
@@ -78,6 +79,6 @@ p3=env.process(a3(e,Rs))
 p4=env.process(a4(e,Rs))
 p5=env.process(a5(e,Rs))
 p6=env.process(a6(e,Rs))
-env.run()
-print(env.now) 
+simpm.run(env, dashboard="post")
+print(env.now)
 

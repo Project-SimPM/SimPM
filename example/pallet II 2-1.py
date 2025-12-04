@@ -3,6 +3,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
+import simpm
 import simpm.des as des
 import simpm.dist as dist
 import matplotlib as plt
@@ -60,7 +61,7 @@ env.process(truck_process(truck[1],pallets,site_pallets,damage_pallets_site,dama
 p1=env.process(worker1_process(worker1,site_pallets,installed_pallets))
 p2=env.process(worker2_process(worker2,site_pallets,installed_pallets))
 p3=env.process(worker3_process(worker3,site_pallets,installed_pallets))
-env.run(until=p1|p2|p3)
+simpm.run(env, dashboard="post", until=p1|p2|p3)
 print(env.now)
 a=truck[0].waiting_time()
 b=truck[1].waiting_time()

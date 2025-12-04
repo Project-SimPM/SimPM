@@ -3,6 +3,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
+import simpm
 from simpm.des import *
 
 '''
@@ -44,4 +45,4 @@ env.process(p2(env,e2,R))
 env.process(pr(env,er,R))
 env.process(p3(env,e3,R))
 
-env.run()
+simpm.run(env, dashboard="post")

@@ -6,6 +6,7 @@ sys.path.insert(0,parentdir)
 Canceling a request for a resource to model "OR" for getting resources
 
 '''
+import simpm
 from simpm.des import *
 
 def p1(a:Entity,R2,R):
@@ -36,4 +37,4 @@ R2=PriorityResource(env,'Truck2',print_actions=True)
 env.process(p1(e1,R2,R))
 env.process(p2(e2,R))
 
-env.run()
+simpm.run(env, dashboard="post")

@@ -518,25 +518,6 @@ def _environment_logs(run_data: dict[str, Any]):
     )
 
     return html.Div(sections, className="panel-stack")
-
-
-def _entity_timeline(entity: dict[str, Any]):
-    schedule = entity.get("schedule_log", []) or []
-    rows = []
-    for entry in schedule:
-        start = entry.get("start_time") or entry.get("start")
-        end = entry.get("finish_time") or entry.get("end")
-        if start is None or end is None:
-            continue
-        rows.append({"Task": entry.get("activity") or entry.get("activity_name"), "Start": start, "Finish": end})
-    if not rows:
-        return html.Div("No completed activities to visualize.")
-    fig = px.timeline(rows, x_start="Start", x_end="Finish", y="Task")
-    fig.update_yaxes(autorange="reversed")
-    fig.update_layout(height=300, margin={"t": 40, "b": 30, "l": 60, "r": 20})
-    return dcc.Graph(figure=fig)
-
-
 def _entity_logs(entity: dict[str, Any]):
     sections = []
 
@@ -782,7 +763,6 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
                             [
                                 html.H3(f"Entity {entity['id']}", className="section-title"),
                                 html.Div(f"Type: {entity.get('type', '-')}", style={"marginBottom": "4px"}),
-                                _entity_timeline(entity),
                             ],
                             className="panel-card",
                         )

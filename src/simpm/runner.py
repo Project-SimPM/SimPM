@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from simpm.recorder import RunRecorder, StreamingRunRecorder
+from simpm.dashboard_data import collect_run_data
 
 
 def run(env, until: Any | None = None, dashboard: str = "none", collect_logs: bool = True, host: str = "127.0.0.1", port: int = 8050, **kwargs):
@@ -32,8 +32,6 @@ def run(env, until: Any | None = None, dashboard: str = "none", collect_logs: bo
         Additional arguments forwarded to ``env.run``.
     """
     mode = dashboard.lower()
-    recorder = None
-
     if mode not in {"none", "post", "live"}:
         raise ValueError("dashboard must be one of 'none', 'post', or 'live'")
 
@@ -43,17 +41,13 @@ def run(env, until: Any | None = None, dashboard: str = "none", collect_logs: bo
     if mode == "post":
         from simpm.dashboard import run_post_dashboard  # imported lazily to keep dependency optional
 
-        recorder = RunRecorder(collect_logs=collect_logs)
-        env.register_observer(recorder)
         env.run(until=until, **kwargs)
-        run_post_dashboard(recorder.run_data, host=host, port=port)
-        return recorder.run_data
+        run_post_dashboard(env, host=host, port=port)
+        return collect_run_data(env).as_dict()
 
     # live mode
     from simpm.dashboard import run_live_dashboard  # imported lazily to keep dependency optional
 
-    recorder = StreamingRunRecorder(collect_logs=collect_logs)
-    env.register_observer(recorder)
-    run_live_dashboard(recorder.run_data, recorder.event_queue, host=host, port=port)
+    run_live_dashboard(env, host=host, port=port)
     env.run(until=until, **kwargs)
-    return recorder.run_data
+    return collect_run_data(env).as_dict()

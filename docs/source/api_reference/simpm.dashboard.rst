@@ -2,7 +2,36 @@
 simpm.dashboard
 =================
 
+``simpm.dashboard`` provides Plotly Dash dashboards for SimPM runs. Use
+``simpm.run(..., dashboard="post"|"live"|"none")`` to launch a post-run or
+live dashboard without wiring up Dash yourself. Advanced users can also call
+the dashboard helpers directly when they already manage the environment.
+
+Usage
+-----
+
+.. code-block:: python
+
+   import simpm
+
+   # After running a simulation, open the post-run dashboard
+   simpm.run(project, dashboard="post")
+
+   # Expert users may call the dashboard helpers directly
+   # simpm.dashboard.run_post_dashboard(project)
+   # simpm.dashboard.run_live_dashboard(project)
+
+.. currentmodule:: simpm.dashboard
+
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+
+   run_post_dashboard
+   run_live_dashboard
+   build_app
+
 .. automodule:: simpm.dashboard
-   :members:
+   :members: run_post_dashboard, run_live_dashboard, build_app
    :undoc-members:
    :show-inheritance:

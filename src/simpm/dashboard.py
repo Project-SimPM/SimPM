@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from queue import Queue
 from statistics import fmean, median, pstdev
@@ -18,6 +19,8 @@ except ImportError as exc:  # pragma: no cover - handled at runtime
 
 
 CONTENT_STYLE = {"width": "100%", "padding": "12px"}
+
+logger = logging.getLogger(__name__)
 
 BUTTON_BASE_STYLE = {
     "borderRadius": "12px",
@@ -899,15 +902,25 @@ def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, A
 
 def run_post_dashboard(run_data: dict[str, Any], host: str = "127.0.0.1", port: int = 8050):
     app = build_app(run_data)
-    app.run(host=host, port=port, debug=False)
+    if hasattr(app, "run_server"):
+        logger.info("Starting post-run dashboard with run_server at http://%s:%s", host, port)
+        app.run_server(host=host, port=port, debug=False)
+    else:
+        logger.info("Starting post-run dashboard with run at http://%s:%s", host, port)
+        app.run(host=host, port=port, debug=False)
 
 
 def run_live_dashboard(run_data: dict[str, Any], event_queue: Queue, host: str = "127.0.0.1", port: int = 8050):
     app = build_app(run_data, live_queue=event_queue)
+
+    logger.info("Launching live dashboard thread at http://%s:%s", host, port)
+
     def _run_app():
         if hasattr(app, "run"):
+            logger.debug("Running live dashboard via run()")
             app.run(host=host, port=port, debug=False)
         else:
+            logger.debug("Running live dashboard via run_server()")
             app.run_server(host=host, port=port, debug=False)
 
     threading.Thread(target=_run_app, daemon=True).start()

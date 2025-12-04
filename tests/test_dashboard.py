@@ -1,4 +1,5 @@
 import importlib
+import logging
 import sys
 import types
 from queue import Queue
@@ -143,3 +144,25 @@ def test_run_live_dashboard_starts_thread(monkeypatch, dashboard_module):
     assert threads and threads[0].daemon is True
     assert threads[0].started is True
     assert getattr(app, "server_args", None) == ("0.0.0.0", 9000, False)
+
+
+def test_dashboard_launch_logging(monkeypatch, caplog, dashboard_module):
+    calls: dict[str, tuple[str, tuple[str, int, bool]]] = {}
+
+    class DummyApp:
+        def run_server(self, host, port, debug=False):
+            calls["method"] = ("run_server", (host, port, debug))
+
+        def run(self, host, port, debug=False):
+            calls["method"] = ("run", (host, port, debug))
+
+    def _build_app(run_data, live_queue=None):
+        return DummyApp()
+
+    monkeypatch.setattr(dashboard_module, "build_app", _build_app)
+
+    with caplog.at_level(logging.INFO):
+        dashboard_module.run_post_dashboard({"logs": []}, host="0.0.0.0", port=9100)
+
+    assert calls.get("method") == ("run_server", ("0.0.0.0", 9100, False))
+    assert "Starting post-run dashboard" in caplog.text

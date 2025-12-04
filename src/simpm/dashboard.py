@@ -317,10 +317,10 @@ def _apply_event(run_data: dict[str, Any], event: dict[str, Any]) -> dict[str, A
 
 def run_post_dashboard(run_data: dict[str, Any], host: str = "127.0.0.1", port: int = 8050):
     app = build_app(run_data)
-    app.run_server(host=host, port=port, debug=False)
+    app.run(host=host, port=port, debug=False)
 
 
 def run_live_dashboard(run_data: dict[str, Any], event_queue: Queue, host: str = "127.0.0.1", port: int = 8050):
     app = build_app(run_data, live_queue=event_queue)
-    threading.Thread(target=lambda: app.run_server(host=host, port=port, debug=False), daemon=True).start()
+    threading.Thread(target=lambda: app.run(host=host, port=port, debug=False), daemon=True).start()
     return app

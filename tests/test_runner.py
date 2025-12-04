@@ -37,3 +37,17 @@ def test_run_function_without_dashboard():
     env, _, _ = _build_simple_environment()
     result = simpm.run(env, dashboard="none")
     assert result is None
+
+
+def test_resources_recorded_without_usage():
+    env = des.Environment()
+    unused = des.Resource(env, "unused", init=1, capacity=1, log=False)
+    recorder = RunRecorder()
+    env.register_observer(recorder)
+
+    env.run(until=1)
+
+    resources = recorder.run_data["resources"]
+    assert len(resources) == 1
+    assert resources[0]["id"] == unused.id
+    assert resources[0]["capacity"] == 1

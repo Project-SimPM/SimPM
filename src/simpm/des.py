@@ -8,6 +8,7 @@ from bisect import insort_left
 from pandas import DataFrame
 from numpy import array, append, nansum
 import simpy
+from simpy.events import Event
 
 if TYPE_CHECKING:  # pragma: no cover - type hinting only
     from simpm.recorder import SimulationObserver
@@ -421,7 +422,7 @@ class Entity:
             elif type(res) == PreemptiveResource:
                 if amount > 1:
                     print("Warning: amount of preemptive resource is always 1")
-                return res.get(self, priority, preempt)
+                return self.env.process(res.get(self, priority, preempt))
         except:
             print("simpm: error in get")
 
@@ -1230,24 +1231,32 @@ class PreemptiveResource(GeneralResource):
         super().__init__(env, name, 1, 1, print_actions, log)
 
         self.resource = simpy.PreemptiveResource(env, 1)
-        self.request = None  # the request of the entity that is currently using the resource
-        self.current_entities = None
-        self.suspended_entities = None
+        self._active_requests: dict[int, Event] = {}
 
     def get(self, entity, priority: int, preempt: bool = False):
         super()._request(entity, 1)
+        req = self.resource.request(priority=priority, preempt=preempt)
+
         while True:
             try:
-                r = self.resource.request(priority, preempt)
-                return r
-            except:
-                print("resource is preempted")
+                yield req
+                break
+            except simpy.Interrupt:
+                # Request was preempted; retry the request
+                if self.print_actions:
+                    print(f"{entity.name}({entity.id}) was preempted while requesting {self.name}")
+                req = self.resource.request(priority=priority, preempt=preempt)
 
-        self.request = r  # the request that is currently using the rsource
+        self._active_requests[entity.id] = req
         super()._get(entity, 1)
 
     def put(self, entity, request=None):
         # to be added: when waiting to ptu pack soemthing some logs should be calculated
+        if request is None:
+            request = self._active_requests.pop(entity.id, None)
+        if request is None:
+            raise ValueError("preemptive resources must be released with a valid request")
+
         yield self.resource.release(request)
         super()._put(entity, 1)
 

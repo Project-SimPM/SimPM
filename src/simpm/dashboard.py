@@ -186,10 +186,15 @@ def _build_tabs():
             value="environment",
             children=[dcc.Tab(label=tab["label"], value=tab["value"]) for tab in tabs],
         )
-    return html.Div(
-        [html.Div(tab["label"]) for tab in tabs],
+    # Fallback for environments where dcc.Tabs is unavailable. RadioItems still provides
+    # a "value" property, keeping existing callbacks functional even without tab
+    # components.
+    return dcc.RadioItems(
         id="section-tabs",
+        options=tabs,
         value="environment",
+        inline=True,
+        labelStyle={"marginRight": "12px"},
     )
 
 

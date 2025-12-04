@@ -629,6 +629,7 @@ class GeneralResource:
         env.last_res_id += 1
         self.id = env.last_res_id
         env.resource_names[self.id] = self.name + "(" + str(self.id) + ")"
+        env.resources.append(self)
         self.in_use = 0
         self.idle = init
         self.container = simpy.Container(env, capacity, init)

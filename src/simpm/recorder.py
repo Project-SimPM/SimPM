@@ -179,6 +179,8 @@ class RunRecorder(SimulationObserver):
                 activity["end"] = end_time
                 activity["duration"] = end_time - activity["start"]
                 break
+        # refresh schedule/status/waiting logs so dashboards can display data during long runs
+        self._populate_entity_logs(entity)
 
     def on_resource_acquired(self, entity, resource, amount: int, time: float):
         resource_data = self.resources.get(resource.id)
@@ -193,6 +195,8 @@ class RunRecorder(SimulationObserver):
                 "action": "acquired",
             }
         )
+        self._populate_resource_logs(resource)
+        self._populate_entity_logs(entity)
 
     def on_resource_released(self, entity, resource, amount: int, time: float):
         resource_data = self.resources.get(resource.id)
@@ -207,6 +211,8 @@ class RunRecorder(SimulationObserver):
                 "action": "released",
             }
         )
+        self._populate_resource_logs(resource)
+        self._populate_entity_logs(entity)
 
     def on_log_event(self, event: dict[str, Any]):
         if not self.collect_logs:
@@ -327,6 +333,8 @@ class StreamingRunRecorder(RunRecorder):
 
     def on_activity_finished(self, entity, activity_name: str, activity_id: int, end_time: float):
         super().on_activity_finished(entity, activity_name, activity_id, end_time)
+        # send an updated snapshot so live dashboards can show schedule/status logs mid-run
+        self._enqueue("entity_snapshot", {"entity": self.entities.get(entity.id, {})})
         self._enqueue(
             "activity_finished",
             {
@@ -338,6 +346,7 @@ class StreamingRunRecorder(RunRecorder):
 
     def on_resource_acquired(self, entity, resource, amount: int, time: float):
         super().on_resource_acquired(entity, resource, amount, time)
+        self._enqueue("resource_snapshot", {"resource": self.resources.get(resource.id, {})})
         self._enqueue(
             "resource_acquired",
             {"entity_id": entity.id, "resource_id": resource.id, "amount": amount, "time": time},
@@ -345,6 +354,7 @@ class StreamingRunRecorder(RunRecorder):
 
     def on_resource_released(self, entity, resource, amount: int, time: float):
         super().on_resource_released(entity, resource, amount, time)
+        self._enqueue("resource_snapshot", {"resource": self.resources.get(resource.id, {})})
         self._enqueue(
             "resource_released",
             {"entity_id": entity.id, "resource_id": resource.id, "amount": amount, "time": time},

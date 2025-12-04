@@ -3,7 +3,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from queue import Queue
-from typing import Any, Protocol
+from typing import Any, Iterable, Protocol
+
+
+def _to_records(table: Any) -> list[dict[str, Any]]:
+    """Safely convert a pandas-like table to a list of dicts."""
+
+    if table is None:
+        return []
+    try:
+        if hasattr(table, "to_dict"):
+            return table.to_dict(orient="records")  # type: ignore[arg-type]
+        if isinstance(table, Iterable):
+            return list(table)  # type: ignore[arg-type]
+    except Exception:
+        pass
+    return []
+
+
+def _to_list(array: Any) -> list[Any]:
+    """Safely convert numpy-like arrays to plain Python lists."""
+
+    if array is None:
+        return []
+    try:
+        if hasattr(array, "tolist"):
+            return array.tolist()
+        if isinstance(array, Iterable) and not isinstance(array, (str, bytes)):
+            return list(array)
+    except Exception:
+        pass
+    return []
 
 
 class SimulationObserver(Protocol):
@@ -76,35 +106,10 @@ class RunRecorder(SimulationObserver):
         self.end_time = env.now
         # capture entity and resource log data that are only available after the run
         for entity in env.entities:
-            ent_data = self.entities.get(entity.id)
-            if not ent_data:
-                continue
-            try:
-                ent_data["schedule_log"] = entity.schedule().to_dict(orient="records")
-                ent_data["status_log"] = entity.status_log().to_dict(orient="records")
-                ent_data["waiting_log"] = entity.waiting_log().to_dict(orient="records")
-                ent_data["waiting_time"] = entity.waiting_time().tolist()
-            except Exception:
-                # best effort capture; don't break finalization if a log is unavailable
-                pass
+            self._populate_entity_logs(entity)
 
         for res in env.resources:
-            res_data = self.resources.get(res.id)
-            if not res_data:
-                continue
-            try:
-                res_data["queue_log"] = res.queue_log().to_dict(orient="records")
-                res_data["status_log"] = res.status_log().to_dict(orient="records")
-                res_data["waiting_time"] = res.waiting_time().tolist()
-                res_data["stats"] = {
-                    "average_queue_length": res.average_queue_length(),
-                    "average_utilization": res.average_utilization(),
-                    "average_idleness": res.average_idleness(),
-                    "total_time_idle": res.total_time_idle(),
-                    "total_time_in_use": res.total_time_in_use(),
-                }
-            except Exception:
-                pass
+            self._populate_resource_logs(res)
 
     def on_entity_created(self, entity):
         self.entities[entity.id] = {
@@ -217,6 +222,38 @@ class RunRecorder(SimulationObserver):
                 self.entities[entity_id]["logs"].append(event)
         elif source_type == "resource" and source_id in self.resources:
             self.resources[source_id]["logs"].append(event)
+
+    def _populate_entity_logs(self, entity):
+        ent_data = self.entities.get(entity.id)
+        if not ent_data:
+            return
+        try:
+            ent_data["schedule_log"] = _to_records(entity.schedule())
+            ent_data["status_log"] = _to_records(entity.status_log())
+            ent_data["waiting_log"] = _to_records(entity.waiting_log())
+            ent_data["waiting_time"] = _to_list(entity.waiting_time())
+        except Exception:
+            # best effort capture; don't break finalization if a log is unavailable
+            return
+
+    def _populate_resource_logs(self, resource):
+        res_data = self.resources.get(resource.id)
+        if not res_data:
+            return
+        try:
+            res_data["queue_log"] = _to_records(resource.queue_log())
+            res_data["status_log"] = _to_records(resource.status_log())
+            res_data["waiting_time"] = _to_list(resource.waiting_time())
+            res_data["stats"] = {
+                "average_queue_length": resource.average_queue_length(),
+                "average_utilization": resource.average_utilization(),
+                "average_idleness": resource.average_idleness(),
+                "average_level": resource.average_level(),
+                "total_time_idle": resource.total_time_idle(),
+                "total_time_in_use": resource.total_time_in_use(),
+            }
+        except Exception:
+            return
 
     @property
     def run_data(self) -> dict[str, Any]:

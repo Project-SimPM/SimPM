@@ -8,6 +8,7 @@ from bisect import insort_left
 from pandas import DataFrame
 from numpy import array, append, nansum
 import simpy
+from simpy.events import Event
 
 if TYPE_CHECKING:  # pragma: no cover - type hinting only
     from simpm.recorder import SimulationObserver
@@ -471,7 +472,7 @@ class Entity:
             if amount > 1:
                 amount = 1
                 print("Warning: amount of preemptive resource is always 1")
-            return self.env.process(res.put(self, request))
+            return res.put(self, request)
         return self.env.process(res.put(self, amount))
 
     def is_pending(self, res, amount: int = 1):
@@ -1230,26 +1231,51 @@ class PreemptiveResource(GeneralResource):
         super().__init__(env, name, 1, 1, print_actions, log)
 
         self.resource = simpy.PreemptiveResource(env, 1)
-        self.request = None  # the request of the entity that is currently using the resource
-        self.current_entities = None
-        self.suspended_entities = None
+        self._active_requests: dict[int, Event] = {}
 
     def get(self, entity, priority: int, preempt: bool = False):
         super()._request(entity, 1)
-        while True:
-            try:
-                r = self.resource.request(priority, preempt)
-                return r
-            except:
-                print("resource is preempted")
+        acquired = self.env.event()
+        release_signal = self.env.event()
 
-        self.request = r  # the request that is currently using the rsource
-        super()._get(entity, 1)
+        def _monitor_request():
+            req = self.resource.request(priority=priority, preempt=preempt)
+            try:
+                yield req
+            except simpy.Interrupt:
+                # Interrupted before acquisition; nothing to clean up.
+                return
+
+            self._active_requests[entity.id] = release_signal
+            super(PreemptiveResource, self)._get(entity, 1)
+            acquired.succeed(req)
+
+            try:
+                yield release_signal
+            except simpy.Interrupt:
+                # If preempted, log the return of the resource
+                self._active_requests.pop(entity.id, None)
+                super(PreemptiveResource, self)._put(entity, 1)
+                return
+
+            yield self.resource.release(req)
+            self._active_requests.pop(entity.id, None)
+            super(PreemptiveResource, self)._put(entity, 1)
+
+        self.env.process(_monitor_request())
+        return acquired
 
     def put(self, entity, request=None):
         # to be added: when waiting to ptu pack soemthing some logs should be calculated
-        yield self.resource.release(request)
-        super()._put(entity, 1)
+        if request is None:
+            request = self._active_requests.get(entity.id)
+        if request is None:
+            # The request was likely preempted and already returned.
+            return self.env.event().succeed()
+
+        if not request.triggered:
+            request.succeed()
+        return request
 
 
 """

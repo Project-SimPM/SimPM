@@ -259,18 +259,54 @@ def _global_activity_plot(run_data: dict[str, Any]):
 
 def _environment_logs(run_data: dict[str, Any]):
     logs = _collect_logs(run_data)
-    if not logs:
-        return html.Div("No logs collected for this run.")
-    columns = [
-        {"name": col, "id": col}
-        for col in sorted({k for row in logs for k in row.keys()})
-    ]
-    return dash_table.DataTable(
-        data=logs,
-        columns=columns,
+    sections = []
+
+    if logs:
+        columns = [
+            {"name": col, "id": col}
+            for col in sorted({k for row in logs for k in row.keys()})
+        ]
+        sections.append(
+            html.Div(
+                [
+                    html.H5("Event log"),
+                    dash_table.DataTable(
+                        data=logs,
+                        columns=columns,
+                        page_size=10,
+                        style_table={"overflowX": "auto"},
+                    ),
+                ]
+            )
+        )
+    else:
+        sections.append(html.Div("No logs collected for this run."))
+
+    waiting_rows = []
+    for ent in run_data.get("entities", []):
+        for episode in ent.get("waiting_log", []) or []:
+            waiting_rows.append({"entity_id": ent.get("id"), **episode})
+
+    waiting_table = _data_table(
+        waiting_rows,
+        "No waiting episodes recorded across entities.",
         page_size=10,
-        style_table={"overflowX": "auto"},
     )
+    sections.append(html.Div([html.H5("Entity waiting episodes"), waiting_table]))
+
+    resource_queue_rows = []
+    for res in run_data.get("resources", []):
+        for entry in res.get("queue_log", []) or []:
+            resource_queue_rows.append({"resource_id": res.get("id"), **entry})
+
+    queue_table = _data_table(
+        resource_queue_rows,
+        "No queue activity recorded across resources.",
+        page_size=10,
+    )
+    sections.append(html.Div([html.H5("Resource queue log"), queue_table]))
+
+    return html.Div(sections, style={"display": "grid", "gridGap": "12px"})
 
 
 def _entity_timeline(entity: dict[str, Any]):

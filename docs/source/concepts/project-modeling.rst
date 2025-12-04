@@ -36,6 +36,35 @@ SimPM exposes the usual DES concepts as Python objects:
   :func:`simpm.dist.expon`). These are used to sample uncertain activity
   durations, travel times, or production rates.
 
+Why SimPM for project management?
+---------------------------------
+
+SimPM uses a process-based DES style: you write Python generator
+functions that ``yield`` operations such as waiting for a duration or
+requesting a resource, and the environment manages time and events.
+
+This is similar in spirit to libraries like SimPy, but SimPM adds
+features aimed directly at project and construction models:
+
+* **Project-focused entities** – :class:`simpm.des.Entity` carries arbitrary
+  attributes (e.g. WBS code, activity type, planned duration) so you can
+  attach project metadata to simulated work items.
+* **Crew and equipment resources** – :class:`simpm.des.Resource`,
+  :class:`simpm.des.PriorityResource`, and :class:`simpm.des.PreemptiveResource`
+  capture limited crews, shared equipment pools, and prioritized work.
+* **Schedule-oriented distributions** – :mod:`simpm.dist` provides common
+  distributions (beta, triangular, trapezoidal, normal, exponential,
+  uniform, empirical) for three-point and PERT-style estimates.
+* **Built-in logging and dashboards** – simulations can log queue lengths,
+  utilization, and activity timings to structured tables; :func:`simpm.run`
+  can start a Plotly Dash dashboard (``"post"`` or ``"live"``) with minimal setup.
+* **Central logging configuration** – :mod:`simpm.log_cfg` simplifies
+  managing console and file logs in larger experiments.
+
+These features are intended to make it straightforward to go from a
+project plan to a simulation model and then study completion times,
+risks, and bottlenecks.
+
 Entities and their attributes
 -----------------------------
 

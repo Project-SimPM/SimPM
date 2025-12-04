@@ -12,6 +12,27 @@
 
 SimPM offers a discrete event simulation library for project management in Python.
 
+## Relationship to SimPy
+
+SimPM follows the same process-based discrete-event simulation style as
+libraries like [SimPy](https://simpy.readthedocs.io/): you describe system
+behaviour with Python functions that yield waiting times and resource
+requests, and the engine advances simulation time and orders events.
+
+You do **not** need to know or install SimPy to use SimPM. SimPM is a
+self-contained toolkit inspired by that style, but focused on project and
+construction management.
+
+On top of a general DES core, SimPM adds:
+
+- **Project-oriented modeling** – entities as activities or work items, resources as crews or equipment.
+- **Schedule-friendly distributions** (`simpm.dist`) – triangular, beta, trapezoidal, normal, exponential, uniform, and empirical, suitable for three-point estimates and Monte Carlo schedule risk.
+- **Automatic tabular logging** – events, queue lengths, utilization, and project duration ready for analysis with pandas and plotting.
+- **Optional dashboards** – `simpm.run(..., dashboard="post"|"live"|"none")` to explore timelines, queues, and bottlenecks in Plotly Dash.
+- **Central logging config** – `simpm.log_cfg.LogConfig` to control console/file logging across multiple runs.
+
+The goal is to cut boilerplate around questions like: *How long will this project take, how uncertain is it, and where are the bottlenecks?*
+
 Subpackages:
 - des (discrete event simulation)
 - dists (probability distributions) modules

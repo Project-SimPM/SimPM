@@ -1,4 +1,4 @@
-﻿simpm
+simpm
 =====
 
 .. automodule:: simpm

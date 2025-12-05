@@ -4,3 +4,6 @@ numpy >= 1
 scipy >= 1
 matplotlib >= 3
 colorlog >= 6
+streamlit >= 1.32
+plotly >= 5
+

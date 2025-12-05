@@ -1452,6 +1452,8 @@ class Environment(simpy.Environment):
         """Run the simulation while notifying registered observers."""
         self.run_number += 1
         self._notify_observers("on_run_started", env=self)
+        print("Run started")
         result = super().run(*args, **kwargs)
+        print(f"Run finished at sim time {self.now}")
         self._notify_observers("on_run_finished", env=self)
         return result

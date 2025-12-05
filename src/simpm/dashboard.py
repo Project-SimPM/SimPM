@@ -189,9 +189,14 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
 
 
 def _load_logo() -> bytes | None:
-    logo_path = Path(__file__).resolve().parent.parent / "docs" / "source" / "images" / "simpm_logo.png"
-    if logo_path.exists():
-        return logo_path.read_bytes()
+    logo_paths = [
+        Path(__file__).resolve().parent.parent / "docs" / "_build" / "html" / "_static" / "simpm_logo.png",
+        Path(__file__).resolve().parent.parent / "docs" / "source" / "images" / "simpm_logo.png",
+    ]
+
+    for logo_path in logo_paths:
+        if logo_path.exists():
+            return logo_path.read_bytes()
     return None
 
 
@@ -227,14 +232,11 @@ class StreamlitDashboard:
         )
         _styled_container()
 
-        header_cols = st.columns([1, 3, 1])
-        with header_cols[0]:
+        header_cols = st.columns([1, 2, 1])
+        with header_cols[1]:
             logo = _load_logo()
             if logo:
-                st.image(logo, width=96)
-        with header_cols[1]:
-            st.title("SimPM live dashboard")
-            st.caption("Modern monitoring for your simulations")
+                st.image(logo, use_column_width=True)
         with header_cols[2]:
             status_label = "Run finished ✅"
             status_color = "#4caf50"

@@ -1,4 +1,4 @@
-﻿simpm.dist
+simpm.dist
 ==========
 
 .. automodule:: simpm.dist

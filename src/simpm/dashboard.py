@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import io
 import json
 import logging
@@ -107,17 +108,22 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
 
 
 def _render_table_with_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
-    """Display the first/last five rows of a dataframe and downloads."""
+    """Display a truncated preview of a dataframe with download support."""
 
     st.markdown(f"## {title}")
     if df.empty:
         st.info("No records available yet.")
         return
 
-    st.caption("First 5 rows")
+    st.caption(
+        "Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else "")
+    )
     st.dataframe(df.head(5), width="stretch")
-    st.caption("Last 5 rows")
-    st.dataframe(df.tail(5), width="stretch")
+
+    if len(df) > 5:
+        st.info(
+            "Table truncated for readability. Download the CSV to view the complete dataset."
+        )
     _download_button("Download CSV", df, file_prefix=key_prefix)
     _render_numeric_analysis(df, time_col=_find_time_column(df))
 
@@ -200,6 +206,18 @@ def _load_logo() -> bytes | None:
     return None
 
 
+def _render_logo(logo: bytes | None) -> None:
+    if not logo:
+        st.caption("SimPM")
+        return
+
+    encoded = base64.b64encode(logo).decode("utf-8")
+    st.markdown(
+        f"<div class='simpm-logo-card'><img src='data:image/png;base64,{encoded}' alt='SimPM logo'></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _styled_container() -> None:
     st.markdown(
         """
@@ -209,7 +227,9 @@ def _styled_container() -> None:
         .stTabs [aria-selected="true"] {border: 1px solid #7fd3a8 !important; color: #0c2a1b;}
         .stButton>button {border-radius: 10px; border: 1px solid #7fd3a8; color: #0c2a1b; background: white;}
         .status-chip {padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid #7fd3a8; display: inline-block;}
-        .simpm-panel {padding: 1rem 1.25rem; border: 1px solid #cce8d9; border-radius: 12px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);} 
+        .simpm-panel {padding: 1rem 1.25rem; border: 1px solid #cce8d9; border-radius: 12px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);}
+        .simpm-logo-card {background: #f4fbf7; border: 1px solid #cce8d9; border-radius: 12px; padding: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04);}
+        .simpm-logo-card img {max-height: 80px; width: auto; display: block;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -234,9 +254,7 @@ class StreamlitDashboard:
 
         header_cols = st.columns([1, 2, 1])
         with header_cols[1]:
-            logo = _load_logo()
-            if logo:
-                st.image(logo, use_column_width=True)
+            _render_logo(_load_logo())
         with header_cols[2]:
             status_label = "Run finished ✅"
             status_color = "#4caf50"

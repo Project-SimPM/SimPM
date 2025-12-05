@@ -1,82 +1,27 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Rectangle
-
+import numpy as np
 
 def make_simpm_logo(path="simpm_logo.png"):
     # Square canvas, high resolution
     fig = plt.figure(figsize=(5, 5), dpi=500)
     ax = fig.add_axes([0, 0, 1, 1])
-
-    # Coordinate system 0–1
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.set_aspect("equal")
-    ax.axis("off")
-
-    # Transparent background
-    fig.patch.set_alpha(0.0)
-    ax.set_facecolor((0, 0, 0, 0))
-
-    # --- TEXT: "Sim" over "PM" ---
-    text_color = "#0f7b1c"  # main green
-    ax.text(
-        0.14,
-        0.64,
-        "Sim",
-        fontfamily="DejaVu Sans",
-        fontsize=72,
-        fontweight="bold",
-        color=text_color,
-        ha="left",
-        va="center",
-    )
-    ax.text(
-        0.14,
-        0.34,
-        "PM",
-        fontfamily="DejaVu Sans",
-        fontsize=72,
-        fontweight="bold",
-        color=text_color,
-        ha="left",
-        va="center",
-    )
-
-    # --- TRIANGLE OUTLINE ---
-    tri_coords = [(0.55, 0.22), (0.88, 0.50), (0.55, 0.78)]
-    tri = Polygon(
-        tri_coords,
-        closed=True,
-        edgecolor=text_color,
-        linewidth=3,
-        fill=False,
-        joinstyle="round",
-    )
-    ax.add_patch(tri)
-
-    # --- STRIPED FILL INSIDE TRIANGLE ---
-    colors = ["#0f7b1c", "#1c8430", "#2e8b57", "#56a970", "#a1d99b"]
-    n = len(colors)
-
-    x_start, x_end = 0.55, 0.88
-    total_width = x_end - x_start
-    bar_width = total_width / (n + 1)  # small gap at ends
-
-    for i, c in enumerate(colors):
-        x = x_start + (i + 0.5) * bar_width
-        bar = Rectangle(
-            (x, 0.22),
-            bar_width * 0.9,  # a bit of gap between bars
-            0.56,
-            facecolor=c,
-            edgecolor="none",
-        )
-        # Clip bars to triangle shape
-        bar.set_clip_path(tri)
-        ax.add_patch(bar)
+    stretch = 0
+    xlim = (-1.3,.7)
+    w = 2
+    ax.set_xlim([xlim[0]-stretch*w, xlim[1]+stretch*w])
+    ylim = (-1,1)
+    h = 2
+    ax.set_ylim([ylim[0]-stretch*h, ylim[1]+stretch*h])
+    ax.fill([0,0,.7],[-.55,.45,0],color="green",alpha=1)  
+    for i in np.linspace(0,.8,5):
+        ax.fill([0+i/2,0+i/2,.7],[-.55,.45,0],color="white",alpha=.2) 
+    ax.text(-1.25,0.05,"Sim",fontsize=80,color="green",fontweight="bold")
+    ax.text(-1.1,-.5,"PM",fontsize=80,color="green",fontweight="bold") 
+    plt.axis("off")
 
     # Save with transparent background (good for Sphinx / RTD)
-    plt.savefig(path, dpi=500, transparent=True)
+    plt.savefig(path, dpi=500, transparent=False)
     plt.close(fig)
 
 

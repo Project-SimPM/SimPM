@@ -109,11 +109,6 @@ env.process(job(worker, machine))
 simpm.run(env, dashboard=True, host="127.0.0.1", port=8050)
 ```
 
-On Windows, dashboards default to a post-run (synchronous) launch because Streamlit
-cannot install its signal handlers from a background thread there. Pass
-``dashboard_async=False`` explicitly if you prefer the safer synchronous mode on other
-platforms as well.
-
 Use ``dashboard=False`` to disable the dashboard entirely.
 ## Community
 - [Github Discussions](https://github.com/Project-SimPM/SimPM/discussions)

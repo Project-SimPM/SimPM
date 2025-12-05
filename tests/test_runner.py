@@ -1,6 +1,3 @@
-import sys
-import types
-
 import simpm.des as des
 from simpm import des
 from simpm.recorder import RunRecorder
@@ -41,36 +38,6 @@ def test_run_function_without_dashboard():
     env, _, _ = _build_simple_environment()
     result = simpm.run(env, dashboard=False)
     assert result is None
-
-
-def test_run_function_with_sync_dashboard(monkeypatch):
-    calls = []
-
-    class DummyEnv:
-        name = "dummy"
-
-        def run(self, until=None, **kwargs):
-            calls.append("run")
-
-    monkeypatch.setattr(
-        simpm.runner,
-        "collect_run_data",
-        lambda env: types.SimpleNamespace(as_dict=lambda: {"status": "ok"}),
-    )
-
-    def _run_post_dashboard(env, host, port, start_async):
-        calls.append(("dashboard", start_async))
-
-    monkeypatch.setitem(
-        sys.modules,
-        "simpm.dashboard",
-        types.SimpleNamespace(run_post_dashboard=_run_post_dashboard),
-    )
-
-    result = simpm.run(DummyEnv(), dashboard=True, dashboard_async=False)
-
-    assert calls == ["run", ("dashboard", False)]
-    assert result == {"status": "ok"}
 
 
 def test_resources_recorded_without_usage():

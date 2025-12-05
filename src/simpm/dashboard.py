@@ -292,7 +292,7 @@ class StreamlitDashboard:
         flag_options = {"server.address": host, "server.port": port, "server.headless": True}
 
         def _launch():  # pragma: no cover - starts a live server
-            bootstrap.run(__file__, command_line=command_line, args=[], flag_options=flag_options)
+            bootstrap.run(__file__, command_line, [], flag_options)
 
         if async_mode:
             thread = threading.Thread(target=_launch, daemon=True)

@@ -107,7 +107,7 @@ def prcpm(list_priority):
     p5=env.process(a5(en[5],res))
     p6=env.process(a6(en[6],res))
 
-    simpm.run(env, dashboard="post")
+    simpm.run(env, dashboard=True)
     return(env.now)
 
 

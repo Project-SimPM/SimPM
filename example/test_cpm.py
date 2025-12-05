@@ -79,6 +79,6 @@ p3=env.process(a3(e,Rs))
 p4=env.process(a4(e,Rs))
 p5=env.process(a5(e,Rs))
 p6=env.process(a6(e,Rs))
-simpm.run(env, dashboard="post")
+simpm.run(env, dashboard=True)
 print(env.now)
 

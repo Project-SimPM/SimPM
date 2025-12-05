@@ -61,7 +61,7 @@ env.process(truck_process(truck[1],pallets,site_pallets,damage_pallets_site,dama
 p1=env.process(worker1_process(worker1,site_pallets,installed_pallets))
 p2=env.process(worker2_process(worker2,site_pallets,installed_pallets))
 p3=env.process(worker3_process(worker3,site_pallets,installed_pallets))
-simpm.run(env, dashboard="live", until=p1|p2|p3)
+simpm.run(env, dashboard=True, until=p1|p2|p3)
 print(env.now)
 a=truck[0].waiting_time()
 b=truck[1].waiting_time()

@@ -52,7 +52,7 @@ Full example (from the examples folder)
    for t in trucks:
        env.process(truck_cycle(t, loader, dumped_dirt))
 
-   simpm.run(env, dashboard="post")
+   simpm.run(env, dashboard=True)
 
    print(f"Project finished at t={env.now:.2f} minutes")
    print("Loader utilization:", loader.average_utilization())

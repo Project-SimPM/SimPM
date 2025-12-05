@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from statistics import fmean, median, pstdev
 from typing import Any
 
@@ -673,14 +672,13 @@ def _resource_logs(resource: dict[str, Any]):
     return html.Div(sections, className="panel-stack")
 
 
-def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
+def build_app(env) -> Dash:
     app = Dash(__name__)
     initial_data = collect_run_data(env).as_dict()
     app.layout = html.Div(
         [
             dcc.Store(id="run-data", data=initial_data),
             dcc.Store(id="selected-node", data="environment"),
-            dcc.Interval(id="live-interval", interval=refresh_ms, n_intervals=0, disabled=not live),
             html.Div(
                 [
                     _build_tabs(),
@@ -697,12 +695,6 @@ def build_app(env, live: bool = False, refresh_ms: int = 500) -> Dash:
         ],
         className="app-shell",
     )
-
-    @app.callback(Output("run-data", "data"), Input("live-interval", "n_intervals"), prevent_initial_call=True)
-    def _update_live_data(_):
-        if not live:
-            return dash.no_update
-        return collect_run_data(env).as_dict()
 
     def _default_path(tab_value: str, data: dict[str, Any]) -> str:
         if tab_value == "environment":
@@ -919,17 +911,3 @@ def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050):
     runner, runner_name = _select_dash_runner(app)
     logger.info("Starting post-run dashboard with %s at http://%s:%s", runner_name, host, port)
     runner(host=host, port=port, debug=False)
-
-
-def run_live_dashboard(env, host: str = "127.0.0.1", port: int = 8050):
-    app = build_app(env, live=True)
-
-    logger.info("Launching live dashboard thread at http://%s:%s", host, port)
-
-    def _run_app():
-        runner, runner_name = _select_dash_runner(app)
-        logger.debug("Running live dashboard via %s()", runner_name)
-        runner(host=host, port=port, debug=False)
-
-    threading.Thread(target=_run_app, daemon=True).start()
-    return app

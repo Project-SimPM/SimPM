@@ -20,7 +20,7 @@ loader=des.Resource(env,"loader")
 dumped_dirt=des.Resource(env,"dirt",init=0,capacity=100000)
 for t in truck:
     env.process(truck_process(t,loader,dumped_dirt))
-simpm.run(env, dashboard="post")
+simpm.run(env, dashboard=True)
 print(env.now)
 print(truck[0].schedule())
 print(truck[0].waiting_time())

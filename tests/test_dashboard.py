@@ -91,39 +91,11 @@ def test_build_app_populates_initial_snapshot(monkeypatch, dashboard_module):
 
     monkeypatch.setattr(dashboard_module, "collect_run_data", lambda env: DummySnapshot())
 
-    app = dashboard_module.build_app(env=object(), live=False)
+    app = dashboard_module.build_app(env=object())
     layout_children = app.layout["args"][0]
     run_store = next(child for child in layout_children if child["kwargs"].get("id") == "run-data")
 
     assert run_store["kwargs"]["data"] == snapshot_data
-
-
-def test_run_live_dashboard_starts_thread(monkeypatch, dashboard_module):
-    threads = []
-
-    class DummyThread:
-        def __init__(self, target=None, daemon=None):
-            self.target = target
-            self.daemon = daemon
-            self.started = False
-
-        def start(self):
-            self.started = True
-            if self.target:
-                self.target()
-
-    def _thread_factory(target=None, daemon=None):
-        thread = DummyThread(target=target, daemon=daemon)
-        threads.append(thread)
-        return thread
-
-    monkeypatch.setattr(dashboard_module.threading, "Thread", _thread_factory)
-
-    app = dashboard_module.run_live_dashboard(env=object(), host="0.0.0.0", port=9000)
-
-    assert threads and threads[0].daemon is True
-    assert threads[0].started is True
-    assert getattr(app, "server_args", None) == ("0.0.0.0", 9000, False)
 
 
 def test_dashboard_launch_logging(monkeypatch, caplog, dashboard_module):
@@ -136,7 +108,7 @@ def test_dashboard_launch_logging(monkeypatch, caplog, dashboard_module):
         def run(self, host, port, debug=False):
             calls["method"] = ("run", (host, port, debug))
 
-    def _build_app(env, live=False, refresh_ms=500):
+    def _build_app(env):
         return DummyApp()
 
     monkeypatch.setattr(dashboard_module, "build_app", _build_app)

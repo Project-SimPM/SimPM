@@ -55,5 +55,5 @@ env.process(truckProcess(truckent,loader,dumpeddirt,workedHours))
 env.process(truckProcess(truckent2,loader,dumpeddirt,workedHours))
 env.process(repairPorcess(repairman,loader,workedHours))
 
-simpm.run(env, dashboard="post")
+simpm.run(env, dashboard=True)
 print(env.now)

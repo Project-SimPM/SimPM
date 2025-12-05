@@ -1,9 +1,9 @@
-"""User-facing entry point for running simulations with optional dashboards.
+"""User-facing entry point for running simulations with an optional dashboard.
 
 ``simpm.run`` simply forwards to ``env.run`` when dashboards are disabled, so
 existing scripts that call ``env.run`` continue to work. Use this wrapper when
-you want to launch the live or post-run dashboard without changing your
-simulation code.
+you want to launch the post-run dashboard without changing your simulation
+code.
 """
 from __future__ import annotations
 
@@ -12,7 +12,15 @@ from typing import Any
 from simpm.dashboard_data import collect_run_data
 
 
-def run(env, until: Any | None = None, dashboard: str = "none", collect_logs: bool = True, host: str = "127.0.0.1", port: int = 8050, **kwargs):
+def run(
+    env,
+    until: Any | None = None,
+    dashboard: bool = True,
+    collect_logs: bool = True,
+    host: str = "127.0.0.1",
+    port: int = 8050,
+    **kwargs,
+):
     """
     Execute a simulation environment and optionally launch a dashboard.
 
@@ -22,8 +30,8 @@ def run(env, until: Any | None = None, dashboard: str = "none", collect_logs: bo
         Simulation environment to execute.
     until: optional
         Passed directly to ``env.run``.
-    dashboard: str
-        One of ``"none"``, ``"post"``, or ``"live"``.
+    dashboard: bool
+        ``True`` (default) launches the post-run dashboard; ``False`` skips it.
     collect_logs: bool
         Whether to collect log events for dashboards.
     host, port: str, int
@@ -31,23 +39,14 @@ def run(env, until: Any | None = None, dashboard: str = "none", collect_logs: bo
     kwargs:
         Additional arguments forwarded to ``env.run``.
     """
-    mode = dashboard.lower()
-    if mode not in {"none", "post", "live"}:
-        raise ValueError("dashboard must be one of 'none', 'post', or 'live'")
+    if not isinstance(dashboard, bool):
+        raise ValueError("dashboard must be a boolean")
 
-    if mode == "none":
+    if not dashboard:
         return env.run(until=until, **kwargs)
 
-    if mode == "post":
-        from simpm.dashboard import run_post_dashboard  # imported lazily to keep dependency optional
+    from simpm.dashboard import run_post_dashboard  # imported lazily to keep dependency optional
 
-        env.run(until=until, **kwargs)
-        run_post_dashboard(env, host=host, port=port)
-        return collect_run_data(env).as_dict()
-
-    # live mode
-    from simpm.dashboard import run_live_dashboard  # imported lazily to keep dependency optional
-
-    run_live_dashboard(env, host=host, port=port)
     env.run(until=until, **kwargs)
+    run_post_dashboard(env, host=host, port=port)
     return collect_run_data(env).as_dict()

@@ -65,7 +65,7 @@ Simulation code (priority bottleneck)
    env.process(crew_three(env, crew3, trucks))
    env.process(fleet_arrivals(env, fleet, trucks))
 
-   simpm.run(env, dashboard="post")
+   simpm.run(env, dashboard=True)
 
 What to look for
 ----------------

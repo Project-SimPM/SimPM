@@ -76,6 +76,42 @@ How it works
    ``average_utilization()`` expose queueing and productivity insights,
    while ``schedule()`` reports per-entity activity timing.
 
+Entity attributes in action
+---------------------------
+
+Entities carry an ``attr`` dictionary for arbitrary metadata. You can
+store custom attributes (such as truck size) and use them inside the
+process logic:
+
+.. code-block:: python
+
+   env = des.Environment("Earthmoving with sizes")
+   loader = des.Resource(env, "loader", init=1, capacity=1, log=True)
+   dumped_dirt = des.Resource(env, "dirt", init=0, capacity=100000, log=True)
+
+   # Attach a size attribute (cubic meters per load) to each truck
+   trucks = env.create_entities("truck", 3, log=True)
+   for t, size in zip(trucks, [30, 35, 50]):
+       t.attr["size"] = size
+
+   def truck_cycle(truck: des.Entity, loader: des.Resource, dumped_dirt: des.Resource):
+       while True:
+           # Load time grows with truck size
+           yield truck.get(loader, 1)
+           yield truck.do("loading", 5 + truck.attr["size"] / 20)
+           yield truck.put(loader, 1)
+
+           # Haul and dump exactly the truck's load size
+           yield truck.do("hauling", 17)
+           yield truck.do("dumping", 3)
+           yield truck.add(dumped_dirt, truck.attr["size"])
+
+           yield truck.do("return", 13)
+
+This pattern keeps the tutorial scenario the same, but shows how
+truck-level attributes influence both durations (loading time) and
+production (dirt moved per cycle).
+
 Try it yourself
 ---------------
 

@@ -38,11 +38,13 @@ This example shows how to:
    # 1) Create the simulation environment
    env = Environment("Single activity")
 
-   # 2) Define resources (e.g., one crew)
+   # 2) Define resources (e.g., one crew). ``capacity=1`` means only one
+   # entity can use this crew at a time.
    crew = Resource(env, name="Crew 1", capacity=1)
 
-   # 3) Create an entity to perform the activity
-   (activity_entity,) = env.create_entities("Activity", 1, print_actions=False, log=True)
+   # 3) Create an entity to perform the activity. ``log=True`` stores detailed
+   # action timing so you can inspect wait and idle durations after the run.
+   entity1 = env.create_entity("Activity", print_actions=False, log=True)
 
    # 4) Define the activity process
    def activity(entity, resource):
@@ -58,13 +60,17 @@ This example shows how to:
 
        print(f"{entity.env.now:.2f}: {entity} finished (duration={duration:.2f})")
 
-   env.process(activity(activity_entity, crew))
+   env.process(activity(entity1, crew))
 
    # 5) Run the simulation
    simpm.run(env)
 
    print(f"Project finished at t={env.now:.2f}")
-   print(activity_entity.schedule())
+   print(entity1.schedule())
+
+   # Inspect how long the activity waited for the crew (idle/wait time)
+   print("Waiting durations:", entity1.waiting_time())
+   print("Waiting log:\n", entity1.waiting_log())
 
 Next steps
 ----------

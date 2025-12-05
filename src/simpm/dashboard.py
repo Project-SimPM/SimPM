@@ -595,7 +595,12 @@ def _resource_usage(resource: dict[str, Any]):
     in_use = [row.get("in_use") for row in status_log]
     queue = [row.get("queue_length") for row in status_log]
 
-    fig = px.step(x=times, y=in_use, labels={"x": "Time", "y": "Count"})
+    fig = px.line(
+        x=times,
+        y=in_use,
+        labels={"x": "Time", "y": "Count"},
+        line_shape="hv",
+    )
     fig.update_traces(name="In use", mode="lines")
 
     if any(val is not None for val in queue):

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import io
-import inspect
 import logging
 import threading
 from dataclasses import dataclass, field
@@ -289,14 +288,11 @@ class StreamlitDashboard:
         global _ACTIVE_DASHBOARD
         _ACTIVE_DASHBOARD = self
 
+        command_line = f"streamlit run {Path(__file__).resolve()} --server.address {host} --server.port {port}"
         flag_options = {"server.address": host, "server.port": port, "server.headless": True}
 
         def _launch():  # pragma: no cover - starts a live server
-            sig = inspect.signature(bootstrap.run)
-            if "command_line" in sig.parameters:
-                bootstrap.run(__file__, command_line=f"streamlit run {Path(__file__).resolve()}", args=[], flag_options=flag_options)
-            else:
-                bootstrap.run(__file__, args=[], flag_options=flag_options)
+            bootstrap.run(__file__, command_line=command_line, args=[], flag_options=flag_options)
 
         if async_mode:
             thread = threading.Thread(target=_launch, daemon=True)

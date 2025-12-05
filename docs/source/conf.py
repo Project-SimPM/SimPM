@@ -66,11 +66,11 @@ intersphinx_disabled_domains = ['std']
 # a list of builtin themes.
 html_theme = 'sphinx_rtd_theme'
 
-html_static_path = ["_static"]
+html_static_path = ["_static", "images"]
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = "_static/simpm_logo.png"
+html_logo = "images/simpm_logo.png"
 
 html_theme_options = {
     "logo_only": True,

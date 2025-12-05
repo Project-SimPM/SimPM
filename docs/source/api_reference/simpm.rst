@@ -1,6 +1,6 @@
-=========
+===================================================
 ``simpm`` --- Simulation Tool in Project Management
-=========
+===================================================
 
 .. autosummary::
    :toctree: generated

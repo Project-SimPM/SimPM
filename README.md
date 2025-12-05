@@ -64,8 +64,8 @@ SimPM builds a project-oriented layer on top of a general DES core:
 
 - **Optional dashboards**
 
-  - `simpm.run(..., dashboard="post"|"live"|"none")` for Plotly Dash dashboards.
-  - Inspect timelines, queues, and bottlenecks interactively, either after a run or while it is executing.
+  - `simpm.run(..., dashboard=True|False)` for Plotly Dash dashboards (enabled by default).
+  - Inspect timelines, queues, and bottlenecks interactively after a run completes.
 
 - **Central logging configuration**
 
@@ -87,7 +87,7 @@ pip install simpm
 ```
 
 ### Dashboard mode
-``simpm.run`` is a convenience wrapper around ``env.run`` that optionally starts a dashboard after (or during) execution. You can continue to call ``env.run`` directly for headless runs; switch to ``simpm.run`` when you want dashboards without changing your simulation logic. Install the optional dependencies and run your environment with ``dashboard`` set to ``"post"`` to launch an interactive summary once the simulation finishes:
+``simpm.run`` is a convenience wrapper around ``env.run`` that optionally starts a dashboard after execution. You can continue to call ``env.run`` directly for headless runs; switch to ``simpm.run`` when you want dashboards without changing your simulation logic. Install the optional dependencies and run your environment with dashboards enabled (the default) to launch an interactive summary once the simulation finishes:
 
 ```
 pip install simpm[dash]
@@ -106,10 +106,10 @@ def job(entity, resource):
 
 env.process(job(worker, machine))
 
-simpm.run(env, dashboard="post", host="127.0.0.1", port=8050)
+simpm.run(env, dashboard=True, host="127.0.0.1", port=8050)
 ```
 
-Use ``dashboard="live"`` to watch the simulation progress in real time, or ``dashboard="none"`` to disable the dashboard entirely.
+Use ``dashboard=False`` to disable the dashboard entirely.
 ## Community
 - [Github Discussions](https://github.com/Project-SimPM/SimPM/discussions)
 

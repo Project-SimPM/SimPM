@@ -71,7 +71,7 @@ Simulation code (batchable)
        p5 = env.process(run_task(5, p2))
        p6 = env.process(run_task(6, p4 & p5 & p3))
 
-       simpm.run(env, dashboard="post")
+       simpm.run(env, dashboard=True)
        return env.now
 
    # Run many trials for percentiles

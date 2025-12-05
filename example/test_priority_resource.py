@@ -45,4 +45,4 @@ env.process(p2(env,e2,R))
 env.process(pr(env,er,R))
 env.process(p3(env,e3,R))
 
-simpm.run(env, dashboard="post")
+simpm.run(env, dashboard=True)

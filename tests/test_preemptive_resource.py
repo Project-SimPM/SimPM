@@ -40,7 +40,7 @@ def test_preemptive_resource_interrupts_lower_priority_holder():
     env.process(p1(e1, R))
     env.process(p2(e2, R))
 
-    simpm.run(env, dashboard="none")
+    simpm.run(env, dashboard=False)
 
     # --- Assertions ---
     # e1's task must be cut at t=5 (not 10!)
@@ -92,7 +92,7 @@ def test_preemptive_resource_no_preemption_for_lower_priority():
 
     env.process(p1(e1, R))
     env.process(p2(e2, R))
-    simpm.run(env, dashboard="none")
+    simpm.run(env, dashboard=False)
 
     # e1 not preempted: finishes at 10
     assert ("e1_finished_something", 10) in events
@@ -141,7 +141,7 @@ def test_preemptive_resource_respects_preempt_flag():
 
     env.process(p1(e1, R))
     env.process(p2(e2, R))
-    simpm.run(env, dashboard="none")
+    simpm.run(env, dashboard=False)
 
     # e1 not preempted: still finishes at 10
     assert ("e1_finished_something", 10) in events

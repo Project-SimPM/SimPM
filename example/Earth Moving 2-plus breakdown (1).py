@@ -70,7 +70,7 @@ for i in range(3):
 repair_man=des.Entity(env,"repair_man",print_actions=True)
 env.process(loader_breakdown_proc(repair_man,loader_1))
 env.process(loader_breakdown_proc(repair_man,loader_2))
-simpm.run(env, dashboard="post", until=p)
+simpm.run(env, dashboard=True, until=p)
 production_rate=(dumped_dirt.level()/env.now)
 print("Production Rate is:",production_rate,"m3/minute")
 l2=np.array(start_load_list)

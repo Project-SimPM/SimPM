@@ -57,7 +57,7 @@ features aimed directly at project and construction models:
   uniform, empirical) for three-point and PERT-style estimates.
 * **Built-in logging and dashboards** – simulations can log queue lengths,
   utilization, and activity timings to structured tables; :func:`simpm.run`
-  can start a Plotly Dash dashboard (``"post"`` or ``"live"``) with minimal setup.
+  can start a Plotly Dash dashboard (``"post"``) with minimal setup.
 * **Central logging configuration** – :mod:`simpm.log_cfg` simplifies
   managing console and file logs in larger experiments.
 
@@ -164,7 +164,7 @@ run the simulation with either :meth:`env.run` or :func:`simpm.run`
        yield entity.put(crew_res, 1)
 
    env.process(job_process(job, crew))
-   simpm.run(env, dashboard="none")
+   simpm.run(env, dashboard=False)
 
 Logging and performance measures
 --------------------------------

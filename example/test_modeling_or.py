@@ -37,4 +37,4 @@ R2=PriorityResource(env,'Truck2',print_actions=True)
 env.process(p1(e1,R2,R))
 env.process(p2(e2,R))
 
-simpm.run(env, dashboard="post")
+simpm.run(env, dashboard=True)

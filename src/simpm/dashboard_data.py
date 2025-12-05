@@ -53,8 +53,13 @@ def _entity_snapshot(entity) -> dict[str, Any]:
         if act_name and "activity_id" not in activity:
             activity["activity_id"] = name_map.get(act_name)
 
-        start = activity.get("start_time") or activity.get("start")
-        end = activity.get("finish_time") or activity.get("end")
+        start = activity.get("start_time")
+        if start is None:
+            start = activity.get("start")
+
+        end = activity.get("finish_time")
+        if end is None:
+            end = activity.get("end")
         if start is not None and end is not None:
             try:
                 activity["duration"] = float(end) - float(start)

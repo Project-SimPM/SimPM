@@ -125,3 +125,36 @@ def test_dashboard_launch_logging(monkeypatch, caplog, dashboard_module):
 
     assert dash_instance.called == [("0.0.0.0", 9100, False)]
     assert "Starting Streamlit dashboard" in caplog.text
+
+
+def test_dashboard_launch_uses_args_when_command_line_missing(monkeypatch, dashboard_module):
+    calls = []
+
+    class MinimalBootstrap:
+        def run(self, file, args=None, flag_options=None):  # pragma: no cover - trivial
+            calls.append((file, args, flag_options))
+
+    bootstrap = MinimalBootstrap()
+    fake_web = types.SimpleNamespace(bootstrap=bootstrap)
+
+    # Patch the bootstrap module to mimic newer Streamlit versions that omit command_line
+    monkeypatch.setitem(sys.modules, "streamlit.web", fake_web)
+    monkeypatch.setitem(sys.modules, "streamlit.web.bootstrap", bootstrap)
+
+    env = types.SimpleNamespace(
+        name="env",
+        register_observer=lambda *a, **k: None,
+        resources=[],
+        entities=[],
+    )
+
+    dashboard = dashboard_module.StreamlitDashboard(env)
+    dashboard.run(host="0.0.0.0", port=8600, async_mode=False)
+
+    assert calls == [
+        (
+            dashboard_module.__file__,
+            [],
+            {"server.address": "0.0.0.0", "server.port": 8600, "server.headless": True},
+        )
+    ]

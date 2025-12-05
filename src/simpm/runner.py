@@ -42,11 +42,15 @@ def run(
     if not isinstance(dashboard, bool):
         raise ValueError("dashboard must be a boolean")
 
+    result = env.run(until=until, **kwargs)
+
     if not dashboard:
-        return env.run(until=until, **kwargs)
+        return result
 
     from simpm.dashboard import run_post_dashboard  # imported lazily to keep dependency optional
 
-    env.run(until=until, **kwargs)
-    run_post_dashboard(env, host=host, port=port)
-    return collect_run_data(env).as_dict()
+    snapshot = collect_run_data(env) if collect_logs else None
+    if snapshot is not None:
+        run_post_dashboard(snapshot, host=host, port=port, start_async=False)
+        return snapshot.as_dict()
+    return result

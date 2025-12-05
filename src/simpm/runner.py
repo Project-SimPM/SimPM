@@ -47,7 +47,6 @@ def run(
 
     from simpm.dashboard import run_post_dashboard  # imported lazily to keep dependency optional
 
-    # Start the dashboard at the beginning of the simulation to allow live updates.
-    run_post_dashboard(env, host=host, port=port, start_async=True)
     env.run(until=until, **kwargs)
+    run_post_dashboard(env, host=host, port=port)
     return collect_run_data(env).as_dict()

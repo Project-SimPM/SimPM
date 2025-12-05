@@ -10,6 +10,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+import pandas as pd
+
+try:  # pragma: no cover - optional dependency at runtime
+    import numpy as np
+
+    _NUMERIC_TYPES = (np.integer, np.floating, np.bool_)
+    _ARRAY_TYPES = (np.ndarray,)
+except Exception:  # pragma: no cover - numpy not required for core logic
+    _NUMERIC_TYPES = ()
+    _ARRAY_TYPES = ()
+
 from simpm._utils import _swap_dict_keys_values
 
 
@@ -39,6 +50,39 @@ def _safe_array(getter: Callable[[], Any]) -> list[Any]:
     except Exception:
         return []
     return []
+
+
+def _to_jsonable(value: Any) -> Any:
+    """Recursively coerce values into JSON-serializable objects."""
+
+    if isinstance(value, dict):
+        return {key: _to_jsonable(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(val) for val in value]
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    if isinstance(value, pd.Timedelta):
+        return value.isoformat()
+    if _NUMERIC_TYPES and isinstance(value, _NUMERIC_TYPES):
+        try:
+            return value.item()
+        except Exception:
+            return int(value)
+    if _ARRAY_TYPES and isinstance(value, _ARRAY_TYPES):
+        return value.tolist()
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes)):
+        try:
+            return value.tolist()
+        except Exception:
+            return value
+    if hasattr(value, "to_dict"):
+        try:
+            return _to_jsonable(value.to_dict())
+        except Exception:
+            return str(value)
+    if isinstance(value, pd.Interval):
+        return str(value)
+    return value
 
 
 def _entity_snapshot(entity) -> dict[str, Any]:
@@ -140,12 +184,14 @@ class RunSnapshot:
     logs: list[dict[str, Any]]
 
     def as_dict(self) -> dict[str, Any]:
-        return {
-            "environment": self.environment,
-            "entities": self.entities,
-            "resources": self.resources,
-            "logs": self.logs,
-        }
+        return _to_jsonable(
+            {
+                "environment": self.environment,
+                "entities": self.entities,
+                "resources": self.resources,
+                "logs": self.logs,
+            }
+        )
 
 
 def collect_run_data(env) -> RunSnapshot:

@@ -13,7 +13,6 @@ def p1(a:Entity,R):
 
     yield a.get(R,1,False)
     yield a.interruptive_do('something',10)
-
     yield a.put(R)
     
 

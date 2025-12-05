@@ -3,6 +3,3 @@ pylint
 black
 ipykernel
 pytest
-plotly >= 5
-streamlit >= 1.32
-

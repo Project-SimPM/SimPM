@@ -1,913 +1,334 @@
-"""Plotly Dash dashboard for SimPM runs."""
+"""Streamlit dashboard for SimPM runs."""
 from __future__ import annotations
 
-import json
+import io
 import logging
-from statistics import fmean, median, pstdev
-from typing import Any
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Iterable
 
-try:
-    import dash
-    from dash import Dash, Input, Output, State, callback_context, dash_table, dcc, html
-    import plotly.express as px
+import pandas as pd
+import plotly.express as px
+
+try:  # pragma: no cover - handled at runtime
+    import streamlit as st
 except ImportError as exc:  # pragma: no cover - handled at runtime
     raise ImportError(
-        "Plotly Dash is required for dashboard mode. Install with `pip install dash plotly`."
+        "Streamlit is required for dashboard mode. Install with `pip install streamlit plotly`."
     ) from exc
 
 from simpm.dashboard_data import collect_run_data
 
-
-CONTENT_STYLE = {
-    "maxWidth": "1240px",
-    "margin": "0 auto",
-    "padding": "0 18px 32px",
-}
-
 logger = logging.getLogger(__name__)
 
-BUTTON_BASE_STYLE = {
-    "borderRadius": "12px",
-    "border": "1px solid transparent",
-    "padding": "10px 14px",
-    "margin": "6px",
-    "cursor": "pointer",
-    "boxShadow": "0 1px 3px rgba(0, 0, 0, 0.15)",
-}
+
+_ACTIVE_DASHBOARD: "StreamlitDashboard | None" = None
 
 
-def _select_dash_runner(app: Dash):
-    """Return the callable used to run a Dash app and its name for logging."""
+def _find_time_column(df: pd.DataFrame) -> str | None:
+    """Return the first column name that looks like a simulation time axis."""
 
-    try:
-        run_server_method = getattr(app, "run_server")
-    except Exception:  # pragma: no cover - Dash may raise on obsolete attrs
-        run_server_method = None
-
-    if callable(run_server_method):
-        return run_server_method, "run_server"
-
-    run_method = getattr(app, "run", None)
-    if callable(run_method):
-        return run_method, "run"
-
-    raise RuntimeError("Dash app provides neither 'run' nor 'run_server' methods")
-
-ENTITY_BUTTON_STYLE = {
-    "backgroundColor": "#e6f4ea",
-    "borderColor": "#34a853",
-    "color": "#0b3d1b",
-}
-
-RESOURCE_BUTTON_STYLE = {
-    "backgroundColor": "#e6f0ff",
-    "borderColor": "#1a73e8",
-    "color": "#0b2a66",
-}
-
-ENVIRONMENT_BUTTON_STYLE = {
-    "backgroundColor": "#f1f3f4",
-    "borderColor": "#5f6368",
-    "color": "#202124",
-    "borderRadius": "4px",
-}
-
-ACTIVITY_BUTTON_STYLE = {
-    "backgroundColor": "#fff4e6",
-    "borderColor": "#f9ab00",
-    "color": "#6a4a00",
-}
+    for col in df.columns:
+        if "time" in str(col).lower():
+            return col
+    return None
 
 
-def _styled_button(label: str, path: str, style: dict[str, str]):
-    return html.Button(
+def _download_button(label: str, df: pd.DataFrame, file_prefix: str) -> None:
+    """Render a CSV download button for the given dataframe."""
+
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
         label,
-        id={"type": "nav-node", "path": path},
-        n_clicks=0,
-        style={**BUTTON_BASE_STYLE, **style},
+        data=io.BytesIO(csv_bytes),
+        file_name=f"{file_prefix}.csv",
+        mime="text/csv",
+        use_container_width=True,
     )
 
 
-def _activity_name_map(run_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Aggregate activities and logs keyed by activity name."""
+def _basic_statistics(series: pd.Series) -> pd.DataFrame:
+    """Return a dataframe with basic stats for a numeric column."""
 
-    activities: dict[str, dict[str, Any]] = {}
-    for entity in run_data.get("entities", []):
-        for act in _activities_from_schedule(entity):
-            name = act.get("activity_name", "Activity")
-            activity_entry = activities.setdefault(
-                name,
-                {
-                    "durations": [],
-                    "logs": [],
-                    "instances": [],
-                    "duration_specs": [],
-                    "sampled_durations": [],
-                },
-            )
-            activity_entry["instances"].append({"entity_id": entity.get("id"), **act})
-            if act.get("duration") is not None:
-                activity_entry["durations"].append(act["duration"])
-            if act.get("duration_info"):
-                activity_entry["duration_specs"].append(act["duration_info"])
-            if act.get("sampled_duration") is not None:
-                activity_entry["sampled_durations"].append(act["sampled_duration"])
-
-        for log in entity.get("logs", []):
-            act_name = log.get("activity_name")
-            if act_name:
-                activities.setdefault(
-                    act_name,
-                    {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
-                )["logs"].append(log)
-            elif log.get("source_type") == "activity" and "metadata" in log:
-                metadata = log.get("metadata", {}) or {}
-                if "activity_name" in metadata:
-                    log = {**log, **{f"metadata.{k}": v for k, v in metadata.items()}}
-                    activities.setdefault(
-                        metadata["activity_name"],
-                        {"durations": [], "logs": [], "instances": [], "duration_specs": [], "sampled_durations": []},
-                    )["logs"].append(log)
-    return activities
+    if series.empty:
+        return pd.DataFrame()
+    return pd.DataFrame(
+        {
+            "Metric": ["Count", "Mean", "Median", "Min", "Max", "Std"],
+            "Value": [
+                int(series.count()),
+                series.mean(),
+                series.median(),
+                series.min(),
+                series.max(),
+                series.std(ddof=0),
+            ],
+        }
+    )
 
 
-def _activities_from_schedule(entity: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize activity instances from an entity's schedule log."""
+def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> None:
+    """Render analysis tabs for every numeric column in the dataframe."""
 
-    activities: list[dict[str, Any]] = []
-    for rec in entity.get("schedule_log", []) or []:
-        activity_name = rec.get("activity") or rec.get("activity_name")
-        start = rec.get("start_time") or rec.get("start")
-        end = rec.get("finish_time") or rec.get("end")
-        duration = None
-        if start is not None and end is not None:
-            try:
-                duration = float(end) - float(start)
-            except Exception:
-                duration = None
-        activities.append(
-            {
-                "activity_id": rec.get("activity_id"),
-                "activity_name": activity_name,
-                "start": start,
-                "end": end,
-                "duration": duration,
-                "duration_info": rec.get("duration_info"),
-                "sampled_duration": rec.get("sampled_duration"),
-            }
+    numeric_df = df.select_dtypes(include="number")
+    if numeric_df.empty:
+        st.info("No numeric columns available for analysis.")
+        return
+
+    for col in numeric_df.columns:
+        st.markdown(f"### {col} insights")
+        time_axis = time_col or _find_time_column(df.drop(columns=[col], errors="ignore"))
+        tab_series, tab_hist, tab_cdf, tab_stats = st.tabs(
+            ["Time series", "Histogram (PDF)", "Empirical CDF", "Statistics"]
         )
-    return activities
+
+        with tab_series:
+            x = df[time_axis] if time_axis and time_axis in df.columns else df.index
+            fig = px.line(x=x, y=df[col], labels={"x": time_axis or "Index", "y": col})
+            fig.update_traces(line_color="#3a7859")
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab_hist:
+            fig = px.histogram(df, x=col, nbins=min(30, max(5, len(df))), histnorm="probability density")
+            fig.update_traces(marker_color="#5bbd89")
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab_cdf:
+            fig = px.ecdf(df, x=col)
+            fig.update_traces(line_color="#3a7859")
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab_stats:
+            stats_df = _basic_statistics(df[col])
+            st.dataframe(stats_df, use_container_width=True)
 
 
-def _collect_logs(run_data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Collect and flatten logs from environment, entities, and resources."""
+def _render_table_with_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
+    """Display the first/last five rows of a dataframe and downloads."""
 
-    seen: set[str] = set()
-    rows: list[dict[str, Any]] = []
+    st.markdown(f"## {title}")
+    if df.empty:
+        st.info("No records available yet.")
+        return
 
-    def _push(log: dict[str, Any]):
-        key = json.dumps(log, sort_keys=True, default=str)
-        if key in seen:
+    st.caption("First 5 rows")
+    st.dataframe(df.head(5), use_container_width=True)
+    st.caption("Last 5 rows")
+    st.dataframe(df.tail(5), use_container_width=True)
+    _download_button("Download CSV", df, file_prefix=key_prefix)
+    _render_numeric_analysis(df, time_col=_find_time_column(df))
+
+
+def _load_logo() -> bytes | None:
+    logo_path = Path(__file__).resolve().parent.parent / "docs" / "source" / "images" / "simpm_logo.png"
+    if logo_path.exists():
+        return logo_path.read_bytes()
+    return None
+
+
+def _styled_container() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container {padding-top: 1.5rem;}
+        .stTabs [data-baseweb="tab"] {background-color: #f4fbf7; border-radius: 8px; color: #1f3f2b;}
+        .stTabs [aria-selected="true"] {border: 1px solid #7fd3a8 !important; color: #0c2a1b;}
+        .stButton>button {border-radius: 10px; border: 1px solid #7fd3a8; color: #0c2a1b; background: white;}
+        .status-chip {padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid #7fd3a8; display: inline-block;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+@dataclass
+class DashboardObserver:
+    """Observer used to track simulation lifecycle for the dashboard."""
+
+    is_running: bool = False
+    last_finished_at: float | None = None
+    last_started_at: float | None = None
+
+    def on_run_started(self, env) -> None:  # pragma: no cover - invoked at runtime
+        self.is_running = True
+        self.last_started_at = getattr(env, "now", None)
+
+    def on_run_finished(self, env) -> None:  # pragma: no cover - invoked at runtime
+        self.is_running = False
+        self.last_finished_at = getattr(env, "now", None)
+
+
+@dataclass
+class StreamlitDashboard:
+    """Encapsulates the live dashboard rendering logic."""
+
+    env: Any
+    observer: DashboardObserver = field(default_factory=DashboardObserver)
+
+    def __post_init__(self) -> None:
+        if hasattr(self.env, "register_observer"):
+            self.env.register_observer(self.observer)
+
+    def render(self) -> None:
+        """Render the dashboard using Streamlit primitives."""
+
+        st.set_page_config(
+            page_title=f"SimPM Dashboard • {getattr(self.env, 'name', 'Environment')}",
+            layout="wide",
+            page_icon=_load_logo() or None,
+        )
+        _styled_container()
+
+        st_autorefresh = getattr(st, "autorefresh", None)
+        if callable(st_autorefresh):  # pragma: no branch - optional API
+            st_autorefresh(interval=2000, limit=None, key="simpm-refresh")
+
+        header_cols = st.columns([1, 3, 1])
+        with header_cols[0]:
+            logo = _load_logo()
+            if logo:
+                st.image(logo, width=96)
+        with header_cols[1]:
+            st.title("SimPM live dashboard")
+            st.caption("Modern monitoring for your simulations")
+        with header_cols[2]:
+            status_label = "Running" if self.observer.is_running else "Completed"
+            status_color = "#4caf50" if self.observer.is_running else "#607d8b"
+            st.markdown(
+                f"<span class='status-chip' style='color:{status_color};'>{status_label}</span>",
+                unsafe_allow_html=True,
+            )
+
+        tabs = st.tabs(["System", "Entities", "Resources"])
+        with tabs[0]:
+            self._render_system_view()
+        with tabs[1]:
+            self._render_entities_view()
+        with tabs[2]:
+            self._render_resources_view()
+
+    def _render_system_view(self) -> None:
+        snapshot = collect_run_data(self.env).as_dict()
+        env_info = snapshot.get("environment", {})
+
+        st.markdown("### Overview")
+        cols = st.columns(3)
+        cols[0].metric("Environment", env_info.get("name", "Environment"))
+        cols[1].metric("Run ID", env_info.get("run_id", "-"))
+        cols[2].metric("Current sim time", getattr(self.env, "now", 0))
+
+        logs_df = pd.DataFrame(snapshot.get("logs", []))
+        if not logs_df.empty:
+            _render_table_with_preview("Environment logs", logs_df, key_prefix="environment-logs")
+        else:
+            st.info("No environment logs captured yet.")
+
+    def _render_entities_view(self) -> None:
+        entities: Iterable[Any] = getattr(self.env, "entities", [])
+        if not entities:
+            st.info("No entities available.")
             return
-        seen.add(key)
-        entry = dict(log)
-        metadata = entry.pop("metadata", None)
-        if isinstance(metadata, dict):
-            for meta_key, meta_value in metadata.items():
-                entry[f"metadata.{meta_key}"] = meta_value
-        rows.append(entry)
 
-    for log in run_data.get("logs", []):
-        if isinstance(log, dict):
-            _push(log)
+        options = {f"{ent.name} ({ent.id})": ent for ent in entities}
+        selected_label = st.selectbox("Select entity", list(options.keys()))
+        entity = options[selected_label]
 
-    for entity in run_data.get("entities", []):
-        for log in entity.get("logs", []):
-            if isinstance(log, dict):
-                _push(log)
+        st.markdown(f"### Entity {entity.id} • {entity.name}")
+        st.caption(f"Type: {entity.__class__.__name__}")
 
-    for resource in run_data.get("resources", []):
-        for log in resource.get("logs", []):
-            if isinstance(log, dict):
-                _push(log)
+        if hasattr(entity, "schedule"):
+            schedule_df = entity.schedule()
+            _render_table_with_preview("Schedule", schedule_df, key_prefix=f"entity-{entity.id}-schedule")
 
-    return rows
+        if hasattr(entity, "waiting_log"):
+            waiting_df = entity.waiting_log()
+            _render_table_with_preview("Waiting log", waiting_df, key_prefix=f"entity-{entity.id}-waiting")
+
+        if hasattr(entity, "status_log"):
+            status_df = entity.status_log()
+            _render_table_with_preview("Status log", status_df, key_prefix=f"entity-{entity.id}-status")
+
+        if hasattr(entity, "waiting_time"):
+            waiting_time = entity.waiting_time()
+            waiting_df = pd.DataFrame({"waiting_time": waiting_time})
+            _render_table_with_preview("Waiting durations", waiting_df, key_prefix=f"entity-{entity.id}-waiting-time")
+
+    def _render_resources_view(self) -> None:
+        resources: Iterable[Any] = getattr(self.env, "resources", [])
+        if not resources:
+            st.info("No resources available.")
+            return
+
+        options = {f"{res.name} ({res.id})": res for res in resources}
+        selected_label = st.selectbox("Select resource", list(options.keys()))
+        resource = options[selected_label]
+
+        st.markdown(f"### Resource {resource.id} • {resource.name}")
+        st.caption(f"Type: {resource.__class__.__name__} • Capacity: {getattr(resource, 'capacity', '-')}")
+
+        if hasattr(resource, "queue_log"):
+            queue_df = resource.queue_log()
+            _render_table_with_preview("Queue log", queue_df, key_prefix=f"resource-{resource.id}-queue")
+
+        if hasattr(resource, "status_log"):
+            status_df = resource.status_log()
+            _render_table_with_preview("Status log", status_df, key_prefix=f"resource-{resource.id}-status")
+
+        if hasattr(resource, "waiting_time"):
+            waits = resource.waiting_time()
+            waits_df = pd.DataFrame({"waiting_time": waits})
+            _render_table_with_preview("Waiting durations", waits_df, key_prefix=f"resource-{resource.id}-waiting-time")
+
+    def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = True):
+        """Start the Streamlit server for this dashboard."""
+
+        from streamlit.web import bootstrap
+
+        global _ACTIVE_DASHBOARD
+        _ACTIVE_DASHBOARD = self
+
+        command_line = f"streamlit run {Path(__file__).resolve()} --server.address {host} --server.port {port}"
+        flag_options = {"server.address": host, "server.port": port, "server.headless": True}
+
+        def _launch():  # pragma: no cover - starts a live server
+            bootstrap.run(__file__, command_line=command_line, args=[], flag_options=flag_options)
+
+        if async_mode:
+            thread = threading.Thread(target=_launch, daemon=True)
+            thread.start()
+            return thread
+        _launch()
 
 
-def _describe(values: list[float]) -> list[dict[str, Any]]:
-    """Return descriptive statistics for a series of numeric values."""
+def build_app(env) -> StreamlitDashboard:
+    """Build a Streamlit dashboard bound to the given environment."""
 
-    if not values:
-        return []
-    ordered = sorted(values)
-    stats = [
-        {"Metric": "Count", "Value": len(ordered)},
-        {"Metric": "Min", "Value": ordered[0]},
-        {"Metric": "Max", "Value": ordered[-1]},
-        {"Metric": "Mean", "Value": fmean(ordered)},
-        {"Metric": "Median", "Value": median(ordered)},
-    ]
-    if len(ordered) > 1:
-        stats.append({"Metric": "Std Dev", "Value": pstdev(ordered)})
-    return stats
+    snapshot = collect_run_data(env)
+    logger.debug("Prepared initial snapshot with %s entities", len(snapshot.entities))
+    return StreamlitDashboard(env=env)
 
 
-def _stat_grid(stats: list[dict[str, Any]]):
-    if not stats:
-        return html.Div("No statistics available.")
-    return html.Div(
-        [
-            html.Div(
-                [
-                    html.Div(stat["Metric"], style={"fontWeight": "bold"}),
-                    html.Div(f"{stat['Value']}", style={"fontSize": "0.95rem"}),
-                ],
-                className="mini-card",
-            )
-            for stat in stats
-        ],
-        className="mini-card-grid",
+def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050, start_async: bool = True):
+    """Launch the Streamlit dashboard for a simulation environment."""
+
+    dashboard = build_app(env)
+    logger.info(
+        "Starting Streamlit dashboard at http://%s:%s (async=%s)", host, port, start_async
     )
+    dashboard.run(host=host, port=port, async_mode=start_async)
+    return dashboard
 
 
-def _distribution_tabs(values: list[float], title: str, x_label: str = "Value"):
-    if not values:
-        return html.Div("No data available for this distribution.")
-
-    def _histogram(histnorm: str | None = None, cumulative: bool = False):
-        fig = px.histogram(
-            x=values,
-            labels={"x": x_label},
-            nbins=min(30, max(5, len(values))),
-            histnorm=histnorm,
-            title=title,
+def main() -> None:  # pragma: no cover - executed by Streamlit runtime
+    if _ACTIVE_DASHBOARD is None:
+        st.title("SimPM Dashboard")
+        st.warning(
+            "Run a simulation with dashboard=True to populate this view."
         )
-        if cumulative:
-            fig.update_traces(cumulative_enabled=True)
-        fig.update_layout(height=320, margin={"t": 48, "r": 16, "l": 16, "b": 24})
-        return fig
+        return
+    _ACTIVE_DASHBOARD.render()
 
-    def _box():
-        fig = px.box(y=values, labels={"y": x_label}, points="all", title=title)
-        fig.update_layout(height=320, margin={"t": 48, "r": 16, "l": 16, "b": 24})
-        return fig
 
-    tabs = [
-        dcc.Tab(label="Histogram", children=dcc.Graph(figure=_histogram())),
-        dcc.Tab(label="PDF", children=dcc.Graph(figure=_histogram(histnorm="probability density"))),
-        dcc.Tab(label="CDF", children=dcc.Graph(figure=_histogram(histnorm="probability", cumulative=True))),
-        dcc.Tab(label="Box", children=dcc.Graph(figure=_box())),
-    ]
-
-    if hasattr(dcc, "Tabs") and hasattr(dcc, "Tab"):
-        return dcc.Tabs(children=tabs)
-    return html.Div([tab.children for tab in tabs])
-
-
-def _data_table(records: list[dict[str, Any]], empty_message: str, page_size: int = 10):
-    if not records:
-        return html.Div(empty_message)
-    columns = [{"name": col, "id": col} for col in sorted({k for row in records for k in row.keys()})]
-    return dash_table.DataTable(
-        data=records,
-        columns=columns,
-        page_size=page_size,
-        style_table={"overflowX": "auto", "overflowY": "auto", "maxHeight": "360px"},
-    )
-
-
-def _section(title: str, children):
-    return html.Div(
-        [
-            html.Div(title, className="section-title"),
-            html.Div(children, className="nav-pill-grid"),
-        ],
-        className="panel-card selection-card",
-    )
-
-
-def _build_tab_selection(run_data: dict[str, Any], tab: str):
-    entities = run_data.get("entities", [])
-    resources = run_data.get("resources", [])
-    env_name = run_data.get("environment", {}).get("name", "Environment")
-
-    if tab == "environment":
-        return _section(
-            "Environment",
-            _styled_button(
-                env_name,
-                "environment",
-                {**ENVIRONMENT_BUTTON_STYLE, "padding": "8px 12px", "margin": "0"},
-            ),
-        )
-
-    if tab == "entities":
-        entity_buttons = [
-            _styled_button(f"{ent['name']} (Entity {ent['id']})", f"entity:{ent['id']}", ENTITY_BUTTON_STYLE)
-            for ent in entities
-        ]
-        return _section("Entities", entity_buttons or html.Div("No entities available."))
-
-    if tab == "resources":
-        resource_buttons = [
-            _styled_button(f"{res['name']} (Resource {res['id']})", f"resource:{res['id']}", RESOURCE_BUTTON_STYLE)
-            for res in resources
-        ]
-        return _section("Resources", resource_buttons or html.Div("No resources available."))
-
-    activity_map = _activity_name_map(run_data)
-    activity_buttons = [
-        _styled_button(f"{name} ({len(data['instances'])} instances)", f"activity-name:{name}", ACTIVITY_BUTTON_STYLE)
-        for name, data in sorted(activity_map.items())
-    ]
-    return _section("Activities", activity_buttons or html.Div("No activities available."))
-
-
-def _build_tabs():
-    tabs = [
-        {"label": "Environment", "value": "environment"},
-        {"label": "Entities", "value": "entities"},
-        {"label": "Resources", "value": "resources"},
-        {"label": "Activities", "value": "activities"},
-    ]
-    if hasattr(dcc, "Tabs") and hasattr(dcc, "Tab"):
-        return dcc.Tabs(
-            id="section-tabs",
-            value="environment",
-            className="main-tabs",
-            children=[
-                dcc.Tab(
-                    label=tab["label"],
-                    value=tab["value"],
-                    className="tab-item",
-                    selected_className="tab-item--selected",
-                )
-                for tab in tabs
-            ],
-        )
-    # Fallback for environments where dcc.Tabs is unavailable. RadioItems still provides
-    # a "value" property, keeping existing callbacks functional even without tab
-    # components. If RadioItems is also unavailable (e.g., in minimal test stubs),
-    # return a basic Div with the expected props so callbacks can bind safely.
-    if hasattr(dcc, "RadioItems"):
-        return dcc.RadioItems(
-            id="section-tabs",
-            options=tabs,
-            value="environment",
-            inline=True,
-            labelStyle={"marginRight": "12px"},
-        )
-    return html.Div("Environment", id="section-tabs", value="environment", style={"marginBottom": "12px"})
-
-
-def _build_overview_cards(run_data: dict[str, Any]):
-    env = run_data.get("environment", {})
-    end_time = env.get("time", {}).get("end")
-    entities = run_data.get("entities", [])
-    resources = run_data.get("resources", [])
-    activities = [
-        act
-        for ent in entities
-        for act in _activities_from_schedule(ent)
-        if act.get("duration") is not None
-    ]
-    duration_stats = _describe([act["duration"] for act in activities if act.get("duration") is not None])
-
-    cards = [
-        html.Div(
-            [
-                html.Div(env.get("name", "Environment"), style={"fontWeight": "bold", "fontSize": "1.05rem"}),
-                html.Div(f"Run ID: {env.get('run_id', '-')}", style={"color": "#5f6368"}),
-                html.Div(f"Time span: 0 → {end_time if end_time is not None else '-'}"),
-            ],
-            className="stat-card stat-card--accent",
-        ),
-        html.Div(
-            _stat_grid(
-                [
-                    {"Metric": "Entities", "Value": len(entities)},
-                    {"Metric": "Resources", "Value": len(resources)},
-                    {"Metric": "Activities", "Value": len(activities)},
-                ]
-            ),
-            className="stat-card",
-        ),
-    ]
-
-    if duration_stats:
-        cards.append(
-            html.Div(
-                [
-                    html.Div("Activity durations", style={"fontWeight": "bold"}),
-                    _stat_grid(duration_stats),
-                ],
-                className="stat-card",
-            )
-        )
-
-    return html.Div(cards, className="card-grid")
-
-
-def _global_activity_plot(run_data: dict[str, Any]):
-    durations = [
-        act["duration"]
-        for ent in run_data.get("entities", [])
-        for act in _activities_from_schedule(ent)
-        if act.get("duration") is not None
-    ]
-    if not durations:
-        return html.Div("No activity data available.")
-    return html.Div(
-        [
-            html.Div("Activity duration statistics", className="section-title"),
-            _stat_grid(_describe(durations)),
-            _distribution_tabs(durations, "Activity duration distribution", x_label="Duration"),
-        ],
-        className="panel-card",
-    )
-
-
-def _environment_logs(run_data: dict[str, Any]):
-    logs = _collect_logs(run_data)
-    sections = []
-
-    entity_waits = [t for ent in run_data.get("entities", []) for t in (ent.get("waiting_time") or [])]
-    resource_waits = [t for res in run_data.get("resources", []) for t in (res.get("waiting_time") or [])]
-    summary_cards = []
-    if entity_waits:
-        summary_cards.append(
-            html.Div(
-                [html.Div("Entity waiting durations", className="section-title"), _stat_grid(_describe(entity_waits))],
-                className="panel-card",
-            )
-        )
-    if resource_waits:
-        summary_cards.append(
-            html.Div(
-                [html.Div("Resource waiting durations", className="section-title"), _stat_grid(_describe(resource_waits))],
-                className="panel-card",
-            )
-        )
-    if summary_cards:
-        sections.append(html.Div(summary_cards, style={"display": "grid", "gridGap": "8px"}))
-
-    if logs:
-        columns = [
-            {"name": col, "id": col}
-            for col in sorted({k for row in logs for k in row.keys()})
-        ]
-        sections.append(
-            html.Div(
-                [
-                    html.H5("Event log", className="section-title"),
-                    dash_table.DataTable(
-                        data=logs,
-                        columns=columns,
-                        page_size=10,
-                        style_table={"overflowX": "auto"},
-                    ),
-                ]
-                ,
-                className="panel-card",
-            )
-        )
-    else:
-        sections.append(html.Div("No logs collected for this run.", className="panel-card"))
-
-    waiting_rows = []
-    for ent in run_data.get("entities", []):
-        for episode in ent.get("waiting_log", []) or []:
-            waiting_rows.append({"entity_id": ent.get("id"), **episode})
-
-    waiting_table = _data_table(
-        waiting_rows,
-        "No waiting episodes recorded across entities.",
-        page_size=10,
-    )
-    sections.append(
-        html.Div(
-            [
-                html.H5("Entity waiting episodes", className="section-title"),
-                waiting_table,
-                _distribution_tabs(entity_waits, "Entity waiting durations", x_label="Duration"),
-            ],
-            className="panel-card",
-        )
-    )
-
-    resource_queue_rows = []
-    for res in run_data.get("resources", []):
-        for entry in res.get("queue_log", []) or []:
-            resource_queue_rows.append({"resource_id": res.get("id"), **entry})
-
-    queue_table = _data_table(
-        resource_queue_rows,
-        "No queue activity recorded across resources.",
-        page_size=10,
-    )
-    sections.append(
-        html.Div(
-            [
-                html.H5("Resource queue log", className="section-title"),
-                queue_table,
-                _distribution_tabs(resource_waits, "Resource waiting durations", x_label="Duration"),
-            ],
-            className="panel-card",
-        )
-    )
-
-    return html.Div(sections, className="panel-stack")
-def _entity_logs(entity: dict[str, Any]):
-    sections = []
-
-    sections.append(
-        html.Div(
-            [html.H5("Schedule log", className="section-title"), _data_table(entity.get("schedule_log", []), "No schedule recorded.")],
-            className="panel-card",
-        )
-    )
-    sections.append(
-        html.Div(
-            [html.H5("Status log", className="section-title"), _data_table(entity.get("status_log", []), "No status changes recorded.")],
-            className="panel-card",
-        )
-    )
-    sections.append(
-        html.Div(
-            [
-                html.H5("Waiting episodes", className="section-title"),
-                _data_table(entity.get("waiting_log", []), "No waiting episodes recorded."),
-            ],
-            className="panel-card",
-        )
-    )
-
-    waiting_times = list(entity.get("waiting_time") or [])
-    if waiting_times:
-        sections.append(
-            html.Div(
-                [
-                    html.Div("Waiting time statistics", className="section-title"),
-                    _stat_grid(_describe(waiting_times)),
-                    _distribution_tabs(waiting_times, "Waiting time distribution", x_label="Duration"),
-                ],
-                className="panel-card",
-            )
-        )
-    else:
-        sections.append(html.Div("No waiting durations recorded.", className="panel-card"))
-
-    logs = entity.get("logs", [])
-    sections.append(
-        html.Div(
-            [html.H5("Event log", className="section-title"), _data_table(logs, "No logs collected for this entity.")],
-            className="panel-card",
-        )
-    )
-
-    return html.Div(sections, className="panel-stack")
-
-
-def _activity_distribution(entity: dict[str, Any], activity_id: int):
-    durations = [
-        act["duration"]
-        for act in _activities_from_schedule(entity)
-        if act.get("activity_id") == activity_id and act.get("duration") is not None
-    ]
-    if not durations:
-        return html.Div("No duration data available for this activity.")
-    return html.Div(
-        [
-            _stat_grid(_describe(durations)),
-            _distribution_tabs(durations, "Activity duration distribution", x_label="Duration"),
-        ],
-        style={"display": "grid", "gridGap": "6px"},
-    )
-
-
-def _resource_usage(resource: dict[str, Any]):
-    status_log = resource.get("status_log", [])
-    if not status_log:
-        return html.Div("No status records available for this resource.")
-
-    times = [row.get("time") for row in status_log]
-    in_use = [row.get("in_use") for row in status_log]
-    queue = [row.get("queue_length") for row in status_log]
-
-    fig = px.line(
-        x=times,
-        y=in_use,
-        labels={"x": "Time", "y": "Count"},
-        line_shape="hv",
-    )
-    fig.update_traces(name="In use", mode="lines")
-
-    if any(val is not None for val in queue):
-        fig.add_scatter(x=times, y=queue, mode="lines", name="Queue length", line_shape="hv")
-
-    fig.update_layout(
-        height=320,
-        title="Resource usage and queue over time",
-        legend_title_text="",
-        margin={"t": 50, "b": 40, "l": 60, "r": 20},
-    )
-    return dcc.Graph(figure=fig)
-
-
-def _resource_logs(resource: dict[str, Any]):
-    sections = []
-    sections.append(
-        html.Div(
-            [html.H5("Queue log", className="section-title"), _data_table(resource.get("queue_log", []), "No queue log recorded.")],
-            className="panel-card",
-        )
-    )
-    sections.append(
-        html.Div(
-            [html.H5("Status log", className="section-title"), _data_table(resource.get("status_log", []), "No status log recorded.")],
-            className="panel-card",
-        )
-    )
-    sections.append(
-        html.Div(
-            [html.H5("Waiting episodes", className="section-title"), _data_table(resource.get("waiting_log", []), "No waiting episodes recorded.")],
-            className="panel-card",
-        )
-    )
-
-    waiting_times = list(resource.get("waiting_time") or [])
-    if waiting_times:
-        sections.append(
-            html.Div(
-                [
-                    html.Div("Waiting time statistics", className="section-title"),
-                    _stat_grid(_describe(waiting_times)),
-                    _distribution_tabs(waiting_times, "Waiting times for resource", x_label="Duration"),
-                ],
-                className="panel-card",
-            )
-        )
-    else:
-        sections.append(html.Div("No waiting durations recorded.", className="panel-card"))
-
-    stats = resource.get("stats", {}) or {}
-    if stats:
-        stat_rows = [{"Metric": k.replace("_", " ").title(), "Value": v} for k, v in stats.items()]
-        sections.append(
-            html.Div(
-                _data_table(stat_rows, "No statistics available.", page_size=5), className="panel-card"
-            )
-        )
-    else:
-        sections.append(html.Div("No statistics available.", className="panel-card"))
-
-    logs = resource.get("logs", [])
-    sections.append(
-        html.Div(
-            [html.H5("Event log", className="section-title"), _data_table(logs, "No logs collected for this resource.")],
-            className="panel-card",
-        )
-    )
-
-    return html.Div(sections, className="panel-stack")
-
-
-def build_app(env) -> Dash:
-    app = Dash(__name__)
-    initial_data = collect_run_data(env).as_dict()
-    app.layout = html.Div(
-        [
-            dcc.Store(id="run-data", data=initial_data),
-            dcc.Store(id="selected-node", data="environment"),
-            html.Div(
-                [
-                    _build_tabs(),
-                    html.Div(id="selection-list", className="panel-wrapper"),
-                    html.Div(id="detail-overview", className="panel-wrapper"),
-                    html.Div(
-                        [html.H4("Logs", className="section-title"), html.Div(id="detail-logs")],
-                        className="panel-card",
-                    ),
-                ],
-                style=CONTENT_STYLE,
-                className="main-container",
-            ),
-        ],
-        className="app-shell",
-    )
-
-    def _default_path(tab_value: str, data: dict[str, Any]) -> str:
-        if tab_value == "environment":
-            return "environment"
-        if tab_value == "entities":
-            entities = data.get("entities", [])
-            return f"entity:{entities[0]['id']}" if entities else "entities"
-        if tab_value == "resources":
-            resources = data.get("resources", [])
-            return f"resource:{resources[0]['id']}" if resources else "resources"
-        activity_map = _activity_name_map(data)
-        return f"activity-name:{sorted(activity_map.keys())[0]}" if activity_map else "activities"
-
-    @app.callback(Output("selection-list", "children"), Input("run-data", "data"), Input("section-tabs", "value"))
-    def _render_selection(data, tab_value):
-        return _build_tab_selection(data, tab_value)
-
-    @app.callback(
-        Output("selected-node", "data"),
-        Input({"type": "nav-node", "path": dash.ALL}, "n_clicks"),
-        Input("section-tabs", "value"),
-        State("selected-node", "data"),
-        State("run-data", "data"),
-        prevent_initial_call=True,
-    )
-    def _select_node(clicks, tab_value, current, data):
-        ctx = callback_context
-        if not ctx.triggered:
-            return current
-        trig = ctx.triggered_id
-        if trig == "section-tabs":
-            return _default_path(tab_value, data)
-        if isinstance(trig, dict):
-            return trig.get("path", current)
-        return current
-
-    @app.callback(Output("detail-overview", "children"), Output("detail-logs", "children"), Input("selected-node", "data"), State("run-data", "data"))
-    def _render_detail(selected, data):
-        if selected == "environment":
-            return (
-                html.Div(
-                    [
-                        html.Div(_build_overview_cards(data), className="panel-card"),
-                        _global_activity_plot(data),
-                    ],
-                    className="panel-stack",
-                ),
-                _environment_logs(data),
-            )
-
-        if selected == "entities":
-            return html.Div("Select an entity to inspect."), html.Div()
-
-        if selected.startswith("entity:"):
-            ent_id = int(selected.split(":")[1])
-            entity = next((e for e in data.get("entities", []) if e.get("id") == ent_id), None)
-            if not entity:
-                return html.Div("Entity not found."), html.Div()
-            return (
-                html.Div(
-                    [
-                        html.Div(
-                            [
-                                html.H3(f"Entity {entity['id']}", className="section-title"),
-                                html.Div(f"Type: {entity.get('type', '-')}", style={"marginBottom": "4px"}),
-                            ],
-                            className="panel-card",
-                        )
-                    ],
-                    className="panel-stack",
-                ),
-                _entity_logs(entity),
-            )
-
-        if selected == "resources":
-            return html.Div("Select a resource to inspect."), html.Div()
-
-        if selected.startswith("activity:"):
-            _, ent_id, act_id = selected.split(":")
-            entity = next((e for e in data.get("entities", []) if e.get("id") == int(ent_id)), None)
-            if not entity:
-                return html.Div("Activity not found."), html.Div()
-            activity = next(
-                (a for a in _activities_from_schedule(entity) if a.get("activity_id") == int(act_id)), None
-            )
-            if not activity:
-                return html.Div("Activity not found."), html.Div()
-            overview = html.Div([
-                html.H3(activity.get("activity_name", "Activity"), className="section-title"),
-                html.Div(f"Entity {entity['id']}"),
-            ])
-            logs = [log for log in entity.get("logs", []) if log.get("source_type") == "activity" and log.get("source_id") == int(act_id)]
-            log_table = dash_table.DataTable(
-                data=logs,
-                columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
-                page_size=10,
-            ) if logs else html.Div("No logs for this activity.")
-            return html.Div([overview, _activity_distribution(entity, int(act_id))], className="panel-stack"), log_table
-
-        if selected == "activities":
-            return html.Div("Select an activity to inspect."), html.Div()
-
-        if selected.startswith("activity-name:"):
-            activity_name = selected.split(":", 1)[1]
-            activity_map = _activity_name_map(data)
-            activity_data = activity_map.get(activity_name)
-            if not activity_data:
-                return html.Div("Activity not found."), html.Div()
-
-            durations = activity_data.get("durations", [])
-            if durations:
-                fig = px.histogram(x=durations, labels={"x": "Duration"}, nbins=15, title="Duration distribution")
-                fig.update_layout(height=300)
-                duration_graph = dcc.Graph(figure=fig)
-            else:
-                duration_graph = html.Div("No duration data available for this activity name.")
-
-            seen_specs: set[str] = set()
-            spec_rows = []
-            for spec in activity_data.get("duration_specs", []):
-                spec_key = json.dumps(spec, sort_keys=True, default=str)
-                if spec_key in seen_specs:
-                    continue
-                seen_specs.add(spec_key)
-                spec_rows.append(
-                    {
-                        "Type": spec.get("type", "-"),
-                        "Parameters": json.dumps(spec.get("parameters"), default=str),
-                        "Last sampled": spec.get("sampled_duration"),
-                    }
-                )
-
-            distribution_table = dash_table.DataTable(
-                data=spec_rows,
-                columns=[{"name": k, "id": k} for k in ["Type", "Parameters", "Last sampled"]],
-                page_size=5,
-                style_table={"overflowX": "auto"},
-            ) if spec_rows else html.Div("No distribution metadata recorded for this activity name.")
-
-            sample_rows = []
-            for inst in activity_data.get("instances", []):
-                if inst.get("sampled_duration") is None:
-                    continue
-                duration_info = inst.get("duration_info") or {}
-                sample_rows.append(
-                    {
-                        "Entity": inst.get("entity_id"),
-                        "Activity ID": inst.get("activity_id"),
-                        "Sampled duration": inst.get("sampled_duration"),
-                        "Distribution": duration_info.get("type", "-"),
-                        "Parameters": json.dumps(duration_info.get("parameters"), default=str),
-                    }
-                )
-
-            sampled_table = dash_table.DataTable(
-                data=sample_rows,
-                columns=[
-                    {"name": "Entity", "id": "Entity"},
-                    {"name": "Activity ID", "id": "Activity ID"},
-                    {"name": "Sampled duration", "id": "Sampled duration"},
-                    {"name": "Distribution", "id": "Distribution"},
-                    {"name": "Parameters", "id": "Parameters"},
-                ],
-                page_size=10,
-                style_table={"overflowX": "auto"},
-            ) if sample_rows else html.Div("No sampled durations recorded for this activity name.")
-
-            logs = activity_data.get("logs", [])
-            log_table = dash_table.DataTable(
-                data=logs,
-                columns=[{"name": k, "id": k} for k in sorted(logs[0].keys())] if logs else [],
-                page_size=10,
-                style_table={"overflowX": "auto"},
-            ) if logs else html.Div("No logs for this activity name.")
-
-            summary = html.Div([
-                html.H3(activity_name, className="section-title"),
-                html.Div(f"Instances observed: {len(activity_data.get('instances', []))}", style={"marginBottom": "4px"}),
-            ])
-            return (
-                html.Div(
-                    [
-                        summary,
-                        duration_graph,
-                        html.H4("Duration definitions", className="section-title"),
-                        distribution_table,
-                        html.H4("Sampled durations", className="section-title"),
-                        sampled_table,
-                    ],
-                    className="panel-stack",
-                ),
-                log_table,
-            )
-
-        if selected.startswith("resource:"):
-            res_id = int(selected.split(":")[1])
-            resource = next((r for r in data.get("resources", []) if r.get("id") == res_id), None)
-            if not resource:
-                return html.Div("Resource not found."), html.Div()
-            overview = html.Div([
-                html.H3(resource.get("name", "Resource"), className="section-title"),
-                html.Div(f"Type: {resource.get('type', '-')}", style={"marginBottom": "4px"}),
-                html.Div(f"Capacity: {resource.get('capacity', '-')}", style={"marginBottom": "4px"}),
-            ])
-            return html.Div([overview, _resource_usage(resource)], className="panel-stack"), _resource_logs(resource)
-
-        return html.Div("Select a node to inspect."), html.Div()
-
-    return app
-
-
-def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050):
-    app = build_app(env)
-    runner, runner_name = _select_dash_runner(app)
-    logger.info("Starting post-run dashboard with %s at http://%s:%s", runner_name, host, port)
-    runner(host=host, port=port, debug=False)
+if __name__ == "__main__":  # pragma: no cover - manual execution
+    main()

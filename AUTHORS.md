@@ -1,4 +1,9 @@
-Authors and Contributors
-=======
-- [Naimeh Sadeghi](https://github.com/NaimaSadeghi) - naima.sadeghi@gmail.com
-- [Pedram Elmi](https://github.com/PedramElmi) - pedram.elmi@gmail.com
+## Authors and Contributors
+
+- **Naimeh Sadeghi** – Lead developer and maintainer  
+  Website: <https://wp.kntu.ac.ir/sadeghi/>  
+  Email: sadeghi@kntu.ac.ir, naima.sadeghi@gmail.com
+
+- **Pedram Elmi** – Core contributor  
+  GitHub: <https://github.com/PedramElmi>  
+  Email: pedram.elmi@gmail.com

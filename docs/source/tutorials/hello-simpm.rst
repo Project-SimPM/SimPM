@@ -1,5 +1,5 @@
 01 – Hello SimPM: first project simulation
-=========================================
+==========================================
 
 .. contents:: On this page
    :local:

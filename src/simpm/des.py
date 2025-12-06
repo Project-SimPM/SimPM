@@ -50,36 +50,36 @@ class Preempted(Exception):
 
 
 class Entity:
-    """
-    A class that defines an entity with dictionary-like attributes. Entities are virtual objects essential to useful for modeling dynamic systems.
-    Some examples of entities can be a customer, communication message, or any resource requiring service.
-    ---
+    """Dictionary-like entity tracked within a simulation environment.
+
+    Examples include a customer, a message, or any work item that requires
+    service. Entities carry a set of attributes for modeling state.
+
     Attributes
-    ---
-    name: str
-        Name of the entity
-    id: int
-        A unique id for the entity in the environment
-    env: simpm.des.environment
-        The environment in which the entity is defined in
-    attr: dict
-        a dictionary containing all the special attributes defined for the entity. Manage these attributes with the object (i.e. entity["key"])
+    ----------
+    name : str
+        Human-readable name of the entity.
+    id : int
+        Unique identifier within the environment.
+    env : Environment
+        Environment in which the entity exists.
+    attr : dict
+        Dictionary containing custom attributes (accessed via ``entity["key"]``).
     """
 
     def __init__(self, env: Environment, name: str, print_actions: bool = False, log: bool = True):
-        """
-        Creates a new instance for entity.
-        
-        ---
+        """Create a new entity.
+
         Parameters
-        env:simpm.environment
-            The environment for the entity
-        name : string
-            Name of the entity
-        print_actions : bool
-            If equal to True, the actions of the entity will be printed in console
-        log: bool
-            If equals True, various statistics will be collected for the entity
+        ----------
+        env : Environment
+            Simulation environment for the entity.
+        name : str
+            Name of the entity.
+        print_actions : bool, optional
+            When ``True``, print entity actions to the console.
+        log : bool, optional
+            When ``True``, collect statistics for the entity.
         """
         self._attributes: dict[str, Any] = {}
         self.env = env

@@ -108,7 +108,8 @@ def _to_jsonable(value: Any) -> Any:
 
 def _entity_snapshot(entity) -> dict[str, Any]:
     """Build a serializable snapshot of an entity and its recorded activity."""
-    name_map = getattr(entity, "act_dic", {})
+    name_map = dict(getattr(entity, "act_dic", {}))
+    reverse_name_map = {val: key for key, val in name_map.items()}
     schedule_records = _safe_records(entity.schedule)
     schedule_log: list[dict[str, Any]] = []
     activities: list[dict[str, Any]] = []
@@ -116,8 +117,21 @@ def _entity_snapshot(entity) -> dict[str, Any]:
     for rec in schedule_records:
         activity = dict(rec)
         act_name = activity.get("activity") or activity.get("activity_name")
-        if act_name and "activity_id" not in activity:
-            activity["activity_id"] = name_map.get(act_name)
+        act_id = activity.get("activity_id")
+
+        if act_id is None and act_name:
+            act_id = name_map.get(act_name)
+            if act_id is None:
+                act_id = max(name_map.values(), default=0) + 1
+                name_map[act_name] = act_id
+                reverse_name_map[act_id] = act_name
+        if act_name is None and act_id is not None:
+            act_name = reverse_name_map.get(act_id) or f"Activity {act_id}"
+
+        activity["activity_id"] = act_id
+        activity["activity_name"] = act_name
+        if "activity" not in activity:
+            activity["activity"] = act_name
 
         start = activity.get("start_time")
         if start is None:

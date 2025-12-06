@@ -417,6 +417,7 @@ class Entity:
             Name of the activity
         duration : float , int, or distribution
             The duration of that activity
+
         Returns
         -------
         Environment.process
@@ -448,6 +449,7 @@ class Entity:
             The priority of the request for getting the resource
         preempt : bool
             Preemptive resources are not yet implemented
+
         Returns
         -------
         simpm.environment.process
@@ -480,6 +482,7 @@ class Entity:
             the resource to be added by the entity
         amount :  int
             The number of resouces to be added
+
         Returns
         -------
         simpm.environment.process
@@ -502,6 +505,7 @@ class Entity:
             the resource to be added by the entity
         amount :  int
             The number of resouces to be put back
+
         Returns
         -------
         simpm.environment.process

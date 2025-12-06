@@ -1,4 +1,4 @@
-simpm.log\_cfg
+﻿simpm.log\_cfg
 ==============
 
 .. automodule:: simpm.log_cfg

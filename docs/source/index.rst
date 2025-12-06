@@ -27,4 +27,5 @@ Contents
    :maxdepth: 2
    :caption: API Reference
 
+   api
    api_reference/index

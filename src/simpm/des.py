@@ -1,5 +1,9 @@
-"""
-Discrete Event Simulation for Project Management in Python.
+"""Discrete Event Simulation primitives for project-management style models.
+
+This module wraps :mod:`simpy` with opinionated helpers for creating entities,
+resources, and environments that can be logged and observed while a simulation
+is running. The docstrings are intentionally verbose so that API documentation
+generated from them provides ready-to-use guidance and code snippets.
 """
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
@@ -18,7 +22,40 @@ from simpm._utils import _swap_dict_keys_values
 
 
 def _describe_duration(duration: Any) -> dict[str, Any]:
-    """Normalize duration inputs (fixed or distributions) and record the sample."""
+    """Normalize a duration input and capture the sampled value.
+
+    Parameters
+    ----------
+    duration : float | int | distribution | None
+        Either a fixed numeric duration, a :class:`simpm.dist.distribution`
+        instance (any subclass with a ``sample`` method), or ``None`` when the
+        caller does not yet know the duration.
+
+    Returns
+    -------
+    dict[str, Any]
+        A dictionary describing the duration with keys:
+
+        ``type``
+            ``"fixed"`` for numeric durations, ``"unknown"`` for ``None``, or
+            the distribution class name for stochastic durations.
+        ``parameters``
+            Raw parameters of the distribution or the fixed value provided by
+            the caller.
+        ``sampled_duration``
+            The positive sample used for the current activity. When a
+            distribution is provided, the helper draws until a non-negative
+            value is produced.
+
+    Examples
+    --------
+    >>> from simpm.dist import normal
+    >>> _describe_duration(5)
+    {'type': 'fixed', 'parameters': 5, 'sampled_duration': 5}
+    >>> desc = _describe_duration(normal(10, 2))
+    >>> desc['sampled_duration'] >= 0
+    True
+    """
 
     def _sample_positive(dist: distribution) -> float:
         sampled = -1
@@ -40,7 +77,12 @@ def _describe_duration(duration: Any) -> dict[str, Any]:
         "sampled_duration": duration,
     }
 class Preempted(Exception):
-    """Exception raised when an interruptible activity is preempted by a resource."""
+    """Raised when an interruptible activity is preempted by a resource.
+
+    The exception captures who caused the interruption and for how long the
+    entity had been using the resource, allowing callers to log or react to the
+    preemption in higher-level processes.
+    """
 
     def __init__(self, by, resource, usage_since, message: str = "Activity preempted"):
         super().__init__(message, by, resource, usage_since)
@@ -50,36 +92,35 @@ class Preempted(Exception):
 
 
 class Entity:
-    """Dictionary-like entity tracked within a simulation environment.
+    """Dictionary-like item that moves through a :class:`Environment`.
 
-    Examples include a customer, a message, or any work item that requires
-    service. Entities carry a set of attributes for modeling state.
+    Entities are the actors in a simulation. They hold arbitrary attributes,
+    start and finish activities, wait on resources, and emit lifecycle events
+    that can be observed or logged.
 
-    Attributes
-    ----------
-    name : str
-        Human-readable name of the entity.
-    id : int
-        Unique identifier within the environment.
-    env : Environment
-        Environment in which the entity exists.
-    attr : dict
-        Dictionary containing custom attributes (accessed via ``entity["key"]``).
+    Examples
+    --------
+    Create an entity and annotate it with custom attributes::
+
+        customer = Entity(env, "customer")
+        customer["tier"] = "gold"
+        yield env.process(customer._activity("check-in", 2))
     """
 
     def __init__(self, env: Environment, name: str, print_actions: bool = False, log: bool = True):
-        """Create a new entity.
+        """Create a new entity and register it with the environment.
 
         Parameters
         ----------
         env : Environment
-            Simulation environment for the entity.
+            Simulation environment that will host the entity.
         name : str
-            Name of the entity.
+            Human-readable base name (an id suffix is added automatically).
         print_actions : bool, optional
-            When ``True``, print entity actions to the console.
+            When ``True``, echo major lifecycle events to stdout.
         log : bool, optional
-            When ``True``, collect statistics for the entity.
+            When ``True``, capture schedule, status, and wait-time logs for
+            later analysis.
         """
         self._attributes: dict[str, Any] = {}
         self.env = env
@@ -110,99 +151,55 @@ class Entity:
         self.env._notify_observers("on_entity_created", entity=self)
 
     def __str__(self) -> str:
-        """This method returns a string representation of the User object, with the user name and ID."""
-        return  f"{self.name} ({self.id})"
+        """Return ``"<name> (<id>)"`` for quick debugging output."""
+        return f"{self.name} ({self.id})"
     
     def __repr__(self) -> str:
-        """This method generates a string representation of an Entity object. It takes the environment, name, print_actions and log as arguments and formats them into a string representation."""
+        """Detailed representation including environment and flags."""
         return f"Entity({self.env},{self.name}, print_actions={self.print_actions}, log={self.log})"
     
     def __getitem__(self, key: str) -> Any:
-        """
-        Get the value of the attribute with the specified key.
+        """Return an attribute value stored on the entity.
 
-        Parameters:
-        -----------
-        key: str
-            The key of the attribute to get.
-
-        Returns:
-        --------
-        The value of the attribute with the specified key.
-
-        Raises:
-        -------
-        KeyError: If the entity does not have an attribute with the specified key.
+        Raises
+        ------
+        KeyError
+            If the attribute has not been set.
         """
         return self._attributes[key]
 
     def __setitem__(self, key: str, value: Any):
-        """
-        Set the value of the attribute with the specified key.
+        """Attach an attribute to the entity.
 
-        Parameters:
-        -----------
-        key: str
-            The key of the attribute to set.
-        value: Any
-            The value to set for the attribute.
-
-        Returns:
-        --------
-        None
-
-        Raises:
-        -------
-        TypeError: If the key is not a string.
+        Type checking ensures the key is a string so downstream consumers (e.g.,
+        serialization to DataFrames) behave predictably.
         """
         if not isinstance(key, str):
             raise TypeError("Attribute keys must be strings")
         self._attributes[key] = value
 
     def __delitem__(self, key):
-        """
-        Delete the attribute with the specified key.
-
-        Parameters:
-        -----------
-        key: str
-            The key of the attribute to delete.
-
-        Returns:
-        --------
-        None
-
-        Raises:
-        -------
-        KeyError: If the entity does not have an attribute with the specified key.
-        """
+        """Delete an attribute from the entity."""
         del self._attributes[key]
 
     def __contains__(self, key):
-        """
-        Check if the entity has an attribute with the specified key.
-
-        Parameters:
-        -----------
-        key: str
-            The key of the attribute to check.
-
-        Returns:
-        --------
-        bool: True if the entity has an attribute with the specified key, False otherwise.
-        """
+        """Return ``True`` when an attribute exists on the entity."""
         return key in self._attributes
 
     def _activity(self, name, duration):
-        """
-        This method defines the activity that the entity is doing.
+        """Run a non-interruptible activity for the given duration.
 
         Parameters
         ----------
-        name : string
-            Name of the activty
-        Duration : float, int, or distribution
-            The duration of that activity
+        name : str
+            Human-friendly activity name (used in logs and observer callbacks).
+        duration : float | int | distribution
+            Fixed duration or distribution to sample from.
+
+        Yields
+        ------
+        simpy.events.Timeout
+            The timeout representing the activity's run.
         """
         duration_info = _describe_duration(duration)
         duration_value = duration_info["sampled_duration"]
@@ -265,15 +262,21 @@ class Entity:
             )
 
     def _interruptive_activity(self, name, duration):
-        """
-        This method defines the activity that the entity is doing.
+        """Run an activity that can be interrupted by preemptive resources.
 
         Parameters
         ----------
-        name : string
-            Name of the activty
-        Duration : float, int, or distribution
-            The duration of that activity
+        name : str
+            Activity label used for logging and observer callbacks.
+        duration : float | int | distribution
+            Target runtime or distribution to sample from.
+
+        Notes
+        -----
+        The coroutine catches :class:`simpy.Interrupt` and :class:`Preempted`
+        exceptions to gracefully stop when a preemptive resource evicts the
+        entity. Use this helper when coordinating with
+        :class:`PreemptiveResource`.
         """
         duration_info = _describe_duration(duration)
         duration_value = duration_info["sampled_duration"]
@@ -646,30 +649,30 @@ class Entity:
 
 
 class GeneralResource:
-    """
-    The parent class for all of simpm.resources
+    """Common bookkeeping shared by all resource types.
+
+    The class keeps track of queue lengths, idle capacity, and historical logs
+    so higher-level resources only need to implement queuing semantics.
     """
 
     def __init__(self, env, name, capacity, init, print_actions=False, log=True):
-        """
-        Creates an intstance of a simpm general resource.
+        """Create a basic resource container and register it with the environment.
 
         Parameters
         ----------
-        env:simpm.environment
-            The environment for the entity
-        name : string
-            Name of the resource
-        id : int
-            A unique id for the resource in the environment
-        capacity:
-            Maximum capacity for the resource
+        env : Environment
+            Environment that owns the resource.
+        name : str
+            Human-readable name used in logs and summaries.
+        capacity : int
+            Maximum capacity for the resource's :class:`simpy.Container`.
         init : int
-            Initial number of resources
-        print_actions : bool
-            If equal to True, the changes in the resource will be printed in console
-        log: bool
-            If equals True, various statistics will be collected for the resource
+            Initial level of the container and idle count.
+        print_actions : bool, optional
+            When ``True``, echo acquisitions and releases to stdout.
+        log : bool, optional
+            When ``True``, capture queue and status history for later
+            aggregation.
         """
         self.name = name
         self.env = env
@@ -1373,25 +1376,19 @@ class PreemptiveResource(GeneralResource):
 
 
 class Environment(simpy.Environment):
-    """
-    This class defines the simulation environment.
-    All of the processes, entities and resources are defined in this class.
+    """Simulation environment with observer hooks and logging helpers.
 
-    Attributes
-    ----------
-    now : float
-        current simulation time
-
+    The environment owns all entities and resources, and exposes lifecycle
+    callbacks so observers can react to changes without patching core logic.
     """
 
     def __init__(self, name: str = "Environment"):
-        """
-        Creates an instance of the simulation environment
+        """Create a new simulation environment.
 
         Parameters
         ----------
-        name: str
-            Human readable name for the environment.
+        name : str, optional
+            Human-readable label used in dashboards and logs.
         """
         super().__init__()
         self.name = name
@@ -1415,7 +1412,21 @@ class Environment(simpy.Environment):
                 getattr(observer, method_name)(**kwargs)
 
     def log_event(self, source_type: str, source_id: Any, message: str, time: float | None = None, metadata: dict | None = None):
-        """Send a log-style event to observers if logging is enabled."""
+        """Send a structured log event to observers.
+
+        Parameters
+        ----------
+        source_type : str
+            Category of the emitter (e.g., ``"activity"`` or ``"resource"``).
+        source_id : Any
+            Identifier scoped to ``source_type``.
+        message : str
+            Human-readable description of the event.
+        time : float, optional
+            Simulation time associated with the log. Defaults to ``env.now``.
+        metadata : dict, optional
+            Free-form payload for dashboards or reporters.
+        """
         event_time = time if time is not None else self.now
         self._notify_observers(
             "on_log_event",
@@ -1429,23 +1440,23 @@ class Environment(simpy.Environment):
         )
 
     def create_entities(self, name, total_number, print_actions=False, log=True):
-        """
-        Create entities by making instances of class entity and adding them to the environemnt.
-        All the entities are created at the current simulation time: env.now
+        """Create and register multiple :class:`Entity` instances at ``env.now``.
 
         Parameters
         ----------
-        name : string
-            Name of the entities, the name of each entity would be name_0, name_1, ...
-        print_actions : bool
-            If equal to True, the actions of the entities will be printed in console
-        log: bool
-            If equals True, various statistics will be collected for the entities
+        name : str
+            Base name for the entities; the environment appends numeric ids.
+        total_number : int
+            How many entities to create.
+        print_actions : bool, optional
+            Echo lifecycle events to stdout for all created entities.
+        log : bool, optional
+            Enable per-entity logging (schedule, waits, status changes).
 
         Returns
         -------
-        list of entitiy
-            A list containing all the created entities
+        list[Entity]
+            The created entity objects.
         """
         Entities = []
         for i in range(total_number):

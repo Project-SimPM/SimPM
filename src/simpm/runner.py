@@ -1,8 +1,9 @@
-"""User-facing entry point for executing simulations.
+"""User-facing entry point for running simulations with an optional dashboard.
 
-The :func:`run` helper mirrors ``env.run`` while optionally capturing data for
-the Streamlit dashboard. Using it keeps existing scripts compatible with the
-new dashboard experience without changing simulation code.
+``simpm.run`` simply forwards to ``env.run`` when dashboards are disabled, so
+existing scripts that call ``env.run`` continue to work. Use this wrapper when
+you want to launch the post-run dashboard without changing your simulation
+code.
 """
 from __future__ import annotations
 
@@ -20,44 +21,23 @@ def run(
     port: int = 8050,
     **kwargs,
 ):
-    """Run a simulation environment and optionally start the dashboard.
+    """
+    Execute a simulation environment and optionally launch a dashboard.
 
     Parameters
     ----------
-    env : simpm.des.Environment
+    env: simpm.des.Environment
         Simulation environment to execute.
-    until : Any, optional
-        End condition passed directly to ``env.run`` (for example a timestamp
-        or callable).
-    dashboard : bool, default True
-        When ``True`` a Streamlit dashboard is spawned after execution; when
-        ``False`` the helper behaves like ``env.run``.
-    collect_logs : bool, default True
-        Collect entity/resource logs for dashboard rendering. Set to ``False``
-        when you want dashboard UI without detailed event logs.
-    host : str, default "127.0.0.1"
-        Address used when starting the dashboard server.
-    port : int, default 8050
-        TCP port used when starting the dashboard server.
-    **kwargs : Any
-        Additional keyword arguments forwarded to ``env.run``.
-
-    Returns
-    -------
-    Any | dict
-        The original result from ``env.run`` when ``dashboard`` is ``False`` or
-        log collection is disabled. When logs are collected, the returned value
-        is a JSON-ready dictionary snapshot of the run for dashboard reuse.
-
-    Examples
-    --------
-    Run a simulation without the dashboard::
-
-        simpm.run(env, until=100, dashboard=False)
-
-    Run and immediately open the dashboard on a custom port::
-
-        simpm.run(env, until=200, host="0.0.0.0", port=8080)
+    until: optional
+        Passed directly to ``env.run``.
+    dashboard: bool
+        ``True`` (default) launches the post-run dashboard; ``False`` skips it.
+    collect_logs: bool
+        Whether to collect log events for dashboards.
+    host, port: str, int
+        Binding information for the dashboard server.
+    kwargs:
+        Additional arguments forwarded to ``env.run``.
     """
     if not isinstance(dashboard, bool):
         raise ValueError("dashboard must be a boolean")

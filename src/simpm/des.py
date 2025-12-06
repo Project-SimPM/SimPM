@@ -611,6 +611,7 @@ class Entity:
         """
         df = DataFrame(data=self._waiting_log[1:, :], columns=["resource", "start_waiting", "end_waiting", "resource_amount"])
         df["resource"] = df["resource"].map(self.env.resource_names)
+        df["waiting_duration"] = df["end_waiting"] - df["start_waiting"]
         return df
 
     def waiting_time(self):
@@ -706,6 +707,7 @@ class GeneralResource:
         """
         df = DataFrame(data=self._queue_log[1:, :], columns=["entity", "start_time", "finish_time", "resource_amount"])
         df["entity"] = df["entity"].map(self.env.entity_names)
+        df["waiting_duration"] = df["finish_time"] - df["start_time"]
         return df
 
     def status_log(self):

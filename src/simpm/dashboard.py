@@ -691,51 +691,44 @@ class StreamlitDashboard:
                     if not options:
                         st.info("No activity names found to display.")
                     else:
-                        selected = st.multiselect(
-                            "Select activities", options, default=options[:1], key="activity-name-filter"
+                        selected = st.selectbox(
+                            "Select activity", options, key="activity-name-filter"
+                        )
+                        filtered = schedule_df[schedule_df["activity_label"] == selected].copy()
+
+                        start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
+                        end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
+                        duration_col = "duration" if "duration" in filtered.columns else None
+                        resource_col = next(
+                            (c for c in ("resources_in_use", "resources", "resource", "resource_id", "resource_ids") if c in filtered.columns),
+                            None,
                         )
 
-                        if not selected:
-                            st.info("Choose at least one activity to view its schedule across entities.")
-                        else:
-                            filtered = schedule_df[schedule_df["activity_label"].isin(selected)].copy()
-
-                            start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
-                            end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
-                            duration_col = "duration" if "duration" in filtered.columns else None
-                            resource_col = next(
-                                (c for c in ("resources_in_use", "resources", "resource", "resource_id", "resource_ids") if c in filtered.columns),
-                                None,
+                        if duration_col is None and start_col and end_col:
+                            filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(
+                                filtered[start_col], errors="coerce"
                             )
+                            duration_col = "duration"
 
-                            if duration_col is None and start_col and end_col:
-                                filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(
-                                    filtered[start_col], errors="coerce"
-                                )
-                                duration_col = "duration"
+                        columns_to_show: list[str] = []
+                        label_map: dict[str, str] = {}
+                        for col, label in (
+                            (start_col, "Start"),
+                            (end_col, "Finish"),
+                            ("entity_name", "Entity"),
+                            ("entity_id", "Entity ID"),
+                            (resource_col, "Resources in use"),
+                            (duration_col, "Duration"),
+                        ):
+                            if col and col in filtered.columns:
+                                columns_to_show.append(col)
+                                label_map[col] = label
 
-                            columns_to_show: list[str] = []
-                            label_map: dict[str, str] = {"activity_label": "Activity"}
-                            for col, label in (
-                                ("activity_label", "Activity"),
-                                ("entity_name", "Entity"),
-                                ("entity_id", "Entity ID"),
-                                (start_col, "Start"),
-                                (end_col, "Finish"),
-                                (duration_col, "Duration"),
-                                (resource_col, "Resources in use"),
-                            ):
-                                if col and col in filtered.columns:
-                                    columns_to_show.append(col)
-                                    label_map[col] = label
-
-                            if not columns_to_show:
-                                st.info("No activity timing details available for the selected name.")
-                            else:
-                                if start_col and start_col in filtered.columns:
-                                    filtered = filtered.sort_values(start_col)
-                                display_df = filtered[columns_to_show].rename(columns=label_map)
-                                st.dataframe(display_df, use_container_width=True)
+                        if not columns_to_show:
+                            st.info("No activity timing details available for the selected name.")
+                        else:
+                            display_df = filtered[columns_to_show].rename(columns=label_map)
+                            st.dataframe(display_df, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = False):

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import io
 import json
 import logging
 import subprocess
@@ -37,19 +36,6 @@ def _find_time_column(df: pd.DataFrame) -> str | None:
         if "time" in str(col).lower():
             return col
     return None
-
-
-def _download_button(label: str, df: pd.DataFrame, file_prefix: str) -> None:
-    """Render a CSV download button for the given dataframe."""
-
-    csv_bytes = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        label,
-        data=io.BytesIO(csv_bytes),
-        file_name=f"{file_prefix}.csv",
-        mime="text/csv",
-        width="stretch",
-    )
 
 
 def _basic_statistics(series: pd.Series) -> pd.DataFrame:
@@ -118,13 +104,32 @@ def _render_table_with_preview(title: str, df: pd.DataFrame, key_prefix: str) ->
     st.caption(
         "Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else "")
     )
-    st.dataframe(df.head(5), width="stretch")
+    download_icon_b64 = _asset_base64("download.png")
+    csv_b64 = base64.b64encode(df.to_csv(index=False).encode("utf-8")).decode("utf-8")
+    icon_html = ""
+    if download_icon_b64:
+        icon_html = (
+            "<img "
+            f"src='data:image/png;base64,{download_icon_b64}' "
+            "style='position:absolute; top:10px; left:16px; "
+            "width:24px; height:24px; cursor:pointer; z-index:2;' "
+            f"onclick=\"window.location.href='data:text/csv;base64,{csv_b64}'\" "
+            "alt='Download CSV' />"
+        )
+
+    table_html = df.head(5).to_html(index=True)
+    container_html = (
+        "<div style='position:relative; display:inline-block;'>"
+        f"{icon_html}"
+        f"{table_html}"
+        "</div>"
+    )
+    st.markdown(container_html, unsafe_allow_html=True)
 
     if len(df) > 5:
         st.info(
             "Table truncated for readability. Download the CSV to view the complete dataset."
         )
-    _download_button("Download CSV", df, file_prefix=key_prefix)
     _render_numeric_analysis(df, time_col=_find_time_column(df))
 
 
@@ -198,6 +203,7 @@ def _load_logo() -> bytes | None:
     logo_paths = [
         Path(__file__).resolve().parent.parent / "docs" / "_build" / "html" / "_static" / "simpm_logo.png",
         Path(__file__).resolve().parent.parent / "docs" / "source" / "images" / "simpm_logo.png",
+        Path(__file__).resolve().parent / "assets" / "simpm_logo.png",
     ]
 
     for logo_path in logo_paths:
@@ -218,6 +224,15 @@ def _render_logo(logo: bytes | None) -> None:
     )
 
 
+def _asset_base64(name: str) -> str | None:
+    """Return a base64 string for the given asset file if it exists."""
+
+    asset_path = Path(__file__).resolve().parent / "assets" / name
+    if not asset_path.exists():
+        return None
+    return base64.b64encode(asset_path.read_bytes()).decode("utf-8")
+
+
 def _styled_container() -> None:
     st.markdown(
         """
@@ -231,6 +246,10 @@ def _styled_container() -> None:
         .simpm-panel {padding: 1rem 1.25rem; border: 1px solid #cce8d9; border-radius: 12px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);}
         .simpm-logo-card {background: #f4fbf7; border: 1px solid #cce8d9; border-radius: 12px; padding: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04);}
         .simpm-logo-card img {max-height: 80px; width: auto; display: block;}
+        .simpm-table-wrapper {position: relative;}
+        .simpm-table-wrapper table {width: 100%; border-collapse: collapse;}
+        .simpm-table-wrapper table th, .simpm-table-wrapper table td {border: 1px solid #d6eadf; padding: 0.5rem; font-size: 0.9rem;}
+        .simpm-table-wrapper table th {background: #f4fbf7; color: #1f3f2b;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -257,13 +276,6 @@ class StreamlitDashboard:
         header_cols = st.columns([1, 2, 1])
         with header_cols[1]:
             _render_logo(_load_logo())
-        with header_cols[2]:
-            status_label = "Run finished ✅"
-            status_color = "#4caf50"
-            st.markdown(
-                f"<span class='status-chip' style='color:{status_color};'>{status_label}</span>",
-                unsafe_allow_html=True,
-            )
 
         self._render_overview_switcher()
         view = st.session_state.get("simpm_view", "Entities")
@@ -281,7 +293,21 @@ class StreamlitDashboard:
         """Show environment facts and clickable model summaries."""
 
         env_info = self.snapshot.environment or {}
-        st.markdown("### Overview")
+        logo_b64 = _asset_base64("simpm_logo.png")
+        logo_img = (
+            f"<img src='data:image/png;base64,{logo_b64}' style='height: 40px; margin-right: 12px;' alt='SimPM logo'>"
+            if logo_b64
+            else ""
+        )
+        st.markdown(
+            f"""
+            <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                {logo_img}
+                <h2 style="margin: 0;">Overview</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         cols = st.columns(3)
         cols[0].metric("Environment", env_info.get("name", "Environment"))
         cols[1].metric("Run ID", env_info.get("run_id", "-"))

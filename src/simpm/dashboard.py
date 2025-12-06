@@ -245,6 +245,7 @@ class StreamlitDashboard:
     def render(self) -> None:
         """Render the dashboard using Streamlit primitives."""
 
+        st.session_state.setdefault("simpm_view", "System")
         st.set_page_config(
             page_title=f"SimPM Dashboard • {self.snapshot.environment.get('name', 'Environment')}",
             layout="wide",
@@ -262,7 +263,10 @@ class StreamlitDashboard:
                 f"<span class='status-chip' style='color:{status_color};'>{status_label}</span>",
                 unsafe_allow_html=True,
             )
-        view = st.sidebar.radio("View", ["System", "Entities", "Resources", "Activity"], index=0)
+
+        self._render_overview_switcher()
+        view = st.session_state.get("simpm_view", "System")
+
         if view == "System":
             self._render_system_view()
         elif view == "Entities":
@@ -272,16 +276,40 @@ class StreamlitDashboard:
         else:
             self._render_activity_view()
 
-    def _render_system_view(self) -> None:
-        snapshot = self.snapshot.as_dict()
-        env_info = snapshot.get("environment", {})
+    def _render_overview_switcher(self) -> None:
+        """Show environment facts and clickable model summaries."""
 
+        env_info = self.snapshot.environment or {}
         st.markdown("### Overview")
         cols = st.columns(3)
         cols[0].metric("Environment", env_info.get("name", "Environment"))
         cols[1].metric("Run ID", env_info.get("run_id", "-"))
         cols[2].metric("Finished at", env_info.get("time", {}).get("end", "-"))
 
+        summary = self._model_summary()
+        st.markdown("#### Model summary")
+        summary_cols = st.columns(4)
+        if summary_cols[0].button("Environment", key="nav-environment"):
+            st.session_state["simpm_view"] = "System"
+        nav_items = [
+            ("Entities", summary["entities"]),
+            ("Resources", summary["resources"]),
+            ("Activities", summary["activities"]),
+        ]
+        for (label, count), col in zip(nav_items, summary_cols[1:]):
+            if col.button(f"{count} {label}", key=f"nav-{label.lower()}"):
+                st.session_state["simpm_view"] = label if label != "Activities" else "Activity"
+
+    def _model_summary(self) -> dict[str, int]:
+        activities = sum(len(ent.get("activities", [])) for ent in self.snapshot.entities)
+        return {
+            "entities": len(self.snapshot.entities),
+            "resources": len(self.snapshot.resources),
+            "activities": activities,
+        }
+
+    def _render_system_view(self) -> None:
+        snapshot = self.snapshot.as_dict()
         logs_df = pd.DataFrame(snapshot.get("logs", []))
         if not logs_df.empty:
             _render_table_with_preview("Environment logs", logs_df, key_prefix="environment-logs")
@@ -295,7 +323,14 @@ class StreamlitDashboard:
             return
 
         options = {f"{ent['name']} ({ent['id']})": ent for ent in entities}
-        selected_label = st.sidebar.selectbox("Select entity", list(options.keys()))
+        default_label = st.session_state.get("simpm_entity_label")
+        labels = list(options.keys())
+        selected_label = st.selectbox(
+            "Select entity",
+            labels,
+            index=labels.index(default_label) if default_label in labels else 0,
+        )
+        st.session_state["simpm_entity_label"] = selected_label
         entity = options[selected_label]
 
         st.markdown(f"### Entity {entity['id']} • {entity['name']}")
@@ -327,7 +362,14 @@ class StreamlitDashboard:
             return
 
         options = {f"{res['name']} ({res['id']})": res for res in resources}
-        selected_label = st.sidebar.selectbox("Select resource", list(options.keys()))
+        default_label = st.session_state.get("simpm_resource_label")
+        labels = list(options.keys())
+        selected_label = st.selectbox(
+            "Select resource",
+            labels,
+            index=labels.index(default_label) if default_label in labels else 0,
+        )
+        st.session_state["simpm_resource_label"] = selected_label
         resource = options[selected_label]
 
         st.markdown(f"### Resource {resource['id']} • {resource['name']}")

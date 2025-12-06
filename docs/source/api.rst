@@ -1,11 +1,12 @@
+:orphan:
+
 API
 ===
 
-.. autosummary::
-   :toctree: generated
+The API reference below contains detailed documentation for SimPM's
+modules and public interfaces.
 
-   simpm
-   simpm.dashboard
-   simpm.des
-   simpm.dist
-   simpm.log_cfg
+.. toctree::
+   :maxdepth: 1
+
+   api_reference/index

@@ -117,3 +117,19 @@ Use ``dashboard=False`` to disable the dashboard entirely.
 If you run into an issue, please file a new [issue](https://github.com/Project-SimPM/SimPM/issues) for us to discuss. If possible, follow up with a pull request.
 
 If you would like to add a feature, please reach out via [issue](https://github.com/Project-SimPM/SimPM/issues). A feature is most likely to be added if you build it!
+
+## Building the documentation locally
+The documentation is built with Sphinx. Install the doc requirements and the project itself in editable mode so autodoc can import SimPM:
+
+```
+pip install -r docs/requirements.txt
+pip install -e .
+```
+
+Then generate the HTML output:
+
+- Linux/macOS: `make -C docs html` or `python -m sphinx -b html docs/source docs/_build/html`
+- Windows (Command Prompt, without `make`): `docs\make.bat html` or `set PYTHONPATH=src && python -m sphinx -b html docs/source docs/_build/html`
+- Windows (PowerShell, without `make`): `./docs/make.bat html` or `$env:PYTHONPATH="src"; python -m sphinx -b html docs/source docs/_build/html`
+
+Open `docs/_build/html/index.html` in your browser to preview the rendered site.

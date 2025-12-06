@@ -273,10 +273,6 @@ class StreamlitDashboard:
         )
         _styled_container()
 
-        header_cols = st.columns([1, 2, 1])
-        with header_cols[1]:
-            _render_logo(_load_logo())
-
         self._render_overview_switcher()
         view = st.session_state.get("simpm_view", "Entities")
 

@@ -12,7 +12,8 @@ import importlib.metadata
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../"))
 sys.path.insert(0, "../../example")
-sys.path.insert(0, "../../src/simpm")
+# Ensure the local package (not any installed version) is importable during docs builds.
+sys.path.insert(0, os.path.abspath("../../src"))
 
 # -- General configuration ------------------------------------------------
 
@@ -22,7 +23,13 @@ copyright = f"2021-{date.today().year}, Project SimPM Team"
 author = 'Project SimPM Team'
 
 # The full version, including alpha/beta/rc tags.
-release: str = importlib.metadata.version('simpm')
+try:
+    release: str = importlib.metadata.version('simpm')
+except importlib.metadata.PackageNotFoundError:
+    import simpm
+
+    release = getattr(simpm, "__version__", "0.0.0")
+
 # The short X.Y version.
 version: str = '.'.join(release.split('.')[:2])
 
@@ -46,6 +53,7 @@ extensions = [
 autodoc_mock_imports = [
     "dash",
     "plotly",
+    "streamlit",
 ]
 
 # Add any paths that contain templates here, relative to this directory.

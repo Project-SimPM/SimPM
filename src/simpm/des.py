@@ -611,7 +611,6 @@ class Entity:
         """
         df = DataFrame(data=self._waiting_log[1:, :], columns=["resource", "start_waiting", "end_waiting", "resource_amount"])
         df["resource"] = df["resource"].map(self.env.resource_names)
-        df["waiting_duration"] = df["end_waiting"] - df["start_waiting"]
         return df
 
     def waiting_time(self):

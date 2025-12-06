@@ -146,13 +146,6 @@ def _entity_snapshot(entity) -> dict[str, Any]:
         )
 
     waiting_time = _safe_array(entity.waiting_time)
-    waiting_log = _safe_records(entity.waiting_log)
-    for rec in waiting_log:
-        if "waiting_duration" not in rec and {"start_waiting", "end_waiting"}.issubset(rec):
-            try:
-                rec["waiting_duration"] = float(rec.get("end_waiting", 0)) - float(rec.get("start_waiting", 0))
-            except Exception:
-                rec["waiting_duration"] = None
     total_active = sum(act.get("duration", 0) or 0 for act in activities)
     total_waiting = sum(waiting_time)
 
@@ -165,7 +158,7 @@ def _entity_snapshot(entity) -> dict[str, Any]:
         "activities": activities,
         "schedule_log": schedule_log,
         "status_log": _safe_records(entity.status_log),
-        "waiting_log": waiting_log,
+        "waiting_log": _safe_records(entity.waiting_log),
         "waiting_time": waiting_time,
         "logs": _safe_records(lambda: getattr(entity, "logs", [])),
         "total_active_time": total_active,
@@ -189,14 +182,6 @@ def _resource_stats(resource) -> dict[str, Any]:
 
 def _resource_snapshot(resource) -> dict[str, Any]:
     """Create a serializable view of a resource and its metrics."""
-    waiting_records = _safe_records(getattr(resource, "waiting_log", resource.queue_log))
-    for rec in waiting_records:
-        if "waiting_duration" not in rec and {"start_waiting", "end_waiting"}.issubset(rec):
-            try:
-                rec["waiting_duration"] = float(rec.get("end_waiting", 0)) - float(rec.get("start_waiting", 0))
-            except Exception:
-                rec["waiting_duration"] = None
-
     return {
         "id": resource.id,
         "name": resource.name,
@@ -205,7 +190,7 @@ def _resource_snapshot(resource) -> dict[str, Any]:
         "initial_level": getattr(resource.container, "_init", None),
         "queue_log": _safe_records(resource.queue_log),
         "status_log": _safe_records(resource.status_log),
-        "waiting_log": waiting_records,
+        "waiting_log": _safe_records(getattr(resource, "waiting_log", resource.queue_log)),
         "waiting_time": _safe_array(resource.waiting_time),
         "stats": _resource_stats(resource),
         "logs": _safe_records(lambda: getattr(resource, "logs", [])),

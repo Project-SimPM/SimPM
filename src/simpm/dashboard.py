@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Iterable
 
 import pandas as pd
 import plotly.express as px
@@ -93,8 +93,13 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         st.dataframe(stats_df, width="stretch")
 
 
-def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
-    """Render a table preview with a download button."""
+def _render_table_with_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
+    """Display a truncated preview of a dataframe with download support."""
+
+    st.markdown(f"## {title}")
+    if df.empty:
+        st.info("No records available yet.")
+        return
 
     st.caption(
         "Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else "")
@@ -130,122 +135,7 @@ def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None
         st.info(
             "Table truncated for readability. Download the CSV to view the complete dataset."
         )
-
-
-def _render_table_with_preview(
-    title: str,
-    df: pd.DataFrame,
-    key_prefix: str,
-    *,
-    analysis_renderer: Callable[[pd.DataFrame, str | None], None] | None = _render_numeric_analysis,
-) -> None:
-    """Display a truncated preview of a dataframe with optional analysis."""
-
-    st.markdown(f"## {title}")
-    if df.empty:
-        st.info("No records available yet.")
-        return
-
-    _render_table_preview(title, df, key_prefix)
-    if analysis_renderer:
-        analysis_renderer(df, time_col=_find_time_column(df))
-
-
-def _render_schedule_summary(df: pd.DataFrame, key_prefix: str) -> None:
-    """Render a schedule table with a compact bar visualization for top activities."""
-
-    st.markdown("## Schedule")
-    if df.empty:
-        st.info("No records available yet.")
-        return
-
-    tab_table, tab_chart = st.tabs(["Table", "Top 5 durations"])
-
-    with tab_table:
-        _render_table_preview("Schedule", df, key_prefix)
-
-    with tab_chart:
-        duration_col = "duration" if "duration" in df.columns else None
-        name_col = None
-        for candidate in ("activity_name", "activity", "activity_id"):
-            if candidate in df.columns:
-                name_col = candidate
-                break
-
-        if not duration_col or df[duration_col].dropna().empty:
-            st.info("No duration data available for visualization.")
-            return
-
-        chart_df = df.head(5).copy()
-        chart_df[duration_col] = pd.to_numeric(chart_df[duration_col], errors="coerce")
-        chart_df = chart_df.dropna(subset=[duration_col])
-        if chart_df.empty:
-            st.info("No duration data available for visualization.")
-            return
-
-        if name_col:
-            x_axis = name_col
-        else:
-            chart_df = chart_df.reset_index().rename(columns={"index": "activity_index"})
-            x_axis = "activity_index"
-
-        fig = px.bar(
-            chart_df,
-            x=x_axis,
-            y=duration_col,
-            labels={x_axis: name_col or "Index", duration_col: "Duration"},
-            title="Top 5 activity durations",
-        )
-        fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
-
-
-def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
-    """Render waiting log table with duration-focused plots (no time series)."""
-
-    st.markdown("## Waiting log")
-    if df.empty:
-        st.info("No records available yet.")
-        return
-
-    df = df.copy()
-    if "waiting_duration" not in df.columns and {
-        "end_waiting",
-        "start_waiting",
-    }.issubset(df.columns):
-        df["waiting_duration"] = pd.to_numeric(df["end_waiting"], errors="coerce") - pd.to_numeric(
-            df["start_waiting"], errors="coerce"
-        )
-
-    tab_table, tab_hist, tab_box, tab_stats = st.tabs(
-        ["Table", "Histogram", "Box plot", "Statistics"]
-    )
-
-    with tab_table:
-        _render_table_preview("Waiting log", df, key_prefix)
-
-    if "waiting_duration" not in df.columns or df["waiting_duration"].dropna().empty:
-        for tab in (tab_hist, tab_box, tab_stats):
-            with tab:
-                st.info("No waiting duration data available to plot.")
-        return
-
-    numeric_durations = pd.to_numeric(df["waiting_duration"], errors="coerce").dropna()
-    duration_df = pd.DataFrame({"waiting_duration": numeric_durations})
-
-    with tab_hist:
-        fig = px.histogram(duration_df, x="waiting_duration", nbins=min(30, max(5, len(duration_df))))
-        fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
-
-    with tab_box:
-        fig = px.box(duration_df, y="waiting_duration")
-        fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, width="stretch")
-
-    with tab_stats:
-        stats_df = _basic_statistics(duration_df["waiting_duration"])
-        st.dataframe(stats_df, width="stretch")
+    _render_numeric_analysis(df, time_col=_find_time_column(df))
 
 
 def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
@@ -511,16 +401,21 @@ class StreamlitDashboard:
 
         schedule_df = pd.DataFrame(entity.get("schedule_log", []))
         if not schedule_df.empty:
-            _render_schedule_summary(schedule_df, key_prefix=f"entity-{entity['id']}-schedule")
+            _render_table_with_preview("Schedule", schedule_df, key_prefix=f"entity-{entity['id']}-schedule")
 
         waiting_df = pd.DataFrame(entity.get("waiting_log", []))
         if not waiting_df.empty:
-            _render_waiting_log(waiting_df, key_prefix=f"entity-{entity['id']}-waiting")
+            _render_table_with_preview("Waiting log", waiting_df, key_prefix=f"entity-{entity['id']}-waiting")
 
         status_df = pd.DataFrame(entity.get("status_log", []))
         if not status_df.empty:
+            _render_table_with_preview("Status log", status_df, key_prefix=f"entity-{entity['id']}-status")
+
+        waiting_time = entity.get("waiting_time", []) or []
+        if waiting_time:
+            waiting_df = pd.DataFrame({"waiting_time": waiting_time})
             _render_table_with_preview(
-                "Status log", status_df, key_prefix=f"entity-{entity['id']}-status", analysis_renderer=None
+                "Waiting durations", waiting_df, key_prefix=f"entity-{entity['id']}-waiting-time"
             )
 
     def _render_resources_view(self) -> None:
@@ -551,14 +446,14 @@ class StreamlitDashboard:
 
         status_df = pd.DataFrame(resource.get("status_log", []))
         if not status_df.empty:
-            _render_table_with_preview(
-                "Status log", status_df, key_prefix=f"resource-{resource['id']}-status", analysis_renderer=None
-            )
+            _render_table_with_preview("Status log", status_df, key_prefix=f"resource-{resource['id']}-status")
 
         waits = resource.get("waiting_time", []) or []
         if waits:
-            waits_df = pd.DataFrame({"waiting_duration": waits})
-            _render_waiting_log(waits_df, key_prefix=f"resource-{resource['id']}-waiting-time")
+            waits_df = pd.DataFrame({"waiting_time": waits})
+            _render_table_with_preview(
+                "Waiting durations", waits_df, key_prefix=f"resource-{resource['id']}-waiting-time"
+            )
 
     def _render_activity_view(self) -> None:
         st.markdown("### Activity feed")

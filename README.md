@@ -12,6 +12,10 @@
 
 SimPM offers a discrete event simulation library for project management in Python.
 
+## Documentation
+
+Full documentation is available at [simpm.readthedocs.io](https://simpm.readthedocs.io/en/latest/).
+
 SimPM - Simulation Tool in Project Management
 ============================================
 

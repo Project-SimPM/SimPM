@@ -106,15 +106,20 @@ def _render_table_with_preview(title: str, df: pd.DataFrame, key_prefix: str) ->
     )
     download_icon_b64 = _asset_base64("download.png")
     csv_b64 = base64.b64encode(df.to_csv(index=False).encode("utf-8")).decode("utf-8")
+    file_name = f"{key_prefix or title}.csv"
     icon_html = ""
     if download_icon_b64:
         icon_html = (
+            "<a "
+            f"href='data:text/csv;base64,{csv_b64}' "
+            f"download='{file_name}' "
+            "style='position:absolute; top:8px; left:8px; z-index:2;' "
+            "aria-label='Download CSV'>"
             "<img "
             f"src='data:image/png;base64,{download_icon_b64}' "
-            "style='position:absolute; top:8px; left:8px; "
-            "width:24px; height:24px; cursor:pointer; z-index:2;' "
-            f"onclick=\"window.location.href='data:text/csv;base64,{csv_b64}'\" "
+            "style='width:24px; height:24px; cursor:pointer;' "
             "alt='Download CSV' />"
+            "</a>"
         )
 
     table_html = df.head(5).to_html(index=True)

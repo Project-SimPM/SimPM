@@ -1,6 +1,6 @@
-==================================================
+================================================================
 ``simpm.dashboard`` --- Dashboard helper components
-==================================================
+================================================================
 
 ``simpm.dashboard`` provides Plotly Dash dashboards for SimPM runs. Use
 ``simpm.run(..., dashboard=True|False)`` to launch a post-run dashboard
@@ -33,3 +33,4 @@ Usage
    :members: run_post_dashboard, build_app
    :undoc-members:
    :show-inheritance:
+   :noindex:

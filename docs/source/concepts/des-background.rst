@@ -88,7 +88,7 @@ This makes DES:
 * Easier to connect to project management concepts (activities, resources, queues).
 
 From real system to simulation model
------------------------------------
+------------------------------------
 
 The usual steps are:
 

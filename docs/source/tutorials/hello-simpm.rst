@@ -19,7 +19,7 @@ Model a simple earthmoving loop:
 * Ten trucks cycle through **load → haul → dump → return**.
 * A single loader is the shared resource; only one truck can load at a time.
 * We track how long the loader is busy, how long trucks wait, and how much
-dirt is moved.
+  dirt is moved.
 
 Full example (from the examples folder)
 ---------------------------------------

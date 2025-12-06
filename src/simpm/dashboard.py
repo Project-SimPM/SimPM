@@ -226,6 +226,7 @@ def _styled_container() -> None:
         .stTabs [data-baseweb="tab"] {background-color: #f4fbf7; border-radius: 8px; color: #1f3f2b; border: 1px solid #cce8d9;}
         .stTabs [aria-selected="true"] {border: 1px solid #7fd3a8 !important; color: #0c2a1b;}
         .stButton>button {border-radius: 10px; border: 1px solid #7fd3a8; color: #0c2a1b; background: white;}
+        .stButton>button[data-testid="baseButton-primary"] {background: #e8f5ed; border-color: #7fd3a8; box-shadow: 0 0 0 1px #b6e3c8 inset;}
         .status-chip {padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid #7fd3a8; display: inline-block;}
         .simpm-panel {padding: 1rem 1.25rem; border: 1px solid #cce8d9; border-radius: 12px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);}
         .simpm-logo-card {background: #f4fbf7; border: 1px solid #cce8d9; border-radius: 12px; padding: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04);}
@@ -288,22 +289,52 @@ class StreamlitDashboard:
 
         summary = self._model_summary()
         st.markdown("#### Model summary")
-        summary_cols = st.columns(3)
-        nav_items = [
-            ("Entities", summary["entities"]),
-            ("Resources", summary["resources"]),
-            ("Activities", summary["activities"]),
-        ]
+        st.markdown(
+            """
+            <style>
+            /* Light green treatment for dashboard nav selector */
+            div[data-testid="stHorizontalBlock"] div[role="radiogroup"] > label {
+                border: 1px solid #d6eadf;
+                border-radius: 8px;
+                padding: 0.35rem 0.75rem;
+                background-color: #f4fbf7;
+                color: #1f5131;
+                transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+            }
+
+            div[data-testid="stHorizontalBlock"] div[role="radiogroup"] > label:hover {
+                background-color: #e5f5ec;
+                border-color: #b4e0c6;
+            }
+
+            div[data-testid="stHorizontalBlock"] div[role="radiogroup"] > label[data-selected="true"] {
+                background-color: #d9f2e3;
+                border-color: #6fc48f;
+                box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25) inset;
+                font-weight: 600;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        nav_options = {
+            "Entities": f"{summary['entities']} Entities",
+            "Resources": f"{summary['resources']} Resources",
+            "Activity": f"{summary['activities']} Activities",
+        }
         active_view = st.session_state.get("simpm_view", "Entities")
-        for (label, count), col in zip(nav_items, summary_cols):
-            button_type = "primary" if (label == active_view or (label == "Activities" and active_view == "Activity")) else "secondary"
-            if col.button(
-                f"{count} {label}",
-                key=f"nav-{label.lower()}",
-                type=button_type,
-                use_container_width=True,
-            ):
-                st.session_state["simpm_view"] = label if label != "Activities" else "Activity"
+        selection = st.radio(
+            "Navigate dashboard views",
+            options=list(nav_options.keys()),
+            format_func=lambda key: nav_options[key],
+            index=list(nav_options.keys()).index(active_view)
+            if active_view in nav_options
+            else 0,
+            horizontal=True,
+            key="nav-selector",
+        )
+        st.session_state["simpm_view"] = selection
 
     def _model_summary(self) -> dict[str, int]:
         activities = sum(len(ent.get("activities", [])) for ent in self.snapshot.entities)

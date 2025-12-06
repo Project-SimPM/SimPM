@@ -1,8 +1,10 @@
 """Backward-compatible stubs for deprecated recorder classes.
 
-The dashboard now reads logs directly from the simulation environment, so the
-recorder classes are kept only to avoid breaking imports. They collect snapshots
-at the end of a run without mirroring every event.
+SimPM used to require attaching recorder objects to environments in order to
+gather metrics. The dashboard now reads directly from the environment logs, so
+these recorders exist solely to avoid breaking older code. They capture a final
+snapshot after a run finishes and expose the same public attributes as the
+legacy implementations.
 """
 
 from __future__ import annotations
@@ -47,9 +49,10 @@ class SimulationObserver(Protocol):  # pragma: no cover - compatibility shim
 class RunRecorder:  # pragma: no cover - compatibility shim
     """Minimal recorder that snapshots run data after execution.
 
-    The class maintains the previous public attributes but does not mirror
-    per-event state. When registered as an observer, it simply stores the
-    environment reference and builds ``run_data`` when the run finishes.
+    The class keeps the historical ``run_data`` attribute while avoiding the
+    overhead of tracking every intermediate event. Register it as an observer
+    on an environment to populate ``run_data`` automatically when the
+    simulation finishes.
     """
 
     collect_logs: bool = True
@@ -57,42 +60,61 @@ class RunRecorder:  # pragma: no cover - compatibility shim
     _env: Any | None = None
 
     def on_run_started(self, env):
+        """Store the environment reference when a run begins."""
+
         self._env = env
 
     def on_run_finished(self, env):
+        """Collect a final dashboard snapshot when the run ends."""
+
         self._env = env
         self.run_data = collect_run_data(env).as_dict()
 
     # Remaining callbacks are retained for API compatibility.
     def on_entity_created(self, entity):  # pragma: no cover - noop
+        """Retained for compatibility; no per-entity tracking is performed."""
         return None
 
     def on_resource_created(self, resource):  # pragma: no cover - noop
+        """Retained for compatibility; no per-resource tracking is performed."""
         return None
 
     def on_activity_started(self, entity, activity_name: str, activity_id: int, start_time: float, duration_info: dict[str, Any] | None = None):  # pragma: no cover - noop
+        """Retained for compatibility; activity state is not mirrored."""
         return None
 
     def on_activity_finished(self, entity, activity_name: str, activity_id: int, end_time: float):  # pragma: no cover - noop
+        """Retained for compatibility; activity state is not mirrored."""
         return None
 
     def on_resource_acquired(self, entity, resource, amount: int, time: float):  # pragma: no cover - noop
+        """Retained for compatibility; resource usage is not mirrored."""
         return None
 
     def on_resource_released(self, entity, resource, amount: int, time: float):  # pragma: no cover - noop
+        """Retained for compatibility; resource usage is not mirrored."""
         return None
 
     def on_log_event(self, event: dict[str, Any]):  # pragma: no cover - noop
+        """Retained for compatibility; log events are ignored."""
         return None
 
 
 class StreamingRunRecorder(RunRecorder):  # pragma: no cover - compatibility shim
-    """Legacy streaming recorder that publishes a final snapshot only."""
+    """Legacy streaming recorder that publishes a final snapshot only.
+
+    The original class streamed events to an external listener. The simplified
+    version only pushes a single ``run_finished`` event containing the final
+    snapshot, which is often sufficient for tests or small utilities expecting
+    the legacy shape.
+    """
 
     def __init__(self, collect_logs: bool = True, event_queue: Queue | None = None):
         super().__init__(collect_logs=collect_logs)
         self.event_queue: Queue = event_queue or Queue()
 
     def on_run_finished(self, env):
+        """Forward the final snapshot through the event queue."""
+
         super().on_run_finished(env)
         self.event_queue.put({"event": "run_finished", "run_data": self.run_data})

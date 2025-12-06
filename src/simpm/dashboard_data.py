@@ -1,8 +1,9 @@
 """Utilities to read simulation results directly from environment logs.
 
-The helpers in this module avoid any additional observer/recorder layers and
-derive dashboard-friendly structures from the logs that SimPM already
-maintains when ``log=True`` is set on entities and resources.
+The helpers in this module avoid additional recorder layers and derive
+dashboard-friendly structures from the logs that SimPM already maintains when
+``log=True`` is set on entities and resources. They are safe to call in custom
+post-processing scripts as well as inside the Streamlit dashboard runtime.
 """
 
 from __future__ import annotations
@@ -25,6 +26,12 @@ from simpm._utils import _swap_dict_keys_values
 
 
 def _safe_records(getter: Callable[[], Any]) -> list[dict[str, Any]]:
+    """Invoke ``getter`` and coerce the result into a list of dictionaries.
+
+    The function shields callers from failures when optional dependencies (such
+    as pandas) are not present or when an object raises exceptions during
+    conversion. Non-tabular objects result in an empty list.
+    """
     try:
         table = getter()
         if hasattr(table, "to_dict"):
@@ -37,6 +44,7 @@ def _safe_records(getter: Callable[[], Any]) -> list[dict[str, Any]]:
 
 
 def _safe_array(getter: Callable[[], Any]) -> list[Any]:
+    """Invoke ``getter`` and coerce iterables into a plain Python list."""
     try:
         values = getter()
         if hasattr(values, "tolist"):
@@ -53,7 +61,20 @@ def _safe_array(getter: Callable[[], Any]) -> list[Any]:
 
 
 def _to_jsonable(value: Any) -> Any:
-    """Recursively coerce values into JSON-serializable objects."""
+    """Recursively coerce values into JSON-serializable objects.
+
+    Parameters
+    ----------
+    value : Any
+        Arbitrary object pulled from a simulation log.
+
+    Returns
+    -------
+    Any
+        A JSON-friendly structure comprised of dictionaries, lists, and
+        primitives. Pandas and NumPy containers are converted to built-in
+        Python equivalents.
+    """
 
     if isinstance(value, dict):
         return {key: _to_jsonable(val) for key, val in value.items()}
@@ -86,6 +107,7 @@ def _to_jsonable(value: Any) -> Any:
 
 
 def _entity_snapshot(entity) -> dict[str, Any]:
+    """Build a serializable snapshot of an entity and its recorded activity."""
     name_map = getattr(entity, "act_dic", {})
     schedule_records = _safe_records(entity.schedule)
     schedule_log: list[dict[str, Any]] = []
@@ -159,6 +181,7 @@ def _resource_stats(resource) -> dict[str, Any]:
 
 
 def _resource_snapshot(resource) -> dict[str, Any]:
+    """Create a serializable view of a resource and its metrics."""
     return {
         "id": resource.id,
         "name": resource.name,
@@ -176,7 +199,12 @@ def _resource_snapshot(resource) -> dict[str, Any]:
 
 @dataclass
 class RunSnapshot:
-    """Lightweight snapshot of an environment for dashboards/tests."""
+    """Lightweight snapshot of an environment for dashboards/tests.
+
+    The snapshot groups environment metadata, entity state, resource state, and
+    the raw event log into a single object that can be serialized or passed to
+    :class:`simpm.dashboard.StreamlitDashboard`.
+    """
 
     environment: dict[str, Any]
     entities: list[dict[str, Any]]
@@ -184,6 +212,8 @@ class RunSnapshot:
     logs: list[dict[str, Any]]
 
     def as_dict(self) -> dict[str, Any]:
+        """Convert the snapshot into a JSON-friendly dictionary."""
+
         return _to_jsonable(
             {
                 "environment": self.environment,
@@ -195,7 +225,27 @@ class RunSnapshot:
 
 
 def collect_run_data(env) -> RunSnapshot:
-    """Create a dashboard-ready snapshot directly from environment logs."""
+    """Create a dashboard-ready snapshot directly from environment logs.
+
+    Parameters
+    ----------
+    env : simpm.des.Environment
+        Simulation environment that has already executed.
+
+    Returns
+    -------
+    RunSnapshot
+        Structured view of entities, resources, and environment logs suitable
+        for serializing to JSON or handing to the dashboard.
+
+    Examples
+    --------
+    >>> snapshot = collect_run_data(env)
+    >>> snapshot.environment['name']
+    'Environment'
+    >>> len(snapshot.entities)  # doctest: +SKIP
+    3
+    """
 
     entities = [_entity_snapshot(entity) for entity in getattr(env, "entities", [])]
     resources = [_resource_snapshot(res) for res in getattr(env, "resources", [])]

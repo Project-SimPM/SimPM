@@ -95,6 +95,47 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         st.plotly_chart(fig, width="stretch")
 
 
+def _render_duration_analysis(
+    df: pd.DataFrame, *, duration_col: str = "duration", start_col: str | None = None
+) -> None:
+    """Visualize duration trends while keeping axes aligned.
+
+    Plotly raises a ``ValueError`` when the ``x`` and ``y`` arrays have different
+    lengths. This helper normalizes both axes by dropping rows with missing
+    duration (and start times when provided) before plotting, preventing
+    mismatched lengths from crashing the dashboard.
+    """
+
+    if duration_col not in df.columns:
+        st.info("No duration column available to analyze.")
+        return
+
+    cleaned = df.copy()
+    cleaned[duration_col] = pd.to_numeric(cleaned[duration_col], errors="coerce")
+    cleaned = cleaned.dropna(subset=[duration_col])
+
+    if cleaned.empty:
+        st.info("No valid duration data available to plot.")
+        return
+
+    if start_col and start_col in cleaned.columns:
+        cleaned[start_col] = pd.to_numeric(cleaned[start_col], errors="coerce")
+        cleaned = cleaned.dropna(subset=[start_col])
+        x_axis = cleaned[start_col]
+        x_label = start_col
+        if cleaned.empty:
+            st.info("No valid start times available to plot durations against.")
+            return
+    else:
+        cleaned = cleaned.reset_index(drop=True)
+        x_axis = cleaned.index
+        x_label = "Index"
+
+    fig = px.line(x=x_axis, y=cleaned[duration_col], labels={"x": x_label, "y": duration_col})
+    fig.update_traces(line_color="#3a7859")
+    st.plotly_chart(fig, width="stretch")
+
+
 def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
     """Render a table preview with a download button."""
 
@@ -768,14 +809,73 @@ class StreamlitDashboard:
                     label_title="Activity name",
                 )
 
-            with tab_by_id:
-                self._render_activity_filter_tab(
-                    activity_df,
-                    label_candidates=["activity_id"],
-                    label_key="activity-id-filter",
-                    standard_cols=standard_cols,
-                    label_title="Activity id",
-                )
+                name_col = None
+                for candidate in ("activity_name", "activity", "activity_id"):
+                    if candidate in schedule_df.columns:
+                        name_col = candidate
+                        break
+
+                if schedule_df.empty or not name_col:
+                    st.info("No scheduled activities with names are available to inspect.")
+                    st.dataframe(activity_df, use_container_width=True)
+                else:
+                    schedule_df["activity_label"] = schedule_df[name_col].astype(str)
+                    options = sorted(schedule_df["activity_label"].dropna().unique())
+
+                    if not options:
+                        st.info("No activity names found to display.")
+                    else:
+                        selected = st.multiselect(
+                            "Select activities", options, default=options[:1], key="activity-name-filter"
+                        )
+
+                        if not selected:
+                            st.info("Choose at least one activity to view its schedule across entities.")
+                        else:
+                            filtered = schedule_df[schedule_df["activity_label"].isin(selected)].copy()
+
+                            start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
+                            end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
+                            duration_col = "duration" if "duration" in filtered.columns else None
+                            resource_col = next(
+                                (c for c in ("resources_in_use", "resources", "resource", "resource_id", "resource_ids") if c in filtered.columns),
+                                None,
+                            )
+
+                            if duration_col is None and start_col and end_col:
+                                filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(
+                                    filtered[start_col], errors="coerce"
+                                )
+                                duration_col = "duration"
+
+                            columns_to_show: list[str] = []
+                            label_map: dict[str, str] = {"activity_label": "Activity"}
+                            for col, label in (
+                                ("activity_label", "Activity"),
+                                ("entity_name", "Entity"),
+                                ("entity_id", "Entity ID"),
+                                (start_col, "Start"),
+                                (end_col, "Finish"),
+                                (duration_col, "Duration"),
+                                (resource_col, "Resources in use"),
+                            ):
+                                if col and col in filtered.columns:
+                                    columns_to_show.append(col)
+                                    label_map[col] = label
+
+                            if not columns_to_show:
+                                st.info("No activity timing details available for the selected name.")
+                            else:
+                                if start_col and start_col in filtered.columns:
+                                    filtered = filtered.sort_values(start_col)
+                                display_df = filtered[columns_to_show].rename(columns=label_map)
+                                st.dataframe(display_df, use_container_width=True)
+                                if duration_col:
+                                    _render_duration_analysis(
+                                        filtered,
+                                        duration_col=duration_col,
+                                        start_col=start_col,
+                                    )
             st.markdown("</div>", unsafe_allow_html=True)
 
     def _render_activity_filter_tab(

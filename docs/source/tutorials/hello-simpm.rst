@@ -79,9 +79,9 @@ How it works
 Entity attributes in action
 ---------------------------
 
-Entities carry an ``attr`` dictionary for arbitrary metadata. You can
+Entities behave like dictionaries for arbitrary metadata. You can
 store custom attributes (such as truck size) and use them inside the
-process logic:
+process logic with square-bracket access:
 
 .. code-block:: python
 
@@ -92,19 +92,19 @@ process logic:
    # Attach a size attribute (cubic meters per load) to each truck
    trucks = env.create_entities("truck", 3, log=True)
    for t, size in zip(trucks, [30, 35, 50]):
-       t.attr["size"] = size
+       t["size"] = size
 
    def truck_cycle(truck: des.Entity, loader: des.Resource, dumped_dirt: des.Resource):
        while True:
            # Load time grows with truck size
            yield truck.get(loader, 1)
-           yield truck.do("loading", 5 + truck.attr["size"] / 20)
+           yield truck.do("loading", 5 + truck["size"] / 20)
            yield truck.put(loader, 1)
 
            # Haul and dump exactly the truck's load size
            yield truck.do("hauling", 17)
            yield truck.do("dumping", 3)
-           yield truck.add(dumped_dirt, truck.attr["size"])
+           yield truck.add(dumped_dirt, truck["size"])
 
            yield truck.do("return", 13)
 

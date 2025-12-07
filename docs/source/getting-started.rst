@@ -27,6 +27,7 @@ This example shows how to:
 - Create a :class:`simpm.des.Environment`
 - Define a simple :class:`simpm.des.Resource`
 - Model work with :class:`simpm.des.Entity` using ``do`` and ``get``
+- Create entities with :meth:`simpm.des.Environment.create_entities`
 - Run the simulation and inspect basic outputs
 
 .. code-block:: python
@@ -44,7 +45,8 @@ This example shows how to:
 
    # 3) Create an entity to perform the activity. ``log=True`` stores detailed
    # action timing so you can inspect wait and idle durations after the run.
-   entity1 = env.create_entity("Activity", print_actions=False, log=True)
+   # ``create_entities`` returns a list, so we grab the first created entity.
+   entity1 = env.create_entities("Activity", 1, print_actions=False, log=True)[0]
 
    # 4) Define the activity process
    def activity(entity, resource):

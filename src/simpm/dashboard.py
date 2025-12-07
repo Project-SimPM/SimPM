@@ -93,6 +93,47 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         st.dataframe(stats_df, width="stretch")
 
 
+def _render_duration_analysis(
+    df: pd.DataFrame, *, duration_col: str = "duration", start_col: str | None = None
+) -> None:
+    """Visualize duration trends while keeping axes aligned.
+
+    Plotly raises a ``ValueError`` when the ``x`` and ``y`` arrays have different
+    lengths. This helper normalizes both axes by dropping rows with missing
+    duration (and start times when provided) before plotting, preventing
+    mismatched lengths from crashing the dashboard.
+    """
+
+    if duration_col not in df.columns:
+        st.info("No duration column available to analyze.")
+        return
+
+    cleaned = df.copy()
+    cleaned[duration_col] = pd.to_numeric(cleaned[duration_col], errors="coerce")
+    cleaned = cleaned.dropna(subset=[duration_col])
+
+    if cleaned.empty:
+        st.info("No valid duration data available to plot.")
+        return
+
+    if start_col and start_col in cleaned.columns:
+        cleaned[start_col] = pd.to_numeric(cleaned[start_col], errors="coerce")
+        cleaned = cleaned.dropna(subset=[start_col])
+        x_axis = cleaned[start_col]
+        x_label = start_col
+        if cleaned.empty:
+            st.info("No valid start times available to plot durations against.")
+            return
+    else:
+        cleaned = cleaned.reset_index(drop=True)
+        x_axis = cleaned.index
+        x_label = "Index"
+
+    fig = px.line(x=x_axis, y=cleaned[duration_col], labels={"x": x_label, "y": duration_col})
+    fig.update_traces(line_color="#3a7859")
+    st.plotly_chart(fig, width="stretch")
+
+
 def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
     """Render a table preview with a download button."""
 
@@ -736,6 +777,12 @@ class StreamlitDashboard:
                                     filtered = filtered.sort_values(start_col)
                                 display_df = filtered[columns_to_show].rename(columns=label_map)
                                 st.dataframe(display_df, use_container_width=True)
+                                if duration_col:
+                                    _render_duration_analysis(
+                                        filtered,
+                                        duration_col=duration_col,
+                                        start_col=start_col,
+                                    )
             st.markdown("</div>", unsafe_allow_html=True)
 
     def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = False):

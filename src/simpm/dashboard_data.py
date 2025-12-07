@@ -184,6 +184,7 @@ def _entity_snapshot(entity) -> dict[str, Any]:
         "logs": _safe_records(lambda: getattr(entity, "logs", [])),
         "total_active_time": total_active,
         "total_waiting_time": total_waiting,
+        "attributes": getattr(entity, "attributes", None) or getattr(entity, "attr", None),
     }
 
 
@@ -223,6 +224,7 @@ def _resource_snapshot(resource) -> dict[str, Any]:
         "waiting_time": _safe_array(resource.waiting_time),
         "stats": _resource_stats(resource),
         "logs": _safe_records(lambda: getattr(resource, "logs", [])),
+        "attributes": getattr(resource, "attributes", None) or getattr(resource, "attr", None),
     }
 
 

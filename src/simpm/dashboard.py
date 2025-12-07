@@ -45,15 +45,12 @@ def _basic_statistics(series: pd.Series) -> pd.DataFrame:
         return pd.DataFrame()
     return pd.DataFrame(
         {
-            "Metric": ["Count", "Mean", "Median", "Min", "Max", "Std"],
-            "Value": [
-                int(series.count()),
-                series.mean(),
-                series.median(),
-                series.min(),
-                series.max(),
-                series.std(ddof=0),
-            ],
+            "Count": [int(series.count())],
+            "Mean": [series.mean()],
+            "Median": [series.median()],
+            "Min": [series.min()],
+            "Max": [series.max()],
+            "Std": [series.std(ddof=0)],
         }
     )
 
@@ -832,10 +829,11 @@ class StreamlitDashboard:
                     if "category" in activity_df.columns
                     else pd.DataFrame()
                 )
+                label_key = "activity-name-filter"
                 self._render_activity_filter_tab(
                     activity_df,
                     label_candidates=["activity_name", "activity"],
-                    label_key="activity-name-filter",
+                    label_key=label_key,
                     standard_cols=standard_cols,
                     label_title="Activity name",
                 )
@@ -857,7 +855,7 @@ class StreamlitDashboard:
                         st.info("No activity names found to display.")
                     else:
                         selected = st.multiselect(
-                            "Select activities", options, default=options[:1], key="activity-name-filter"
+                            "Select activities", options, default=options[:1], key=f"{label_key}-multi"
                         )
 
                         if not selected:

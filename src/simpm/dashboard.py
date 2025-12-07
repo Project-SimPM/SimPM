@@ -58,6 +58,22 @@ def _basic_statistics(series: pd.Series) -> pd.DataFrame:
     )
 
 
+def _render_compact_table(df: pd.DataFrame, *, caption: str | None = None) -> None:
+    """Render a compact HTML table similar to the log previews."""
+
+    if df.empty:
+        st.info("No data available to display.")
+        return
+
+    html = df.to_html(index=False, escape=False)
+    st.markdown(
+        "<div class='simpm-table-wrapper simpm-compact-table'>" f"{html}" "</div>",
+        unsafe_allow_html=True,
+    )
+    if caption:
+        st.caption(caption)
+
+
 def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> None:
     """Render analysis tabs for a selected numeric column in the dataframe."""
 
@@ -75,7 +91,7 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
 
     with tab_stats:
         stats_df = _basic_statistics(df[col])
-        st.dataframe(stats_df, width="stretch")
+        _render_compact_table(stats_df)
 
     with tab_series:
         x = df[time_axis] if time_axis and time_axis in df.columns else df.index
@@ -254,7 +270,7 @@ def _render_duration_analysis(df: pd.DataFrame, *, start_col: str | None = None)
 
     with tab_stats:
         stats_df = _basic_statistics(aligned_series)
-        st.dataframe(stats_df, width="stretch")
+        _render_compact_table(stats_df)
 
     with tab_series:
         fig = px.line(x=x_axis, y=aligned_series, labels={"x": x_label, "y": duration_col})
@@ -318,7 +334,7 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
 
     with tab_stats:
         stats_df = _basic_statistics(duration_df["waiting_duration"])
-        st.dataframe(stats_df, width="stretch")
+        _render_compact_table(stats_df)
 
     with tab_series:
         time_axis = (
@@ -376,7 +392,7 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
 
     with tab_stats:
         stats_df = _basic_statistics(duration_df["waiting_duration"])
-        st.dataframe(stats_df, width="stretch")
+        _render_compact_table(stats_df)
 
     with tab_series:
         time_axis = df.loc[valid_mask, "start_time"] if "start_time" in df.columns else duration_df.index
@@ -430,7 +446,7 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
 
     with tab_stats:
         stats_df = _basic_statistics(pd.to_numeric(df[selected_metric], errors="coerce"))
-        st.dataframe(stats_df, width="stretch")
+        _render_compact_table(stats_df)
 
     with tab_series:
         fig = px.line(
@@ -554,7 +570,7 @@ def _styled_container() -> None:
         """
         <style>
         .block-container {padding-top: 1.5rem;}
-        .stTabs [data-baseweb="tab"] {background-color: #f4fbf7; border-radius: 8px; color: #1f3f2b; border: 1px solid #cce8d9;}
+        .stTabs [data-baseweb="tab"] {background-color: #f4fbf7; border-radius: 8px; color: #1f3f2b; border: 1px solid #cce8d9; padding: 0.5rem 1.05rem; margin-right: 0.35rem;}
         .stTabs [aria-selected="true"] {border: 1px solid #7fd3a8 !important; color: #0c2a1b;}
         .stButton>button {border-radius: 10px; border: 1px solid #7fd3a8; color: #0c2a1b; background: white;}
         .stButton>button[data-testid="baseButton-primary"] {background: #e8f5ed; border-color: #7fd3a8; box-shadow: 0 0 0 1px #b6e3c8 inset;}
@@ -566,6 +582,8 @@ def _styled_container() -> None:
         .simpm-table-wrapper table {width: 100%; border-collapse: collapse;}
         .simpm-table-wrapper table th, .simpm-table-wrapper table td {border: 1px solid #d6eadf; padding: 0.5rem; font-size: 0.9rem;}
         .simpm-table-wrapper table th {background: #f4fbf7; color: #1f3f2b;}
+        .simpm-compact-table {display: inline-block; max-width: 520px; min-width: 320px;}
+        .simpm-compact-table table {width: auto;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -709,10 +727,18 @@ class StreamlitDashboard:
 
         st.markdown(f"### Entity {entity['id']} • {entity['name']}")
         st.caption(f"Type: {entity.get('type', 'Unknown')}")
-        attributes = entity.get("attributes") or entity.get("attr")
+
+        attributes = entity.get("attributes") or entity.get("attr") or {}
+        st.markdown("#### Attributes")
         if attributes:
-            st.markdown("**Attributes**")
-            st.json(attributes)
+            attr_rows = [
+                {"Attribute": key, "Value": json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value}
+                for key, value in attributes.items()
+            ]
+            attr_df = pd.DataFrame(attr_rows)
+            _render_compact_table(attr_df)
+        else:
+            st.info("No attributes recorded for this entity.")
 
         schedule_df = pd.DataFrame(entity.get("schedule_log", []))
         if not schedule_df.empty:
@@ -801,6 +827,11 @@ class StreamlitDashboard:
                 _render_duration_analysis(display_df, start_col="start_time")
 
             with tab_by_name:
+                schedule_df = (
+                    activity_df[activity_df["category"] == "schedule_log"].copy()
+                    if "category" in activity_df.columns
+                    else pd.DataFrame()
+                )
                 self._render_activity_filter_tab(
                     activity_df,
                     label_candidates=["activity_name", "activity"],

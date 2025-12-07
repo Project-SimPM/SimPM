@@ -108,46 +108,6 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         st.plotly_chart(fig, width="stretch")
 
 
-def _render_duration_analysis(
-    df: pd.DataFrame, *, duration_col: str = "duration", start_col: str | None = None
-) -> None:
-    """Visualize duration trends while keeping axes aligned.
-
-    Plotly raises a ``ValueError`` when the ``x`` and ``y`` arrays have different
-    lengths. This helper normalizes both axes by dropping rows with missing
-    duration (and start times when provided) before plotting, preventing
-    mismatched lengths from crashing the dashboard.
-    """
-
-    if duration_col not in df.columns:
-        st.info("No duration column available to analyze.")
-        return
-
-    cleaned = df.copy()
-    cleaned[duration_col] = pd.to_numeric(cleaned[duration_col], errors="coerce")
-    cleaned = cleaned.dropna(subset=[duration_col])
-
-    if cleaned.empty:
-        st.info("No valid duration data available to plot.")
-        return
-
-    if start_col and start_col in cleaned.columns:
-        cleaned[start_col] = pd.to_numeric(cleaned[start_col], errors="coerce")
-        cleaned = cleaned.dropna(subset=[start_col])
-        x_axis = cleaned[start_col]
-        x_label = start_col
-        if cleaned.empty:
-            st.info("No valid start times available to plot durations against.")
-            return
-    else:
-        cleaned = cleaned.reset_index(drop=True)
-        x_axis = cleaned.index
-        x_label = "Index"
-
-    fig = px.line(x=x_axis, y=cleaned[duration_col], labels={"x": x_label, "y": duration_col})
-    fig.update_traces(line_color="#3a7859")
-    st.plotly_chart(fig, width="stretch")
-
 
 def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
     """Render a table preview with a download button."""
@@ -218,16 +178,20 @@ def _render_table_with_preview(
         analysis_renderer(df, time_col=_find_time_column(df))
 
 
-def _render_duration_analysis(df: pd.DataFrame, *, start_col: str | None = None) -> None:
-    """Render duration-only visuals with the start column used as a time axis."""
+def _render_duration_analysis(
+    df: pd.DataFrame, *, duration_col: str | None = None, start_col: str | None = None
+) -> None:
+    """Render duration visuals using the provided duration column when available."""
 
-    duration_col = None
-    for candidate in ("duration", "activity_duration"):
-        if candidate in df.columns:
-            duration_col = candidate
-            break
+    duration_candidate = duration_col if duration_col in df.columns else None
 
-    if duration_col is None:
+    if duration_candidate is None:
+        for candidate in ("duration", "activity_duration"):
+            if candidate in df.columns:
+                duration_candidate = candidate
+                break
+
+    if duration_candidate is None:
         finish_col = next((c for c in ("finish_time", "finish") if c in df.columns), None)
         start_candidate = start_col or next(
             (c for c in ("start_time", "start") if c in df.columns), None
@@ -237,14 +201,14 @@ def _render_duration_analysis(df: pd.DataFrame, *, start_col: str | None = None)
             df["duration"] = pd.to_numeric(df[finish_col], errors="coerce") - pd.to_numeric(
                 df[start_candidate], errors="coerce"
             )
-            duration_col = "duration"
+            duration_candidate = "duration"
             start_col = start_candidate
 
-    if duration_col is None:
+    if duration_candidate is None:
         st.info("No duration data available to visualize.")
         return
 
-    duration_series = pd.to_numeric(df[duration_col], errors="coerce").dropna()
+    duration_series = pd.to_numeric(df[duration_candidate], errors="coerce").dropna()
     if duration_series.empty:
         st.info("No duration data available to visualize.")
         return
@@ -260,7 +224,7 @@ def _render_duration_analysis(df: pd.DataFrame, *, start_col: str | None = None)
         x_axis_full = df.index
         x_label = "Index"
 
-    aligned_series = pd.to_numeric(df[duration_col], errors="coerce")
+    aligned_series = pd.to_numeric(df[duration_candidate], errors="coerce")
     valid_mask = aligned_series.notna()
     x_axis = x_axis_full[valid_mask]
     aligned_series = aligned_series[valid_mask]
@@ -270,18 +234,22 @@ def _render_duration_analysis(df: pd.DataFrame, *, start_col: str | None = None)
         _render_compact_table(stats_df)
 
     with tab_series:
-        fig = px.line(x=x_axis, y=aligned_series, labels={"x": x_label, "y": duration_col})
+        fig = px.line(x=x_axis, y=aligned_series, labels={"x": x_label, "y": duration_candidate})
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
         st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
-        fig = px.histogram(aligned_series, nbins=min(30, max(5, len(aligned_series))), labels={"value": duration_col})
+        fig = px.histogram(
+            aligned_series,
+            nbins=min(30, max(5, len(aligned_series))),
+            labels={"value": duration_candidate},
+        )
         fig.update_traces(marker_color="#5bbd89")
         st.plotly_chart(fig, width="stretch")
 
     with tab_cdf:
-        fig = px.ecdf(aligned_series, labels={"value": duration_col})
+        fig = px.ecdf(aligned_series, labels={"value": duration_candidate})
         fig.update_traces(line_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
 
@@ -797,11 +765,10 @@ class StreamlitDashboard:
             return
 
         standard_cols = [
-            "activity",
+            "activity_name",
             "start_time",
             "finish_time",
             "activity_id",
-            "activity_name",
             "duration",
             "source",
             "entity_id",
@@ -811,17 +778,23 @@ class StreamlitDashboard:
         with st.container():
             st.markdown("<div class='simpm-panel'>", unsafe_allow_html=True)
             st.caption("Unified view across system, entities, and resources")
-            tab_all, tab_by_name, tab_by_id = st.tabs(["All activity", "By activity name", "By activity id"])
+            tab_all, tab_by_name = st.tabs(["All activity", "By activity name"])
 
             with tab_all:
                 display_df = activity_df.copy()
+                display_df["activity_name"] = display_df.get("activity_name")
+                if "activity_name" not in display_df.columns or display_df["activity_name"].isna().all():
+                    display_df["activity_name"] = display_df.get("activity")
                 for col in standard_cols:
                     if col not in display_df.columns:
-                        display_df[col] = None
-                display_df = display_df[standard_cols]
+                        display_df[col] = ""
+                start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
+                if start_col:
+                    display_df = display_df.sort_values(
+                        start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
+                    ).reset_index(drop=True)
+                display_df = display_df[standard_cols].fillna("")
                 _render_table_preview("Activity", display_df, key_prefix="activity")
-                st.markdown("#### duration")
-                _render_duration_analysis(display_df, start_col="start_time")
 
             with tab_by_name:
                 schedule_df = (
@@ -896,8 +869,10 @@ class StreamlitDashboard:
                                 st.info("No activity timing details available for the selected name.")
                             else:
                                 if start_col and start_col in filtered.columns:
-                                    filtered = filtered.sort_values(start_col)
-                                display_df = filtered[columns_to_show].rename(columns=label_map)
+                                    filtered = filtered.sort_values(
+                                        start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
+                                    ).reset_index(drop=True)
+                                display_df = filtered[columns_to_show].rename(columns=label_map).fillna("")
                                 st.dataframe(display_df, use_container_width=True)
                                 if duration_col:
                                     _render_duration_analysis(
@@ -960,14 +935,20 @@ class StreamlitDashboard:
                 filtered[start_col], errors="coerce"
             )
 
+        if "activity_name" not in filtered.columns or filtered["activity_name"].isna().all():
+            filtered["activity_name"] = filtered.get("activity", "")
+
         for col in standard_cols:
             if col not in filtered.columns:
-                filtered[col] = None
+                filtered[col] = ""
 
         display_df = filtered[standard_cols]
+        if start_col and start_col in display_df.columns:
+            display_df = display_df.sort_values(
+                start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
+            ).reset_index(drop=True)
+        display_df = display_df.fillna("")
         _render_table_preview(f"Activity by {label_title.lower()}", display_df, key_prefix=label_key)
-        st.markdown("#### duration")
-        _render_duration_analysis(display_df, start_col="start_time")
 
     def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = False):
         """Start the Streamlit server for this dashboard."""

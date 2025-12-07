@@ -24,27 +24,6 @@ except Exception:  # pragma: no cover - numpy not required for core logic
 
 from simpm._utils import _swap_dict_keys_values
 
-_ENTITY_RESERVED_ATTRS = {
-    "env",
-    "name",
-    "id",
-    "last_act_id",
-    "act_dic",
-    "print_actions",
-    "log",
-    "using_resources",
-    "pending_requests",
-}
-
-_RESOURCE_RESERVED_ATTRS = {
-    "env",
-    "name",
-    "id",
-    "container",
-    "print_actions",
-    "log",
-}
-
 
 def _safe_records(getter: Callable[[], Any]) -> list[dict[str, Any]]:
     """Invoke ``getter`` and coerce the result into a list of dictionaries.
@@ -127,22 +106,6 @@ def _to_jsonable(value: Any) -> Any:
     return value
 
 
-def _collect_attributes(obj: Any, reserved_keys: set[str]) -> dict[str, Any]:
-    """Gather attribute dictionaries plus extra public attributes for display."""
-
-    base_attributes = getattr(obj, "attributes", None) or getattr(obj, "attr", None) or {}
-    attributes: dict[str, Any] = {k: _to_jsonable(v) for k, v in base_attributes.items()}
-
-    for key, value in getattr(obj, "__dict__", {}).items():
-        if key.startswith("_") or key in reserved_keys:
-            continue
-        if callable(value):
-            continue
-        attributes.setdefault(key, _to_jsonable(value))
-
-    return attributes
-
-
 def _entity_snapshot(entity) -> dict[str, Any]:
     """Build a serializable snapshot of an entity and its recorded activity."""
     name_map = dict(getattr(entity, "act_dic", {}))
@@ -221,7 +184,7 @@ def _entity_snapshot(entity) -> dict[str, Any]:
         "logs": _safe_records(lambda: getattr(entity, "logs", [])),
         "total_active_time": total_active,
         "total_waiting_time": total_waiting,
-        "attributes": _collect_attributes(entity, _ENTITY_RESERVED_ATTRS),
+        "attributes": getattr(entity, "attributes", None) or getattr(entity, "attr", None),
     }
 
 
@@ -261,7 +224,7 @@ def _resource_snapshot(resource) -> dict[str, Any]:
         "waiting_time": _safe_array(resource.waiting_time),
         "stats": _resource_stats(resource),
         "logs": _safe_records(lambda: getattr(resource, "logs", [])),
-        "attributes": _collect_attributes(resource, _RESOURCE_RESERVED_ATTRS),
+        "attributes": getattr(resource, "attributes", None) or getattr(resource, "attr", None),
     }
 
 

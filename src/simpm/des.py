@@ -10,7 +10,7 @@ from typing import Any, TYPE_CHECKING
 
 from bisect import insort_left
 from pandas import DataFrame
-from numpy import array, append, divide, nansum, zeros_like
+from numpy import array, append, nansum
 import simpy
 from simpy.events import Event
 
@@ -769,13 +769,7 @@ class GeneralResource:
         l = self.status_log()
         t1 = l["time"].values[:-1]
         t2 = l["time"].values[1:]
-        denom = l["in_use"].values + l["idle"].values
-        y = divide(
-            l["in_use"].values,
-            denom,
-            out=zeros_like(denom, dtype=float),
-            where=denom != 0,
-        )
+        y = l["in_use"].values / (l["in_use"].values + l["idle"].values)
         y_dur = y[:-1]
         d = t2 - t1
         r = nansum(d * y_dur) / l["time"].values[-1]

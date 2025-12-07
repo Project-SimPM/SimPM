@@ -49,12 +49,16 @@ Simulation code (batchable)
    RESOURCES = [1, 3, 2, 3, 1, 2, 2]
    PRIORITIES = [1, 2, 1, 1, 3, 1, 1]
 
-   def simulate_once(seed: int) -> float:
+   def simulate_once(seed: int, dashboard: bool = False, log: bool = False) -> float:
        """Run one CPM-like schedule and return total duration."""
        np.random.seed(seed)
        env = des.Environment(f"Run {seed}")
-       tasks = env.create_entities("task", len(DURATIONS), print_actions=False, log=False)
-       pool = des.PriorityResource(env, "totalres", init=4, print_actions=False)
+       tasks = env.create_entities(
+           "task", len(DURATIONS), print_actions=False, log=log
+       )
+       pool = des.PriorityResource(
+           env, "totalres", init=4, print_actions=False, log=log
+       )
 
        def run_task(i: int, prereq=None):
            if prereq is not None:
@@ -71,7 +75,8 @@ Simulation code (batchable)
        p5 = env.process(run_task(5, p2))
        p6 = env.process(run_task(6, p4 & p5 & p3))
 
-       simpm.run(env, dashboard=True)
+       # Batch runs should avoid the dashboard to keep each trial lightweight
+       simpm.run(env, dashboard=dashboard)
        return env.now
 
    # Run many trials for percentiles
@@ -81,6 +86,11 @@ Simulation code (batchable)
    print(f"Median completion: {p50:.2f}h")
    print(f"P80 completion: {p80:.2f}h")
    print(f"P95 completion: {p95:.2f}h")
+
+If you want to explore a single run interactively, you can turn the
+dashboard on for an ad hoc simulation (``dashboard`` must be a boolean)::
+
+   simulate_once(seed=123, dashboard=True, log=True)
 
 Interpreting the results
 ------------------------
@@ -101,6 +111,8 @@ Tips
 
 * Keep logging disabled (``log=False``) when running hundreds of trials
   to minimize overhead.
+* ``dashboard`` only accepts ``True`` or ``False``; passing other values
+  raises a ``ValueError`` in :func:`simpm.run`.
 * Seed ``numpy`` (or Python's ``random``) so runs are reproducible.
 * Point readers to ``example/test_cpm.py`` if they want the original
   single-run script without the Monte Carlo wrapper.

@@ -811,17 +811,18 @@ class StreamlitDashboard:
         with st.container():
             st.markdown("<div class='simpm-panel'>", unsafe_allow_html=True)
             st.caption("Unified view across system, entities, and resources")
-            tab_all, tab_by_name, tab_by_id = st.tabs(["All activity", "By activity name", "By activity id"])
+            tab_all, tab_by_name = st.tabs(["All activity", "By activity name"])
 
             with tab_all:
                 display_df = activity_df.copy()
                 for col in standard_cols:
                     if col not in display_df.columns:
                         display_df[col] = None
+                start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
+                if start_col:
+                    display_df = display_df.sort_values(start_col)
                 display_df = display_df[standard_cols]
                 _render_table_preview("Activity", display_df, key_prefix="activity")
-                st.markdown("#### duration")
-                _render_duration_analysis(display_df, start_col="start_time")
 
             with tab_by_name:
                 schedule_df = (
@@ -965,9 +966,9 @@ class StreamlitDashboard:
                 filtered[col] = None
 
         display_df = filtered[standard_cols]
+        if start_col and start_col in display_df.columns:
+            display_df = display_df.sort_values(start_col)
         _render_table_preview(f"Activity by {label_title.lower()}", display_df, key_prefix=label_key)
-        st.markdown("#### duration")
-        _render_duration_analysis(display_df, start_col="start_time")
 
     def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = False):
         """Start the Streamlit server for this dashboard."""

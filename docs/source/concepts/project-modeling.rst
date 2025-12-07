@@ -72,7 +72,9 @@ Each entity instance has:
 
 * a **name** and **id** (e.g., ``"truck_3"``),
 * a reference to the **environment** it belongs to,
-* an ``attr`` dictionary for arbitrary user-defined attributes.
+* a dictionary-like attribute store (via ``entity["key"]`` or
+  :py:attr:`entity.attributes <simpm.des.Entity.attributes>`) for arbitrary
+  user-defined metadata.
 
 Example attributes:
 
@@ -91,6 +93,28 @@ logging:
 
    env = des.Environment("Example")
    trucks = env.create_entities("truck", 10, log=True)
+
+You can attach attributes with normal dictionary syntax and read them
+later in your process logic:
+
+.. code-block:: python
+
+   import simpm.des as des
+
+   env = des.Environment("Attr example")
+   truck = env.create_entities("truck", 1, log=True)[0]
+   crew = des.Resource(env, "crew", init=1, capacity=1, log=True)
+
+   truck["wbs"] = "A-123"
+   truck["load_size"] = 40
+
+   def haul(entity, crew_res):
+       # Access the attributes inside your process
+       yield entity.get(crew_res, 1)
+       yield entity.do("loading", 5 + entity["load_size"] / 10)
+       yield entity.put(crew_res, 1)
+
+   env.process(haul(truck, crew))
 
 The *life-cycle* of each entity is described by a **process** – a
 Python generator that yields operations such as requesting resources,

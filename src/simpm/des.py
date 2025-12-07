@@ -49,12 +49,15 @@ def _describe_duration(duration: Any) -> dict[str, Any]:
 
     Examples
     --------
-    >>> from simpm.dist import normal
+    >>> from simpm.dist import norm
     >>> _describe_duration(5)
     {'type': 'fixed', 'parameters': 5, 'sampled_duration': 5}
-    >>> desc = _describe_duration(normal(10, 2))
+    >>> desc = _describe_duration(norm(10, 2))
     >>> desc['sampled_duration'] >= 0
     True
+    >>> unknown = _describe_duration(None)
+    >>> unknown['type']
+    'unknown'
     """
 
     def _sample_positive(dist: distribution) -> float:

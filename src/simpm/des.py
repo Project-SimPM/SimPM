@@ -12,6 +12,7 @@ from pandas import DataFrame
 from numpy import array, append, divide, nansum, zeros_like
 import simpy
 from simpy.events import Event
+from .dashboard import run_post_dashboard
 
 if TYPE_CHECKING:  # pragma: no cover - type hinting only
     from simpm.recorder import SimulationObserver

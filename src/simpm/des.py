@@ -1162,18 +1162,16 @@ class Environment(simpy.Environment):
         self.resource_names: dict[int, str] = {}
 
         # Run-level bookkeeping
-        # ----------------------
-        # - run_number: how many times this environment has been executed
-        # - planned_runs: optional hint for "total number of runs" (from num_runs)
-        # - finishedTime: historical end times (for backwards compatibility)
-        # - run_history: rich metadata per run (used by dashboard_data)
-        self.run_number: int = 0
-        self.planned_runs: int | None = None
-        self.finishedTime: list[float] = []
-        self.run_history: list[dict[str, Any]] = []
+        self.run_number: int = 0               # how many times this env has been executed
+        self.planned_runs: int | None = None   # optional hint (from num_runs)
+        self.finishedTime: list[float] = []    # legacy list of end times
+        self.run_history: list[dict[str, Any]] = []  # rich per-run metadata
 
-        # Per-environment current run id, attached to log events
+        # Current run id (attached to log events)
         self.current_run_id: int | None = None
+
+        # Environment-level event log (consumed by dashboard_data.collect_run_data)
+        self.event_log: list[dict[str, Any]] = []
 
         # Registered observers (e.g. recorders / dashboard adapters)
         self._observers: list["SimulationObserver"] = []
@@ -1202,13 +1200,12 @@ class Environment(simpy.Environment):
         time: float | None = None,
         metadata: dict | None = None,
     ):
-        """Send a structured log event to observers."""
+        """Send a structured log event to observers and store it on the env."""
         event_time = time if time is not None else self.now
         run_id = self.current_run_id
 
         meta = dict(metadata or {})
         if run_id is not None:
-            # Make sure run_id is also available inside metadata
             meta.setdefault("run_id", run_id)
 
         event = {
@@ -1220,6 +1217,10 @@ class Environment(simpy.Environment):
             "metadata": meta,
         }
 
+        # Store on environment so dashboard_data can see it
+        self.event_log.append(event)
+
+        # Also forward to any observers (recorders, etc.)
         self._notify_observers("on_log_event", event=event)
 
     # ------------------------------------------------------------------
@@ -1249,7 +1250,8 @@ class Environment(simpy.Environment):
         - increments :attr:`run_number` and sets ``current_run_id``,
         - stores a row in :attr:`run_history`,
         - notifies observers via ``on_run_started`` / ``on_run_finished``,
-        - accepts a hint ``num_runs`` (planned total runs in the experiment).
+        - accepts a hint ``num_runs`` (planned total runs in the experiment),
+        - logs a final event with ``simulation_time`` for the dashboard.
         """
         # Optional hint: planned total number of runs in the wider experiment
         num_runs_hint = kwargs.pop("num_runs", None)
@@ -1293,7 +1295,6 @@ class Environment(simpy.Environment):
         )
 
         # Emit a structured log event with simulation_time for the dashboard
-        # (used by _simulation_time_df in the Streamlit dashboard)
         self.log_event(
             source_type="environment",
             source_id="run",
@@ -1314,3 +1315,4 @@ class Environment(simpy.Environment):
         )
 
         return result
+

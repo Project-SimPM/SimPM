@@ -1208,6 +1208,7 @@ class Environment(simpy.Environment):
 
         meta = dict(metadata or {})
         if run_id is not None:
+            # Make sure run_id is also available inside metadata
             meta.setdefault("run_id", run_id)
 
         event = {
@@ -1280,6 +1281,7 @@ class Environment(simpy.Environment):
         duration = end_time - start_time
         print(f"Run {run_id} finished at sim time {end_time}")
 
+        # Record run-level history
         self.finishedTime.append(end_time)
         self.run_history.append(
             {
@@ -1288,6 +1290,18 @@ class Environment(simpy.Environment):
                 "end_time": end_time,
                 "duration": duration,
             }
+        )
+
+        # Emit a structured log event with simulation_time for the dashboard
+        # (used by _simulation_time_df in the Streamlit dashboard)
+        self.log_event(
+            source_type="environment",
+            source_id="run",
+            message="Run finished",
+            metadata={
+                "simulation_time": end_time,
+                "duration": duration,
+            },
         )
 
         self._notify_observers(

@@ -2,7 +2,6 @@
    :parser: markdown
 
 .. note::
-
    This documentation is under active development. SimPM has its
    documentation hosted on Read the Docs.
 
@@ -27,5 +26,4 @@ Contents
    :maxdepth: 2
    :caption: API Reference
 
-   api
    api_reference/index

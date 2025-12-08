@@ -6,8 +6,7 @@ is running. The docstrings are intentionally verbose so that API documentation
 generated from them provides ready-to-use guidance and code snippets.
 """
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-
+from typing import Any, TYPE_CHECKING, Callable, List, Union
 from bisect import insort_left
 from pandas import DataFrame
 from numpy import array, append, divide, nansum, zeros_like
@@ -1236,78 +1235,153 @@ class Environment(simpy.Environment):
     # ------------------------------------------------------------------
     # Run with metadata (single environment)
     # ------------------------------------------------------------------
-    def run(self, *args, **kwargs):
-        """Run the simulation while notifying registered observers.
 
-        This method is a thin wrapper around :class:`simpy.Environment.run`
-        that additionally:
 
-        - Keeps track of how many times the environment has been executed
-          (:attr:`run_number`).
-        - Stores rich per-run metadata in :attr:`run_history`.
-        - Accepts an **optional** keyword argument ``num_runs`` which is
-          treated as a *hint* for the dashboard (planned number of total runs).
 
-        Notes
-        -----
-        ``num_runs`` does **not** cause the environment to be executed
-        multiple times inside a single call. SimPy environments cannot be
-        generically "reset", so multiple independent replications still
-        require multiple calls to :meth:`run` (or multiple environments).
+def run(
+    env_or_factory: Union[Environment, Callable[[], Environment]],
+    *,
+    dashboard: bool = False,
+    dashboard_host: str = "127.0.0.1",
+    dashboard_port: int = 8050,
+    dashboard_async: bool | None = None,
+    number_runs: int = 1,
+    **env_run_kwargs: Any,
+) -> Union[Environment, List[Environment]]:
+    """
+    High-level entry point for running SimPM simulations.
 
-        The *factory* pattern is therefore recommended for Monte Carlo
-        experiments: build a function that returns a fresh Environment,
-        and let :func:`simpm.run` call that factory repeatedly.
-        """
-        # Optional hint: planned total number of runs in the wider experiment
-        num_runs_hint = kwargs.pop("num_runs", None)
-        if num_runs_hint is not None:
-            try:
-                self.planned_runs = int(num_runs_hint)
-            except Exception:
-                # Keep it None if conversion fails; we don't want to break the run.
-                self.planned_runs = None
+    Parameters
+    ----------
+    env_or_factory :
+        - If `number_runs == 1`: an already-built :class:`simpm.des.Environment`.
+        - If `number_runs >= 1`: a zero-argument factory that returns a fresh
+          :class:`simpm.des.Environment` per run.
+    dashboard : bool, optional
+        When True, launch the Streamlit dashboard after the run(s) complete.
+        For multi-run experiments, the dashboard is currently bound to the last
+        environment in the sequence.
+    dashboard_host : str, optional
+        Host interface for the dashboard server (default "127.0.0.1").
+    dashboard_port : int, optional
+        Port for the dashboard server (default 8050).
+    dashboard_async : bool | None, optional
+        Whether to start Streamlit asynchronously.
+        - If None (default): synchronous on Windows, async elsewhere.
+    number_runs : int, optional
+        Number of independent runs to execute. Must be >= 1.
+    **env_run_kwargs :
+        Additional keyword arguments forwarded to :meth:`Environment.run`
+        (e.g., ``until=...``). The ``num_runs`` keyword is reserved and
+        managed by this wrapper.
 
-        # One actual execution of the event loop
-        self.run_number += 1
-        run_id = self.run_number
-        self.current_run_id = run_id
+    Returns
+    -------
+    Environment or list[Environment]
+        - Single :class:`Environment` when `number_runs == 1`.
+        - List of Environments when `number_runs > 1`.
 
-        start_time = self.now
+    Notes
+    -----
+    - :meth:`Environment.run` **always executes one event loop** and records
+      per-run metadata in ``run_history``, plus ``run_id`` via ``run_number``.
+    - In the factory-based multi-run case, this function:
+        * calls the factory ``number_runs`` times,
+        * sets ``env.run_number = k - 1`` so that ``run_id == k`` inside
+          :meth:`Environment.run`,
+        * passes ``num_runs=number_runs`` to each run as a *hint* for
+          dashboards/observers.
+    """
+    if number_runs < 1:
+        raise ValueError("number_runs must be >= 1")
 
-        self._notify_observers(
-            "on_run_started",
-            env=self,
-            run_id=run_id,
-            start_time=start_time,
-        )
-        print(f"Run {run_id} started")
-
-        # Delegate to SimPy
-        result = super().run(*args, **kwargs)
-
-        end_time = self.now
-        duration = end_time - start_time
-        print(f"Run {run_id} finished at sim time {end_time}")
-
-        # Legacy list plus richer structured history
-        self.finishedTime.append(end_time)
-        self.run_history.append(
-            {
-                "run_id": run_id,
-                "start_time": start_time,
-                "end_time": end_time,
-                "duration": duration,
-            }
-        )
-
-        self._notify_observers(
-            "on_run_finished",
-            env=self,
-            run_id=run_id,
-            start_time=start_time,
-            end_time=end_time,
-            duration=duration,
+    if "num_runs" in env_run_kwargs:
+        raise TypeError(
+            "The 'num_runs' keyword is reserved by simpm.run and is set "
+            "automatically based on 'number_runs'. Please remove it from "
+            "env_run_kwargs."
         )
 
-        return result
+    # Default dashboard_async behaviour:
+    # - On Windows: synchronous (safer for Streamlit signal handling)
+    # - Elsewhere: async
+    if dashboard_async is None:
+        dashboard_async = not sys.platform.startswith("win")
+
+    # --------------------------------------------------------------
+    # Case 1: user passed a *single* Environment instance
+    # --------------------------------------------------------------
+    if isinstance(env_or_factory, Environment):
+        if number_runs != 1:
+            raise ValueError(
+                "For number_runs > 1, pass a factory function that returns "
+                "a fresh simpm.des.Environment for each run."
+            )
+
+        env = env_or_factory
+        env.planned_runs = 1
+
+        # Single execution of the event loop; num_runs=1 is a hint only.
+        env.run(num_runs=1, **env_run_kwargs)
+
+        if dashboard:
+            # Local import avoids potential circular import at package init time
+            from .dashboard import run_post_dashboard
+
+            run_post_dashboard(
+                env,
+                host=dashboard_host,
+                port=dashboard_port,
+                start_async=dashboard_async,
+            )
+
+        return env
+
+    # --------------------------------------------------------------
+    # Case 2: user passed a factory for one or many runs
+    # --------------------------------------------------------------
+    if not callable(env_or_factory):
+        raise TypeError(
+            "env_or_factory must be either an Environment instance (for a "
+            "single run) or a zero-argument factory that returns a fresh "
+            "simpm.des.Environment."
+        )
+
+    env_factory: Callable[[], Environment] = env_or_factory
+    all_envs: List[Environment] = []
+
+    for k in range(1, number_runs + 1):
+        env = env_factory()
+        if not isinstance(env, Environment):
+            raise TypeError("env_factory must return a simpm.des.Environment instance")
+
+        # Global run indexing across the experiment: next Environment.run()
+        # call will see run_id == k.
+        env.run_number = k - 1
+        env.planned_runs = number_runs
+
+        # One actual execution of the event loop; num_runs is a hint.
+        env.run(num_runs=number_runs, **env_run_kwargs)
+
+        all_envs.append(env)
+
+    if dashboard and all_envs:
+        from .dashboard import run_post_dashboard
+
+        # Currently, the dashboard is bound to the last environment in the
+        # sequence. If you later add an aggregator that merges multiple envs
+        # into a single RunSnapshot, this is the place to plug it in.
+        run_post_dashboard(
+            all_envs[-1],
+            host=dashboard_host,
+            port=dashboard_port,
+            start_async=dashboard_async,
+        )
+
+    # For a factory, we return:
+    # - a single env when number_runs == 1
+    # - a list of envs when number_runs > 1
+    if number_runs == 1:
+        return all_envs[0]
+    return all_envs
+

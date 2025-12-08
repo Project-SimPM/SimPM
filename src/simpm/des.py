@@ -1140,14 +1140,6 @@ class PreemptiveResource(GeneralResource):
         insort_left(self._queue, new_request)
         self.env.process(self._check_queue())
 
-
-"""
-*****************************************
-*****Environment Class*******************
-*****************************************
-"""
-
-
 class Environment(simpy.Environment):
     """Simulation environment with observer hooks and logging helpers.
 
@@ -1246,61 +1238,6 @@ class Environment(simpy.Environment):
         return entities
 
     # ------------------------------------------------------------------
-<<<<<<< HEAD
-    # Run with metadata (per single execution of the event loop)
-    # ------------------------------------------------------------------
-    def run(self, *args, **kwargs):
-        """Run the simulation while notifying registered observers.
-
-        This method is a thin wrapper around :class:`simpy.Environment.run`
-        that additionally:
-
-        - Keeps track of how many times the environment has been executed
-          (:attr:`run_number`).
-        - Stores rich per-run metadata in :attr:`run_history`.
-        - Accepts an **optional** keyword argument ``num_runs`` which is
-          treated as a *hint* for dashboards/observers (planned total runs).
-
-        Notes
-        -----
-        ``num_runs`` does **not** cause the environment to be executed
-        multiple times inside a single call. Each call to this method
-        runs the event loop exactly once.
-        """
-        # Optional hint: planned total number of runs in the wider experiment
-        num_runs_hint = kwargs.pop("num_runs", None)
-        if num_runs_hint is not None:
-            try:
-                self.planned_runs = int(num_runs_hint)
-            except Exception:
-                # Keep it None if conversion fails; we don't want to break the run.
-                self.planned_runs = None
-
-        # One actual execution of the event loop
-        self.run_number += 1
-        run_id = self.run_number
-        self.current_run_id = run_id  # used by log_event for tagging
-
-        start_time = self.now
-
-        self._notify_observers(
-            "on_run_started",
-            env=self,
-            run_id=run_id,
-            start_time=start_time,
-        )
-        print(f"Run {run_id} started")
-
-        # Delegate to SimPy's event loop (this is the important part:
-        # NO calls to env.run / self.run here, only super().run)
-        result = super().run(*args, **kwargs)
-
-        end_time = self.now
-        duration = end_time - start_time
-        print(f"Run {run_id} finished at sim time {end_time}")
-
-        # Legacy list plus richer structured history
-=======
     # Run with metadata (single environment, single event loop)
     # ------------------------------------------------------------------
     def run(self, *args, **kwargs):
@@ -1343,7 +1280,6 @@ class Environment(simpy.Environment):
         duration = end_time - start_time
         print(f"Run {run_id} finished at sim time {end_time}")
 
->>>>>>> 8575538aaa733c181fc0372f9b0c2b754b95c93c
         self.finishedTime.append(end_time)
         self.run_history.append(
             {
@@ -1364,9 +1300,3 @@ class Environment(simpy.Environment):
         )
 
         return result
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 8575538aaa733c181fc0372f9b0c2b754b95c93c
-

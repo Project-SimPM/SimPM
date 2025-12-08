@@ -191,7 +191,7 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
     for col in id_cols:
         display_df[col] = display_df[col].apply(_format_id_value)
 
-    # Detect numeric columns without using errors='ignore'
+    # Detect numeric columns
     numeric_cols: list[str] = []
     for col in display_df.columns:
         if col in id_cols:
@@ -290,7 +290,13 @@ def _asset_base64(name: str) -> str | None:
     return base64.b64encode(asset_path.read_bytes()).decode("utf-8")
 
 
-def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
+def _render_table_preview(
+    title: str,
+    df: pd.DataFrame,
+    key_prefix: str,
+    *,
+    show_index: bool = True,
+) -> None:
     """Render a table preview with a download button."""
     st.caption(
         "Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else "")
@@ -328,7 +334,7 @@ def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None
             ellipsis_row[df.columns[0]] = ellipsis_cell
         preview_df.loc["..."] = ellipsis_row
 
-    table_html = preview_df.to_html(index=True, escape=False)
+    table_html = preview_df.to_html(index=show_index, escape=False)
     container_html = (
         "<div style='position:relative; display:inline-block;'>"
         f"{icon_html}"
@@ -751,8 +757,10 @@ class StreamlitDashboard:
 
     snapshot: RunSnapshot
 
+    # --------- top-level render ------------------------------------------------
+
     def render(self) -> None:
-        """Render the dashboard using Streamlit primitives."""
+        """Render the full dashboard."""
         st.session_state.setdefault("simpm_view", "Entities")
         st.session_state.setdefault("simpm_decimal_digits", DEFAULT_DECIMAL_DIGITS)
 
@@ -763,7 +771,13 @@ class StreamlitDashboard:
         )
         _styled_container()
 
+        # 1) Overview + run selector
         self._render_overview_switcher()
+        # 2) Simulation runs block (table + stats/plots in tabs)
+        self._render_simulation_time_overview()
+        # 3) Navigation (Entities / Resources / Activity)
+        self._render_navigation()
+
         view = st.session_state.get("simpm_view", "Entities")
 
         if view == "Entities":
@@ -775,12 +789,23 @@ class StreamlitDashboard:
         else:
             self._render_entities_view()
 
+    # --------- overview / runs / navigation -----------------------------------
+
+    def _model_summary(self) -> dict[str, int]:
+        activities = sum(len(ent.get("activities", [])) for ent in self.snapshot.entities)
+        return {
+            "entities": len(self.snapshot.entities),
+            "resources": len(self.snapshot.resources),
+            "activities": activities,
+        }
+
     def _render_overview_switcher(self) -> None:
-        """Show environment facts, run selector, and clickable model summaries."""
+        """Show environment info and run selector."""
         env_info = self.snapshot.environment or {}
         logo_b64 = _asset_base64("simpm_logo.png")
         logo_img = (
-            f"<img src='data:image/png;base64,{logo_b64}' style='height: 40px; margin-right: 12px;' alt='SimPM logo'>"
+            f"<img src='data:image/png;base64,{logo_b64}' "
+            "style='height: 40px; margin-right: 12px;' alt='SimPM logo'>"
             if logo_b64
             else ""
         )
@@ -794,29 +819,83 @@ class StreamlitDashboard:
             unsafe_allow_html=True,
         )
 
-        cols = st.columns(2)
-        cols[0].metric("Environment", env_info.get("name", "Environment"))
+        # Environment name metric
+        st.metric("Environment", env_info.get("name", "Environment"))
 
+        # Run selector directly under the Environment metric
         runs = _available_runs(env_info, self.snapshot.logs or [])
-        with cols[1]:
-            if len(runs) <= 1:
-                run_value = runs[0] if runs else env_info.get("run_id", "-")
-                st.metric("Run ID", run_value)
-                st.session_state.setdefault("simpm_run_filter", "All runs")
-            else:
-                st.markdown("**Run**")
-                run_options = ["All runs"] + [str(r) for r in runs]
-                current = st.session_state.get("simpm_run_filter")
-                if current not in run_options:
-                    current = "All runs"
-                st.selectbox(
-                    "",
-                    options=run_options,
-                    index=run_options.index(current),
-                    key="simpm_run_filter",
-                )
+        if len(runs) <= 1:
+            run_value = runs[0] if runs else env_info.get("run_id", "-")
+            st.metric("Run ID", run_value)
+            st.session_state.setdefault("simpm_run_filter", "All runs")
+        else:
+            st.markdown("**Run**")
+            run_options = ["All runs"] + [str(r) for r in runs]
+            current = st.session_state.get("simpm_run_filter")
+            if current not in run_options:
+                current = "All runs"
+            st.selectbox(
+                "Select run",                  # non-empty label (for accessibility)
+                options=run_options,
+                index=run_options.index(current),
+                key="simpm_run_filter",
+                label_visibility="collapsed",  # keep layout clean while avoiding warnings
+            )
 
+    def _render_simulation_time_overview(self) -> None:
+        """Render simulation-time stats across runs, if available."""
+        sim_df = _simulation_time_df(self.snapshot.environment or {}, self.snapshot.logs or [])
+        if sim_df.empty:
+            return
+
+        run_filter = st.session_state.get("simpm_run_filter", "All runs")
+        display_df = sim_df.copy()
+        display_df["run_id"] = display_df["run_id"].astype(str)
+
+        if run_filter != "All runs":
+            display_df = display_df[display_df["run_id"] == str(run_filter)]
+
+        if display_df.empty:
+            return
+
+        st.markdown("## Simulation runs")
+
+        # One block: table + stats/plots as tabs (no time series)
+        tab_table, tab_stats, tab_hist, tab_box = st.tabs(
+            ["Table", "Statistics", "Histogram", "Box plot"]
+        )
+
+        with tab_table:
+            _render_table_preview(
+                "Simulation runs",
+                display_df,
+                key_prefix="simulation-runs",
+                show_index=False,  # hide DataFrame index; only show run_id
+            )
+
+        with tab_stats:
+            stats_df = _basic_statistics(display_df["simulation_time"])
+            _render_compact_table(stats_df)
+
+        with tab_hist:
+            fig = px.histogram(
+                display_df,
+                x="simulation_time",
+                nbins=min(30, max(5, len(display_df))),
+                labels={"simulation_time": "Simulation time"},
+            )
+            fig.update_traces(marker_color="#5bbd89")
+            st.plotly_chart(fig, width="stretch")
+
+        with tab_box:
+            fig = px.box(display_df, y="simulation_time")
+            fig.update_traces(marker_color="#3a7859")
+            st.plotly_chart(fig, width="stretch")
+
+    def _render_navigation(self) -> None:
+        """Render Entities/Resources/Activity navigation after Simulation runs."""
         summary = self._model_summary()
+
         st.markdown(
             """
             <style>
@@ -863,69 +942,7 @@ class StreamlitDashboard:
         )
         st.session_state["simpm_view"] = view_selection
 
-        self._render_simulation_time_overview()
-
-    def _render_simulation_time_overview(self) -> None:
-        """Render simulation-time stats and plots across runs, if available."""
-        sim_df = _simulation_time_df(self.snapshot.environment or {}, self.snapshot.logs or [])
-        if sim_df.empty:
-            return
-
-        run_filter = st.session_state.get("simpm_run_filter", "All runs")
-        display_df = sim_df.copy()
-        display_df["run_id"] = display_df["run_id"].astype(str)
-
-        if run_filter != "All runs":
-            display_df = display_df[display_df["run_id"] == str(run_filter)]
-
-        if display_df.empty:
-            return
-
-        st.markdown("## Simulation runs")
-        _render_table_preview("Simulation runs", display_df, key_prefix="simulation-runs")
-
-        st.markdown("#### simulation_time")
-        tab_stats, tab_series, tab_hist, tab_box = st.tabs(
-            ["Statistics", "Time series", "Histogram", "Box plot"]
-        )
-
-        with tab_stats:
-            stats_df = _basic_statistics(display_df["simulation_time"])
-            _render_compact_table(stats_df)
-
-        with tab_series:
-            fig = px.line(
-                display_df,
-                x="run_id",
-                y="simulation_time",
-                labels={"run_id": "Run", "simulation_time": "Simulation time"},
-            )
-            fig.update_traces(line_color="#3a7859")
-            fig.update_xaxes(rangeslider_visible=False)
-            st.plotly_chart(fig, width="stretch")
-
-        with tab_hist:
-            fig = px.histogram(
-                display_df,
-                x="simulation_time",
-                nbins=min(30, max(5, len(display_df))),
-                labels={"simulation_time": "Simulation time"},
-            )
-            fig.update_traces(marker_color="#5bbd89")
-            st.plotly_chart(fig, width="stretch")
-
-        with tab_box:
-            fig = px.box(display_df, y="simulation_time")
-            fig.update_traces(marker_color="#3a7859")
-            st.plotly_chart(fig, width="stretch")
-
-    def _model_summary(self) -> dict[str, int]:
-        activities = sum(len(ent.get("activities", [])) for ent in self.snapshot.entities)
-        return {
-            "entities": len(self.snapshot.entities),
-            "resources": len(self.snapshot.resources),
-            "activities": activities,
-        }
+    # --------- entity / resource / activity views -----------------------------
 
     def _render_entities_view(self) -> None:
         entities: Iterable[dict[str, Any]] = self.snapshot.entities
@@ -1019,6 +1036,7 @@ class StreamlitDashboard:
             st.info("No activity recorded for this run.")
             return
 
+        # Apply run filter to environment logs while keeping entity/resource logs aggregated.
         run_filter = st.session_state.get("simpm_run_filter", "All runs")
         if "run_id" in activity_df.columns and "source" in activity_df.columns:
             if run_filter and run_filter != "All runs":
@@ -1163,12 +1181,15 @@ class StreamlitDashboard:
                     start_col=start_col,
                 )
 
+    # --------- launching ------------------------------------------------------
+
     def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = False):
         """Start the Streamlit server for this dashboard."""
         global _ACTIVE_DASHBOARD
         _ACTIVE_DASHBOARD = self
 
         snapshot_file = Path(tempfile.mkdtemp()) / "simpm_snapshot.json"
+        # default=str makes uniform/triang/... etc serializable using their __str__
         snapshot_file.write_text(json.dumps(self.snapshot.as_dict(), default=str))
 
         cmd = [

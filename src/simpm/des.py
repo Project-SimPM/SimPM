@@ -1212,14 +1212,19 @@ class Environment(simpy.Environment):
     ):
         """Send a structured log event to observers."""
         event_time = time if time is not None else self.now
+        run_id = self.current_run_id
+
+        meta = dict(metadata or {})
+        if run_id is not None:
+            meta.setdefault("run_id", run_id)
 
         event = {
             "time": event_time,
-            "run_id": self.current_run_id,
+            "run_id": run_id,
             "source_type": source_type,
             "source_id": source_id,
             "message": message,
-            "metadata": metadata or {},
+            "metadata": meta,
         }
 
         self._notify_observers("on_log_event", event=event)
@@ -1227,7 +1232,13 @@ class Environment(simpy.Environment):
     # ------------------------------------------------------------------
     # Entity creation
     # ------------------------------------------------------------------
-    def create_entities(self, name: str, total_number: int, print_actions: bool = False, log: bool = True) -> list[Entity]:
+    def create_entities(
+        self,
+        name: str,
+        total_number: int,
+        print_actions: bool = False,
+        log: bool = True,
+    ) -> list[Entity]:
         """Create and register multiple :class:`Entity` instances at ``env.now``."""
         entities: list[Entity] = []
         for _ in range(total_number):
@@ -1235,6 +1246,7 @@ class Environment(simpy.Environment):
         return entities
 
     # ------------------------------------------------------------------
+<<<<<<< HEAD
     # Run with metadata (per single execution of the event loop)
     # ------------------------------------------------------------------
     def run(self, *args, **kwargs):
@@ -1288,6 +1300,50 @@ class Environment(simpy.Environment):
         print(f"Run {run_id} finished at sim time {end_time}")
 
         # Legacy list plus richer structured history
+=======
+    # Run with metadata (single environment, single event loop)
+    # ------------------------------------------------------------------
+    def run(self, *args, **kwargs):
+        """Run the simulation once, with per-run metadata.
+
+        This wraps :class:`simpy.Environment.run` and additionally:
+
+        - increments :attr:`run_number` and sets ``current_run_id``,
+        - stores a row in :attr:`run_history`,
+        - notifies observers via ``on_run_started`` / ``on_run_finished``,
+        - accepts a hint ``num_runs`` (planned total runs in the experiment).
+        """
+        # Optional hint: planned total number of runs in the wider experiment
+        num_runs_hint = kwargs.pop("num_runs", None)
+        if num_runs_hint is not None:
+            try:
+                self.planned_runs = int(num_runs_hint)
+            except Exception:
+                self.planned_runs = None
+
+        # One actual execution of the event loop
+        self.run_number += 1
+        run_id = self.run_number
+        self.current_run_id = run_id
+
+        start_time = self.now
+
+        self._notify_observers(
+            "on_run_started",
+            env=self,
+            run_id=run_id,
+            start_time=start_time,
+        )
+        print(f"Run {run_id} started")
+
+        # Delegate to SimPy
+        result = super().run(*args, **kwargs)
+
+        end_time = self.now
+        duration = end_time - start_time
+        print(f"Run {run_id} finished at sim time {end_time}")
+
+>>>>>>> 8575538aaa733c181fc0372f9b0c2b754b95c93c
         self.finishedTime.append(end_time)
         self.run_history.append(
             {
@@ -1308,4 +1364,9 @@ class Environment(simpy.Environment):
         )
 
         return result
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 8575538aaa733c181fc0372f9b0c2b754b95c93c
 

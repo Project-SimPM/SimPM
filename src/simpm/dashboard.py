@@ -8,6 +8,7 @@ import logging
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from numbers import Integral
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 _ACTIVE_DASHBOARD: "StreamlitDashboard | None" = None
+DEFAULT_DECIMAL_DIGITS = 3
 
 
 def _find_time_column(df: pd.DataFrame) -> str | None:
@@ -55,6 +57,91 @@ def _basic_statistics(series: pd.Series) -> pd.DataFrame:
     )
 
 
+def _get_decimal_digits() -> int:
+    """Return the configured decimal precision for numeric displays."""
+
+    return int(st.session_state.get("simpm_decimal_digits", DEFAULT_DECIMAL_DIGITS))
+
+
+def _format_id_value(value: Any) -> Any:
+    """Format an identifier value without decimals."""
+
+    try:
+        if pd.isna(value):
+            return ""
+    except TypeError:
+        pass
+
+    if isinstance(value, Integral):
+        return int(value)
+    try:
+        float_val = float(value)
+    except (TypeError, ValueError):
+        return value
+    return int(float_val)
+
+
+def _format_numeric_value(value: Any, digits: int) -> Any:
+    """Format non-identifier numeric values with the configured precision."""
+
+    try:
+        if pd.isna(value):
+            return ""
+    except TypeError:
+        pass
+
+    if isinstance(value, Integral):
+        return value
+
+    try:
+        float_val = float(value)
+    except (TypeError, ValueError):
+        return value
+
+    if float_val.is_integer():
+        return int(float_val)
+    formatted = f"{float_val:.{digits}f}".rstrip("0").rstrip(".")
+    return formatted
+
+
+def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of the dataframe with IDs and numerics formatted for display."""
+
+    display_df = df.copy()
+    digits = _get_decimal_digits()
+    id_cols = [col for col in display_df.columns if "id" in str(col).lower()]
+
+    for col in id_cols:
+        display_df[col] = display_df[col].apply(_format_id_value)
+
+    numeric_cols = []
+    for col in display_df.columns:
+        if col in id_cols:
+            continue
+        display_df[col] = pd.to_numeric(display_df[col], errors="ignore")
+        if pd.api.types.is_numeric_dtype(display_df[col]):
+            numeric_cols.append(col)
+    for col in numeric_cols:
+        display_df[col] = display_df[col].apply(lambda val: _format_numeric_value(val, digits))
+
+    return display_df
+
+
+def _render_settings_panel() -> None:
+    """Render global system settings for dashboard display preferences."""
+
+    with st.sidebar.expander("System settings", expanded=False):
+        digits = st.number_input(
+            "Decimal digits for numeric values",
+            min_value=0,
+            max_value=6,
+            value=_get_decimal_digits(),
+            step=1,
+            help="Adjust how many decimal places to show for numeric values (IDs stay whole).",
+        )
+        st.session_state["simpm_decimal_digits"] = int(digits)
+
+
 def _render_compact_table(df: pd.DataFrame, *, caption: str | None = None) -> None:
     """Render a compact HTML table similar to the log previews."""
 
@@ -62,7 +149,7 @@ def _render_compact_table(df: pd.DataFrame, *, caption: str | None = None) -> No
         st.info("No data available to display.")
         return
 
-    html = df.to_html(index=False, escape=False)
+    html = _format_dataframe_for_display(df).to_html(index=False, escape=False)
     st.markdown(
         "<div class='simpm-table-wrapper simpm-compact-table'>" f"{html}" "</div>",
         unsafe_allow_html=True,
@@ -133,7 +220,7 @@ def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None
             "</a>"
         )
 
-    preview_df = df.head(5).copy()
+    preview_df = _format_dataframe_for_display(df.head(5))
     if len(df) > 5:
         ellipsis_row = {col: "" for col in df.columns}
         if len(df.columns) > 0:
@@ -565,12 +652,14 @@ class StreamlitDashboard:
         """Render the dashboard using Streamlit primitives."""
 
         st.session_state.setdefault("simpm_view", "Entities")
+        st.session_state.setdefault("simpm_decimal_digits", DEFAULT_DECIMAL_DIGITS)
         st.set_page_config(
             page_title=f"SimPM Dashboard • {self.snapshot.environment.get('name', 'Environment')}",
             layout="wide",
             page_icon=_load_logo() or None,
         )
         _styled_container()
+        _render_settings_panel()
 
         self._render_overview_switcher()
         view = st.session_state.get("simpm_view", "Entities")
@@ -764,6 +853,22 @@ class StreamlitDashboard:
             st.info("No activity recorded for this run.")
             return
 
+        def _has_activity_identifier(df: pd.DataFrame) -> pd.Series:
+            name_series = (
+                df["activity_name"] if "activity_name" in df.columns else pd.Series([None] * len(df))
+            )
+            id_series = df["activity_id"] if "activity_id" in df.columns else pd.Series([None] * len(df))
+
+            name_mask = name_series.notna() & name_series.astype(str).str.strip().ne("")
+            id_mask = id_series.notna() & id_series.astype(str).str.strip().ne("")
+            return name_mask | id_mask
+
+        filtered_activity = activity_df[_has_activity_identifier(activity_df)].copy()
+
+        if filtered_activity.empty:
+            st.info("No activity records with names or IDs are available to display.")
+            return
+
         standard_cols = [
             "activity_name",
             "start_time",
@@ -775,180 +880,28 @@ class StreamlitDashboard:
             "entity_name",
         ]
 
-        with st.container():
-            st.markdown("<div class='simpm-panel'>", unsafe_allow_html=True)
-            st.caption("Unified view across system, entities, and resources")
-            tab_all, tab_by_name = st.tabs(["All activity", "By activity name"])
-
-            with tab_all:
-                display_df = activity_df.copy()
-                display_df["activity_name"] = display_df.get("activity_name")
-                if "activity_name" not in display_df.columns or display_df["activity_name"].isna().all():
-                    display_df["activity_name"] = display_df.get("activity")
-                for col in standard_cols:
-                    if col not in display_df.columns:
-                        display_df[col] = ""
-                start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
-                if start_col:
-                    display_df = display_df.sort_values(
-                        start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
-                    ).reset_index(drop=True)
-                display_df = display_df[standard_cols].fillna("")
-                _render_table_preview("Activity", display_df, key_prefix="activity")
-
-            with tab_by_name:
-                schedule_df = (
-                    activity_df[activity_df["category"] == "schedule_log"].copy()
-                    if "category" in activity_df.columns
-                    else pd.DataFrame()
-                )
-                label_key = "activity-name-filter"
-                self._render_activity_filter_tab(
-                    activity_df,
-                    label_candidates=["activity_name", "activity"],
-                    label_key=label_key,
-                    standard_cols=standard_cols,
-                    label_title="Activity name",
-                )
-
-                name_col = None
-                for candidate in ("activity_name", "activity", "activity_id"):
-                    if candidate in schedule_df.columns:
-                        name_col = candidate
-                        break
-
-                if schedule_df.empty or not name_col:
-                    st.info("No scheduled activities with names are available to inspect.")
-                    st.dataframe(activity_df, use_container_width=True)
-                else:
-                    schedule_df["activity_label"] = schedule_df[name_col].astype(str)
-                    options = sorted(schedule_df["activity_label"].dropna().unique())
-
-                    if not options:
-                        st.info("No activity names found to display.")
-                    else:
-                        selected = st.multiselect(
-                            "Select activities", options, default=options[:1], key=f"{label_key}-multi"
-                        )
-
-                        if not selected:
-                            st.info("Choose at least one activity to view its schedule across entities.")
-                        else:
-                            filtered = schedule_df[schedule_df["activity_label"].isin(selected)].copy()
-
-                            start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
-                            end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
-                            duration_col = "duration" if "duration" in filtered.columns else None
-                            resource_col = next(
-                                (c for c in ("resources_in_use", "resources", "resource", "resource_id", "resource_ids") if c in filtered.columns),
-                                None,
-                            )
-
-                            if duration_col is None and start_col and end_col:
-                                filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(
-                                    filtered[start_col], errors="coerce"
-                                )
-                                duration_col = "duration"
-
-                            columns_to_show: list[str] = []
-                            label_map: dict[str, str] = {"activity_label": "Activity"}
-                            for col, label in (
-                                ("activity_label", "Activity"),
-                                ("entity_name", "Entity"),
-                                ("entity_id", "Entity ID"),
-                                (start_col, "Start"),
-                                (end_col, "Finish"),
-                                (duration_col, "Duration"),
-                                (resource_col, "Resources in use"),
-                            ):
-                                if col and col in filtered.columns:
-                                    columns_to_show.append(col)
-                                    label_map[col] = label
-
-                            if not columns_to_show:
-                                st.info("No activity timing details available for the selected name.")
-                            else:
-                                if start_col and start_col in filtered.columns:
-                                    filtered = filtered.sort_values(
-                                        start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
-                                    ).reset_index(drop=True)
-                                display_df = filtered[columns_to_show].rename(columns=label_map).fillna("")
-                                st.dataframe(display_df, use_container_width=True)
-                                if duration_col:
-                                    _render_duration_analysis(
-                                        filtered,
-                                        duration_col=duration_col,
-                                        start_col=start_col,
-                                    )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    def _render_activity_filter_tab(
-        self,
-        activity_df: pd.DataFrame,
-        *,
-        label_candidates: list[str],
-        label_key: str,
-        standard_cols: list[str],
-        label_title: str,
-    ) -> None:
-        schedule_df = (
-            activity_df[activity_df["category"] == "schedule_log"].copy()
-            if "category" in activity_df.columns
-            else pd.DataFrame()
-        )
-
-        label_col = next((candidate for candidate in label_candidates if candidate in schedule_df.columns), None)
-
-        if schedule_df.empty or not label_col:
-            st.info(f"No scheduled activities with {label_title.lower()}s are available to inspect.")
-            fallback_df = activity_df.copy()
-            for col in standard_cols:
-                if col not in fallback_df.columns:
-                    fallback_df[col] = None
-            _render_table_preview("Activity", fallback_df[standard_cols], key_prefix=label_key)
-            return
-
-        schedule_df["activity_label"] = schedule_df[label_col].astype(str)
-        options = sorted(schedule_df["activity_label"].dropna().unique())
-
-        if not options:
-            st.info(f"No {label_title.lower()}s found to display.")
-            return
-
-        selected = st.selectbox(
-            f"Select {label_title.lower()}",
-            options,
-            index=0,
-            key=label_key,
-        )
-
-        if not selected:
-            st.info(f"Choose a {label_title.lower()} to view its schedule across entities.")
-            return
-
-        filtered = schedule_df[schedule_df["activity_label"] == selected].copy()
-        start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
-        end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
-
-        if "duration" not in filtered.columns and start_col and end_col:
-            filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(
-                filtered[start_col], errors="coerce"
-            )
-
-        if "activity_name" not in filtered.columns or filtered["activity_name"].isna().all():
-            filtered["activity_name"] = filtered.get("activity", "")
-
+        display_df = filtered_activity.copy()
+        display_df["activity_name"] = display_df.get("activity_name")
+        if "activity_name" not in display_df.columns or display_df["activity_name"].isna().all():
+            display_df["activity_name"] = display_df.get("activity")
         for col in standard_cols:
-            if col not in filtered.columns:
-                filtered[col] = ""
-
-        display_df = filtered[standard_cols]
-        if start_col and start_col in display_df.columns:
+            if col not in display_df.columns:
+                display_df[col] = ""
+        start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
+        if start_col:
             display_df = display_df.sort_values(
                 start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
             ).reset_index(drop=True)
-        display_df = display_df.fillna("")
-        _render_table_preview(f"Activity by {label_title.lower()}", display_df, key_prefix=label_key)
+        display_df = display_df[standard_cols].fillna("")
+
+        _render_table_with_preview(
+            "Activity feed",
+            display_df,
+            key_prefix="activity",
+            analysis_renderer=lambda df, time_col: _render_duration_analysis(
+                df, duration_col="duration", start_col=start_col
+            ),
+        )
 
     def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = False):
         """Start the Streamlit server for this dashboard."""

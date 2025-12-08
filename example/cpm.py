@@ -1,13 +1,12 @@
+"""
+@author: naimeh Sadeghi
+"""
 import os,sys,inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 
-"""
-Created on Sun Nov 28 22:43:01 2021
 
-@author: naima
-"""
 
 import simpm
 import simpm.des as des

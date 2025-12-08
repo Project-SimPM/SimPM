@@ -1,3 +1,6 @@
+"""
+@author: naimeh Sadeghi
+"""
 #******Earth moving simulation(plus breakdown)******* (meeting #17)
 import os,sys,inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))

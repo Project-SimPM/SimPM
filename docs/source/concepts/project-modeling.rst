@@ -239,12 +239,3 @@ A typical modeling workflow in SimPM is:
 6. Analyze logs and statistics (queue lengths, utilization, waiting
    times, total duration, production).
 
-Where to go next
-----------------
-
-* :doc:`../getting-started` for your first minimal run.
-* :doc:`../tutorials/hello-simpm` for a full project example.
-* :doc:`../tutorials/schedule-risk` for Monte Carlo schedule risk
-  analysis.
-* :doc:`../tutorials/resource-bottlenecks` for priority and bottleneck
-  behavior.

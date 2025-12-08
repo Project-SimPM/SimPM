@@ -1237,152 +1237,118 @@ class Environment(simpy.Environment):
     # Run with metadata (single environment)
     # ------------------------------------------------------------------
 
-
-
 def run(
     env_or_factory: Union[Environment, Callable[[], Environment]],
     *,
+    until: float | None = None,
     dashboard: bool = False,
-    dashboard_host: str = "127.0.0.1",
-    dashboard_port: int = 8050,
-    dashboard_async: bool | None = None,
+    host: str = "127.0.0.1",
+    port: int = 8050,
+    start_async: bool | None = None,
     number_runs: int = 1,
-    **env_run_kwargs: Any,
-) -> Union[Environment, List[Environment]]:
-    """
-    High-level entry point for running SimPM simulations.
+    **kwargs: Any,
+):
+    """Run one or many SimPM simulations.
 
     Parameters
     ----------
-    env_or_factory :
-        - If `number_runs == 1`: an already-built :class:`simpm.des.Environment`.
-        - If `number_runs >= 1`: a zero-argument factory that returns a fresh
-          :class:`simpm.des.Environment` per run.
-    dashboard : bool, optional
-        When True, launch the Streamlit dashboard after the run(s) complete.
-        For multi-run experiments, the dashboard is currently bound to the last
-        environment in the sequence.
-    dashboard_host : str, optional
-        Host interface for the dashboard server (default "127.0.0.1").
-    dashboard_port : int, optional
-        Port for the dashboard server (default 8050).
-    dashboard_async : bool | None, optional
-        Whether to start Streamlit asynchronously.
-        - If None (default): synchronous on Windows, async elsewhere.
-    number_runs : int, optional
-        Number of independent runs to execute. Must be >= 1.
-    **env_run_kwargs :
-        Additional keyword arguments forwarded to :meth:`Environment.run`
-        (e.g., ``until=...``). The ``num_runs`` keyword is reserved and
-        managed by this wrapper.
+    env_or_factory:
+        Either
+
+        - a ready-made :class:`simpm.des.Environment` instance, or
+        - a *factory* callable with signature ``() -> Environment`` that
+          builds a fresh environment for each replication.
+
+    until:
+        Optional simulation end time passed to :meth:`Environment.run`.
+
+    dashboard:
+        If True, launch the Streamlit dashboard after the run(s).
+
+    host, port:
+        Address and port for the dashboard server.
+
+    start_async:
+        If True, start Streamlit in a background process.
+        If None (default), uses False on Windows and True on other platforms.
+
+    number_runs:
+        Number of independent replications to execute when a factory is used.
+        If ``env_or_factory`` is a concrete Environment, this must be 1.
+
+    **kwargs:
+        Additional keyword arguments forwarded to :meth:`Environment.run`.
 
     Returns
     -------
     Environment or list[Environment]
-        - Single :class:`Environment` when `number_runs == 1`.
-        - List of Environments when `number_runs > 1`.
-
-    Notes
-    -----
-    - :meth:`Environment.run` **always executes one event loop** and records
-      per-run metadata in ``run_history``, plus ``run_id`` via ``run_number``.
-    - In the factory-based multi-run case, this function:
-        * calls the factory ``number_runs`` times,
-        * sets ``env.run_number = k - 1`` so that ``run_id == k`` inside
-          :meth:`Environment.run`,
-        * passes ``num_runs=number_runs`` to each run as a *hint* for
-          dashboards/observers.
+        - A single Environment when running once.
+        - A list of Environments when ``number_runs > 1`` and a factory is used.
     """
-    if number_runs < 1:
-        raise ValueError("number_runs must be >= 1")
+    # Decide default async behaviour based on platform
+    if start_async is None:
+        start_async = not sys.platform.startswith("win")
 
-    if "num_runs" in env_run_kwargs:
-        raise TypeError(
-            "The 'num_runs' keyword is reserved by simpm.run and is set "
-            "automatically based on 'number_runs'. Please remove it from "
-            "env_run_kwargs."
-        )
-
-    # Default dashboard_async behaviour:
-    # - On Windows: synchronous (safer for Streamlit signal handling)
-    # - Elsewhere: async
-    if dashboard_async is None:
-        dashboard_async = not sys.platform.startswith("win")
-
-    # --------------------------------------------------------------
-    # Case 1: user passed a *single* Environment instance
-    # --------------------------------------------------------------
+    # --- Case 1: user passed a concrete Environment -------------------------
     if isinstance(env_or_factory, Environment):
         if number_runs != 1:
             raise ValueError(
-                "For number_runs > 1, pass a factory function that returns "
-                "a fresh simpm.des.Environment for each run."
+                "number_runs > 1 requires an environment *factory*; "
+                "you passed a concrete Environment instance."
             )
 
-        env = env_or_factory
-        env.planned_runs = 1
+        env: Environment = env_or_factory
 
-        # Single execution of the event loop; num_runs=1 is a hint only.
-        env.run(num_runs=1, **env_run_kwargs)
+        # Build kwargs for Environment.run
+        env_run_kwargs = dict(kwargs)
+        if until is not None:
+            env_run_kwargs["until"] = until
+
+        # Hint for observers/dashboard: planned total number of runs
+        env_run_kwargs.setdefault("num_runs", number_runs)
+
+        env.run(**env_run_kwargs)
 
         if dashboard:
-            # Local import avoids potential circular import at package init time
-            from .dashboard import run_post_dashboard
-
-            run_post_dashboard(
-                env,
-                host=dashboard_host,
-                port=dashboard_port,
-                start_async=dashboard_async,
-            )
+            run_post_dashboard(env, host=host, port=port, start_async=start_async)
 
         return env
 
-    # --------------------------------------------------------------
-    # Case 2: user passed a factory for one or many runs
-    # --------------------------------------------------------------
+    # --- Case 2: user passed a factory callable -----------------------------
     if not callable(env_or_factory):
         raise TypeError(
-            "env_or_factory must be either an Environment instance (for a "
-            "single run) or a zero-argument factory that returns a fresh "
-            "simpm.des.Environment."
+            "First argument to simpm.run must be either an Environment "
+            "or a factory callable () -> Environment."
         )
 
-    env_factory: Callable[[], Environment] = env_or_factory
+    if number_runs < 1:
+        raise ValueError("number_runs must be >= 1")
+
+    factory: Callable[[], Environment] = env_or_factory
     all_envs: List[Environment] = []
 
-    for k in range(1, number_runs + 1):
-        env = env_factory()
+    for i in range(number_runs):
+        env = factory()
         if not isinstance(env, Environment):
-            raise TypeError("env_factory must return a simpm.des.Environment instance")
+            raise TypeError(
+                f"env_factory() must return simpm.des.Environment, "
+                f"got {type(env)!r} on run {i + 1}."
+            )
 
-        # Global run indexing across the experiment: next Environment.run()
-        # call will see run_id == k.
-        env.run_number = k - 1
-        env.planned_runs = number_runs
+        env_run_kwargs = dict(kwargs)
+        if until is not None:
+            env_run_kwargs["until"] = until
 
-        # One actual execution of the event loop; num_runs is a hint.
-        env.run(num_runs=number_runs, **env_run_kwargs)
+        # Pass planned total number of runs as hint to Environment.run
+        env_run_kwargs.setdefault("num_runs", number_runs)
 
+        env.run(**env_run_kwargs)
         all_envs.append(env)
 
-    if dashboard and all_envs:
-        from .dashboard import run_post_dashboard
+    if dashboard:
+        # For now, show the dashboard for the last replication.
+        # (We can later aggregate multiple runs into a single snapshot.)
+        run_post_dashboard(all_envs[-1], host=host, port=port, start_async=start_async)
 
-        # Currently, the dashboard is bound to the last environment in the
-        # sequence. If you later add an aggregator that merges multiple envs
-        # into a single RunSnapshot, this is the place to plug it in.
-        run_post_dashboard(
-            all_envs[-1],
-            host=dashboard_host,
-            port=dashboard_port,
-            start_async=dashboard_async,
-        )
-
-    # For a factory, we return:
-    # - a single env when number_runs == 1
-    # - a list of envs when number_runs > 1
-    if number_runs == 1:
-        return all_envs[0]
     return all_envs
 

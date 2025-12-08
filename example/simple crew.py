@@ -1,15 +1,15 @@
 import simpm
-from simpm.des import Environment, Resource
+from simpm.des import Environment, Resource,Entity
 from simpm.dist import norm
 
 # 1) Create the simulation environment
 env = Environment("Single activity")
 
 # 2) Define resources (e.g., one crew)
-crew = Resource(env, name="Crew 1", capacity=1)
+machine = Resource(env, name="Machine", capacity=1)
 
 # 3) Create an entity to perform the activity
-(activity_entity,) = env.create_entities("Activity", 1, print_actions=False, log=True)
+crew = Entity(env,"Crew", print_actions=False, log=True)
 
 # 4) Define the activity process
 def activity(entity, resource):
@@ -17,18 +17,17 @@ def activity(entity, resource):
     yield entity.get(resource, 1)
 
     # Perform the work
-    duration = norm(10, 2).sample()
-    yield entity.do("work", duration)
+    yield entity.do("work", norm(10, 2))
 
     # Release the crew
     yield entity.put(resource, 1)
 
-    print(f"{entity.env.now:.2f}: {entity} finished (duration={duration:.2f})")
+    print(f"{entity.env.now:.2f}: {entity} finished.")
 
-env.process(activity(activity_entity, crew))
+env.process(activity(crew, machine))
 
 # 5) Run the simulation
 simpm.run(env)
 
 print(f"Project finished at t={env.now:.2f}")
-print(activity_entity.schedule())
+print(crew.schedule())

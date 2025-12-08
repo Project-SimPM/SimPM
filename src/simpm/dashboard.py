@@ -33,7 +33,6 @@ DEFAULT_DECIMAL_DIGITS = 3
 
 def _find_time_column(df: pd.DataFrame) -> str | None:
     """Return the first column name that looks like a simulation time axis."""
-
     for col in df.columns:
         if "time" in str(col).lower():
             return col
@@ -42,7 +41,6 @@ def _find_time_column(df: pd.DataFrame) -> str | None:
 
 def _basic_statistics(series: pd.Series) -> pd.DataFrame:
     """Return a dataframe with basic stats for a numeric column."""
-
     if series.empty:
         return pd.DataFrame()
     return pd.DataFrame(
@@ -59,13 +57,11 @@ def _basic_statistics(series: pd.Series) -> pd.DataFrame:
 
 def _get_decimal_digits() -> int:
     """Return the configured decimal precision for numeric displays."""
-
     return int(st.session_state.get("simpm_decimal_digits", DEFAULT_DECIMAL_DIGITS))
 
 
 def _format_id_value(value: Any) -> Any:
     """Format an identifier value without decimals."""
-
     try:
         if pd.isna(value):
             return ""
@@ -83,7 +79,6 @@ def _format_id_value(value: Any) -> Any:
 
 def _format_numeric_value(value: Any, digits: int) -> Any:
     """Format non-identifier numeric values with the configured precision."""
-
     try:
         if pd.isna(value):
             return ""
@@ -106,7 +101,6 @@ def _format_numeric_value(value: Any, digits: int) -> Any:
 
 def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
     """Return a copy of the dataframe with IDs and numerics formatted for display."""
-
     display_df = df.copy()
     digits = _get_decimal_digits()
     id_cols = [col for col in display_df.columns if "id" in str(col).lower()]
@@ -128,12 +122,19 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _format_attributes_inline(attributes: dict[str, Any]) -> str:
-    """Format an attributes mapping into an inline text representation."""
+    """Format an attributes mapping into an inline text representation.
 
+    - Strings that look like code (e.g. 'dist.uniform(4, 5)') are left unquoted.
+    - Other strings are quoted.
+    """
     parts: list[str] = []
     for key, value in attributes.items():
         if isinstance(value, str):
-            formatted = f'"{value}"'
+            # Don't quote distribution-style strings or other code-like values
+            if value.strip().startswith("dist.") or "(" in value:
+                formatted = value
+            else:
+                formatted = f'"{value}"'
         elif isinstance(value, (dict, list)):
             formatted = json.dumps(value, ensure_ascii=False)
         else:
@@ -142,63 +143,8 @@ def _format_attributes_inline(attributes: dict[str, Any]) -> str:
     return ", ".join(parts)
 
 
-def _render_settings_panel(*, expanded: bool = True) -> None:
-    """Render global system settings for dashboard display preferences."""
-
-    with st.expander("System settings", expanded=expanded):
-        digits = st.number_input(
-            "Decimal digits for numeric values",
-            min_value=0,
-            max_value=6,
-            value=_get_decimal_digits(),
-            step=1,
-            help="Adjust how many decimal places to show for numeric values (IDs stay whole).",
-        )
-        st.session_state["simpm_decimal_digits"] = int(digits)
-
-
-def _render_settings_toggle() -> bool:
-    """Render the SimPM logo button that toggles the settings panel."""
-
-    logo_b64 = _asset_base64("simpm_logo.png")
-    if logo_b64:
-        st.markdown(
-            f"""
-            <style>
-            .simpm-settings-launcher button {{
-                background: url("data:image/png;base64,{logo_b64}") center/contain no-repeat;
-                width: 56px;
-                height: 56px;
-                padding: 0.35rem;
-                border-radius: 12px;
-                border: 1px solid #d6eadf;
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-                color: transparent;
-            }}
-            .simpm-settings-launcher button:hover {{
-                border-color: #6fc48f;
-                box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with st.container():
-        st.markdown("<div class='simpm-settings-launcher'>", unsafe_allow_html=True)
-        clicked = st.button(
-            "",
-            key="simpm-settings-button",
-            type="secondary",
-            help="Open SimPM settings",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    return clicked
-
-
 def _render_compact_table(df: pd.DataFrame, *, caption: str | None = None) -> None:
     """Render a compact HTML table similar to the log previews."""
-
     if df.empty:
         st.info("No data available to display.")
         return
@@ -214,7 +160,6 @@ def _render_compact_table(df: pd.DataFrame, *, caption: str | None = None) -> No
 
 def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> None:
     """Render analysis tabs for a selected numeric column in the dataframe."""
-
     numeric_df = df.select_dtypes(include="number")
     if numeric_df.empty:
         st.info("No numeric columns available for analysis.")
@@ -236,22 +181,21 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         fig = px.line(x=x, y=df[col], labels={"x": time_axis or "Index", "y": col})
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
         fig = px.histogram(df, x=col, nbins=min(30, max(5, len(df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_box:
         fig = px.box(df, y=col)
         fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
     """Render a table preview with a download button."""
-
     st.caption(
         "Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else "")
     )
@@ -306,7 +250,6 @@ def _render_table_with_preview(
     analysis_renderer: Callable[[pd.DataFrame, str | None], None] | None = _render_numeric_analysis,
 ) -> None:
     """Display a truncated preview of a dataframe with optional analysis."""
-
     st.markdown(f"## {title}")
     if df.empty:
         st.info("No records available yet.")
@@ -322,8 +265,7 @@ def _render_duration_analysis(
     df: pd.DataFrame, *, duration_col: str | None = None, start_col: str | None = None
 ) -> None:
     """Render duration visuals using the provided duration column when available."""
-
-    duration_candidate = duration_col if duration_col and duration_col in df.columns else None
+    duration_candidate = duration_col if duration_col in df.columns else None
 
     if duration_candidate is None:
         for candidate in ("duration", "activity_duration"):
@@ -377,7 +319,7 @@ def _render_duration_analysis(
         fig = px.line(x=x_axis, y=aligned_series, labels={"x": x_label, "y": duration_candidate})
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
         fig = px.histogram(
@@ -386,17 +328,17 @@ def _render_duration_analysis(
             labels={"value": duration_candidate},
         )
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_box:
-        fig = px.box(y=aligned_series, labels={"y": duration_candidate})
+        box_df = pd.DataFrame({duration_candidate: aligned_series})
+        fig = px.box(box_df, y=duration_candidate)
         fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def _render_schedule_summary(df: pd.DataFrame, key_prefix: str) -> None:
     """Render a schedule table with a compact bar visualization for top activities."""
-
     st.markdown("## Schedule")
     if df.empty:
         st.info("No records available yet.")
@@ -406,7 +348,6 @@ def _render_schedule_summary(df: pd.DataFrame, key_prefix: str) -> None:
 
 def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     """Render waiting log table with duration-focused plots."""
-
     st.markdown("## Waiting log")
     if df.empty:
         st.info("No records available yet.")
@@ -455,22 +396,21 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
         )
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
         fig = px.histogram(duration_df, x="waiting_duration", nbins=min(30, max(5, len(duration_df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_box:
         fig = px.box(duration_df, y="waiting_duration")
         fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     """Render queue log with waiting-duration-focused visuals for resources."""
-
     st.markdown("## Queue log")
     if df.empty:
         st.info("No queue records available yet.")
@@ -514,22 +454,21 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
         )
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
         fig = px.histogram(duration_df, x="waiting_duration", nbins=min(30, max(5, len(duration_df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_box:
         fig = px.box(duration_df, y="waiting_duration")
         fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
     """Render resource status log with selectable metric plots."""
-
     st.markdown("## Status log")
     if df.empty:
         st.info("No status records available yet.")
@@ -570,26 +509,21 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         )
         fig.update_traces(line_shape="hv", selector=None, line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
         fig = px.histogram(df, x=selected_metric, nbins=min(30, max(5, len(df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab_box:
-        metric_series = pd.to_numeric(df[selected_metric], errors="coerce").dropna()
-        if metric_series.empty:
-            st.info("No data available for box plot.")
-        else:
-            fig = px.box(y=metric_series, labels={"y": selected_metric})
-            fig.update_traces(marker_color="#3a7859")
-            st.plotly_chart(fig, use_container_width=True)
+        fig = px.box(df, y=selected_metric)
+        fig.update_traces(marker_color="#3a7859")
+        st.plotly_chart(fig, width="stretch")
 
 
 def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
     """Build a unified activity feed from environment, entity, and resource logs."""
-
     records: list[dict[str, Any]] = []
 
     for entry in snapshot.logs:
@@ -654,26 +588,32 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
 
 
 def _load_logo() -> bytes | None:
+    """Try to load the SimPM logo from common locations."""
     logo_paths = [
-        Path(__file__).resolve().parent.parent
-        / "docs"
-        / "_build"
-        / "html"
-        / "_static"
-        / "simpm_logo.png",
+        Path(__file__).resolve().parent.parent / "docs" / "_build" / "html" / "_static" / "simpm_logo.png",
         Path(__file__).resolve().parent.parent / "docs" / "source" / "images" / "simpm_logo.png",
         Path(__file__).resolve().parent / "assets" / "simpm_logo.png",
     ]
-
     for logo_path in logo_paths:
         if logo_path.exists():
             return logo_path.read_bytes()
     return None
 
 
+def _render_logo(logo: bytes | None) -> None:
+    if not logo:
+        st.caption("SimPM")
+        return
+
+    encoded = base64.b64encode(logo).decode("utf-8")
+    st.markdown(
+        f"<div class='simpm-logo-card'><img src='data:image/png;base64,{encoded}' alt='SimPM logo'></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _asset_base64(name: str) -> str | None:
     """Return a base64 string for the given asset file if it exists."""
-
     asset_path = Path(__file__).resolve().parent / "assets" / name
     if not asset_path.exists():
         return None
@@ -685,82 +625,21 @@ def _styled_container() -> None:
         """
         <style>
         .block-container {padding-top: 1.5rem;}
-        .stTabs [data-baseweb="tab"] {
-            background-color: #f4fbf7;
-            border-radius: 8px;
-            color: #1f3f2b;
-            border: 1px solid #cce8d9;
-            padding: 0.5rem 1.05rem;
-            margin-right: 0.35rem;
-        }
-        .stTabs [aria-selected="true"] {
-            border: 1px solid #7fd3a8 !important;
-            color: #0c2a1b;
-        }
-        .stButton>button {
-            border-radius: 10px;
-            border: 1px solid #7fd3a8;
-            color: #0c2a1b;
-            background: white;
-        }
-        .stButton>button[data-testid="baseButton-primary"] {
-            background: #e8f5ed;
-            border-color: #7fd3a8;
-            box-shadow: 0 0 0 1px #b6e3c8 inset;
-        }
-        .status-chip {
-            padding: 0.35rem 0.75rem;
-            border-radius: 999px;
-            border: 1px solid #7fd3a8;
-            display: inline-block;
-        }
-        .simpm-panel {
-            padding: 1rem 1.25rem;
-            border: 1px solid #cce8d9;
-            border-radius: 12px;
-            background: #ffffff;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        }
-        .simpm-logo-card {
-            background: #f4fbf7;
-            border: 1px solid #cce8d9;
-            border-radius: 12px;
-            padding: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-        }
-        .simpm-logo-card img {
-            max-height: 80px;
-            width: auto;
-            display: block;
-        }
-        .simpm-table-wrapper {
-            position: relative;
-        }
-        .simpm-table-wrapper table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .simpm-table-wrapper table th,
-        .simpm-table-wrapper table td {
-            border: 1px solid #d6eadf;
-            padding: 0.5rem;
-            font-size: 0.9rem;
-        }
-        .simpm-table-wrapper table th {
-            background: #f4fbf7;
-            color: #1f3f2b;
-        }
-        .simpm-compact-table {
-            display: inline-block;
-            max-width: 520px;
-            min-width: 320px;
-        }
-        .simpm-compact-table table {
-            width: auto;
-        }
+        .stTabs [data-baseweb="tab"] {background-color: #f4fbf7; border-radius: 8px; color: #1f3f2b; border: 1px solid #cce8d9; padding: 0.5rem 1.05rem; margin-right: 0.35rem;}
+        .stTabs [aria-selected="true"] {border: 1px solid #7fd3a8 !important; color: #0c2a1b;}
+        .stButton>button {border-radius: 10px; border: 1px solid #7fd3a8; color: #0c2a1b; background: white;}
+        .stButton>button[data-testid="baseButton-primary"] {background: #e8f5ed; border-color: #7fd3a8; box-shadow: 0 0 0 1px #b6e3c8 inset;}
+        .status-chip {padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid #7fd3a8; display: inline-block;}
+        .simpm-panel {padding: 1rem 1.25rem; border: 1px solid #cce8d9; border-radius: 12px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);}
+        .simpm-logo-card {background: #f4fbf7; border: 1px solid #cce8d9; border-radius: 12px; padding: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04);}
+        .simpm-logo-card img {max-height: 80px; width: auto; display: block;}
+        .simpm-table-wrapper {position: relative;}
+        .simpm-table-wrapper table {width: 100%; border-collapse: collapse;}
+        .simpm-table-wrapper table th, .simpm-table-wrapper table td {border: 1px solid #d6eadf; padding: 0.5rem; font-size: 0.9rem;}
+        .simpm-table-wrapper table th {background: #f4fbf7; color: #1f3f2b;}
+        .simpm-compact-table {display: inline-block; max-width: 520px; min-width: 320px;}
+        .simpm-compact-table table {width: auto;}
+        .simpm-attributes {font-size: 1.05rem; margin-top: 0.25rem;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -775,9 +654,9 @@ class StreamlitDashboard:
 
     def render(self) -> None:
         """Render the dashboard using Streamlit primitives."""
-
         st.session_state.setdefault("simpm_view", "Entities")
         st.session_state.setdefault("simpm_decimal_digits", DEFAULT_DECIMAL_DIGITS)
+
         st.set_page_config(
             page_title=f"SimPM Dashboard • {self.snapshot.environment.get('name', 'Environment')}",
             layout="wide",
@@ -799,22 +678,22 @@ class StreamlitDashboard:
 
     def _render_overview_switcher(self) -> None:
         """Show environment facts and clickable model summaries."""
-
         env_info = self.snapshot.environment or {}
-
-        # Header row: clickable logo (opens settings) + title
-        header_cols = st.columns([1, 6])
-        with header_cols[0]:
-            if _render_settings_toggle():
-                st.session_state["simpm_settings_open"] = not st.session_state.get(
-                    "simpm_settings_open", False
-                )
-        with header_cols[1]:
-            st.markdown("## Overview")
-
-        if st.session_state.get("simpm_settings_open", False):
-            _render_settings_panel(expanded=True)
-
+        logo_b64 = _asset_base64("simpm_logo.png")
+        logo_img = (
+            f"<img src='data:image/png;base64,{logo_b64}' style='height: 40px; margin-right: 12px;' alt='SimPM logo'>"
+            if logo_b64
+            else ""
+        )
+        st.markdown(
+            f"""
+            <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                {logo_img}
+                <h2 style="margin: 0;">Overview</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         cols = st.columns(3)
         cols[0].metric("Environment", env_info.get("name", "Environment"))
         cols[1].metric("Run ID", env_info.get("run_id", "-"))
@@ -901,28 +780,32 @@ class StreamlitDashboard:
         st.session_state["simpm_entity_label"] = selected_label
         entity = options[selected_label]
 
-        st.markdown(f"### Entity {entity['id']} • {entity['name']}")
-        entity_type = entity.get("type") or "Entity"
-        st.caption(f"Type: {entity_type}")
+        entity_id = entity.get("id", "-")
+        entity_name = (str(entity.get("name", "")).strip() or f"Entity {entity_id}")
+        st.markdown(f"### Entity {entity_id} • {entity_name}")
+        st.caption(f"Type: {entity.get('type', 'Unknown')}")
 
         attributes = entity.get("attributes") or entity.get("attr") or {}
         if attributes:
-            st.caption(f"Attributes: {_format_attributes_inline(attributes)}")
+            st.markdown(
+                f"<div class='simpm-attributes'><strong>Attributes:</strong> {_format_attributes_inline(attributes)}</div>",
+                unsafe_allow_html=True,
+            )
 
         schedule_df = pd.DataFrame(entity.get("schedule_log", []))
         if not schedule_df.empty:
-            _render_schedule_summary(schedule_df, key_prefix=f"entity-{entity['id']}-schedule")
+            _render_schedule_summary(schedule_df, key_prefix=f"entity-{entity_id}-schedule")
 
         waiting_df = pd.DataFrame(entity.get("waiting_log", []))
         if not waiting_df.empty:
-            _render_waiting_log(waiting_df, key_prefix=f"entity-{entity['id']}-waiting")
+            _render_waiting_log(waiting_df, key_prefix=f"entity-{entity_id}-waiting")
 
         status_df = pd.DataFrame(entity.get("status_log", []))
         if not status_df.empty:
             _render_table_with_preview(
                 "Status log",
                 status_df,
-                key_prefix=f"entity-{entity['id']}-status",
+                key_prefix=f"entity-{entity_id}-status",
                 analysis_renderer=None,
             )
 
@@ -943,22 +826,26 @@ class StreamlitDashboard:
         st.session_state["simpm_resource_label"] = selected_label
         resource = options[selected_label]
 
-        st.markdown(f"### Resource {resource['id']} • {resource['name']}")
-        resource_type = resource.get("type") or "Resource"
+        res_id = resource.get("id", "-")
+        res_name = (str(resource.get("name", "")).strip() or f"Resource {res_id}")
+        st.markdown(f"### Resource {res_id} • {res_name}")
         st.caption(
-            f"Type: {resource_type} • Capacity: {resource.get('capacity', '-')}"
+            f"Type: {resource.get('type', 'Unknown')} • Capacity: {resource.get('capacity', '-') }"
         )
         attributes = resource.get("attributes") or resource.get("attr")
         if attributes:
-            st.caption(f"Attributes: {_format_attributes_inline(attributes)}")
+            st.markdown(
+                f"<div class='simpm-attributes'><strong>Attributes:</strong> {_format_attributes_inline(attributes)}</div>",
+                unsafe_allow_html=True,
+            )
 
         queue_df = pd.DataFrame(resource.get("queue_log", []))
         if not queue_df.empty:
-            _render_queue_waiting_log(queue_df, key_prefix=f"resource-{resource['id']}-queue")
+            _render_queue_waiting_log(queue_df, key_prefix=f"resource-{res_id}-queue")
 
         status_df = pd.DataFrame(resource.get("status_log", []))
         if not status_df.empty:
-            _render_resource_status(status_df, key_prefix=f"resource-{resource['id']}-status")
+            _render_resource_status(status_df, key_prefix=f"resource-{res_id}-status")
 
     def _render_activity_view(self) -> None:
         st.markdown("### Activity feed")
@@ -1006,8 +893,7 @@ class StreamlitDashboard:
                     if col not in display_df.columns:
                         display_df[col] = ""
                 start_col = next(
-                    (c for c in ("start_time", "start", "start_at") if c in display_df.columns),
-                    None,
+                    (c for c in ("start_time", "start", "start_at") if c in display_df.columns), None
                 )
                 if start_col:
                     display_df = display_df.sort_values(
@@ -1070,8 +956,7 @@ class StreamlitDashboard:
                 filtered = schedule_df[schedule_df["activity_label"] == selected].copy()
 
                 start_col = next(
-                    (c for c in ("start_time", "start", "start_at") if c in filtered.columns),
-                    None,
+                    (c for c in ("start_time", "start", "start_at") if c in filtered.columns), None
                 )
                 end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
 
@@ -1108,12 +993,11 @@ class StreamlitDashboard:
 
     def run(self, host: str = "127.0.0.1", port: int = 8050, async_mode: bool = False):
         """Start the Streamlit server for this dashboard."""
-
         global _ACTIVE_DASHBOARD
         _ACTIVE_DASHBOARD = self
 
         snapshot_file = Path(tempfile.mkdtemp()) / "simpm_snapshot.json"
-        # default=str ensures dist.uniform and other non-JSON types become strings
+        # default=str makes uniform/triang/... etc serializable using their __str__
         snapshot_file.write_text(json.dumps(self.snapshot.as_dict(), default=str))
 
         cmd = [
@@ -1139,7 +1023,6 @@ class StreamlitDashboard:
 
 def build_app(env) -> StreamlitDashboard:
     """Build a Streamlit dashboard bound to the given environment."""
-
     snapshot = collect_run_data(env)
     logger.debug("Prepared initial snapshot with %s entities", len(snapshot.entities))
     return StreamlitDashboard(snapshot=snapshot)
@@ -1147,7 +1030,6 @@ def build_app(env) -> StreamlitDashboard:
 
 def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050, start_async: bool = True):
     """Launch the Streamlit dashboard for a simulation environment."""
-
     if isinstance(env, RunSnapshot):
         snapshot = env
     else:

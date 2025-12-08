@@ -79,15 +79,6 @@ def fit(data: Iterable[float], dist_type: str, method: str = "mle") -> FitResult
     ValueError
         If the distribution type is not recognized or the input data are
         invalid.
-
-    Examples
-    --------
-    >>> from simpm import dist
-    >>> result = dist.fit([0.1, 0.3, 0.5], "beta")
-    >>> isinstance(result.wrapper, dist.beta)
-    True
-    >>> round(result.ks, 3)
-    0.0
     """
 
     normalized_type = str(dist_type).strip().lower()
@@ -166,7 +157,8 @@ def fit_expon(data: np.ndarray, method: str = "mle") -> FitResult:  # pylint: di
     wrapper = make_expon(params[1])
     ks = _compute_ks(data, scipy_dist)
     return FitResult("expon", (params[1],), scipy_dist, ks, wrapper)
-    
+
+
 class distribution:
     """Lightweight wrapper around SciPy distributions.
 
@@ -179,6 +171,27 @@ class distribution:
         self.dist_type = None
         self.dist = None
         self.ks = None
+
+    def __str__(self):
+        """Human-readable representation like 'dist.uniform(4, 5)'."""
+        name = getattr(self, "dist_type", None) or self.__class__.__name__
+        params = getattr(self, "params", None)
+
+        if params is None:
+            return f"dist.{name}"
+
+        if not isinstance(params, (list, tuple)):
+            params = [params]
+
+        def _fmt(p):
+            if isinstance(p, (int, float)):
+                return f"{p:g}"
+            return str(p)
+
+        params_str = ", ".join(_fmt(p) for p in params)
+        return f"dist.{name}({params_str})" if params_str else f"dist.{name}"
+
+    __repr__ = __str__
 
     def sample(self):
         """Draw a single random variate from the distribution."""
@@ -285,25 +298,17 @@ def make_uniform(a: float, b: float) -> "uniform":
         raise ValueError("Lower bound must be less than upper bound.")
     return uniform(a, b)
 
+
 class norm(distribution):
     """
     Defines a normal distribution.
-
-    Attributes:
-    -----------
-    dist_type : str
-        The type of distribution.
-    params : list of int
-        The list of parameters of the distribution.
-    dist : scipy distribution
-        The distribution object from scipy.
     """
 
     def __init__(self, mean, std):
         """
         Initializes the normal distribution.
 
-        Parameters:
+        Parameters
         -----------
         mean : float
             The mean of the normal distribution.
@@ -320,25 +325,17 @@ def make_norm(mean: float, std: float) -> "norm":
     _validate_positive(std, "Standard deviation")
     return norm(mean, std)
 
+
 class triang(distribution):
     """
     Defines a triangular distribution.
-
-    Attributes:
-    -----------
-    dist_type : str
-        The type of distribution.
-    params : list of int
-        The list of parameters of the distribution.
-    dist : scipy distribution
-        The distribution object from scipy.
     """
 
     def __init__(self, a, b, c):
         """
         Initializes the triangular distribution.
 
-        Parameters:
+        Parameters
         -----------
         a : float
             The lower bound of the triangular distribution.
@@ -354,6 +351,14 @@ class triang(distribution):
         self.params = [c_value, Loc, Scale]
         self.dist = st.triang(c_value, loc=Loc, scale=Scale)
 
+    def __str__(self):
+        # params = [c_value, Loc, Scale]
+        c_value, Loc, Scale = self.params
+        a = Loc
+        c = Loc + Scale
+        b = Loc + c_value * Scale
+        return f"dist.triang({a:g}, {b:g}, {c:g})"
+
 
 def make_triang(a: float, b: float, c: float) -> "triang":
     """Create a triangular distribution with validation."""
@@ -363,25 +368,17 @@ def make_triang(a: float, b: float, c: float) -> "triang":
         raise ValueError("Mode must lie between lower and upper bounds.")
     return triang(a, b, c)
 
+
 class trapz(distribution):
     """
     Defines a trapezoidal distribution.
-
-    Attributes:
-    -----------
-    dist_type : str
-        The type of distribution.
-    params : list of int
-        The list of parameters of the distribution.
-    dist : scipy distribution
-        The distribution object from scipy.
     """
 
     def __init__(self, a, b, c, d):
         """
         Initializes the trapezoidal distribution.
 
-        Parameters:
+        Parameters
         -----------
         a : float
             The lower bound of the trapezoidal distribution.
@@ -400,6 +397,15 @@ class trapz(distribution):
         self.params = [C, D, Loc, Scale]
         self.dist = st.trapz(C, D, loc=Loc, scale=Scale)
 
+    def __str__(self):
+        # params = [C, D, Loc, Scale]
+        C, D, Loc, Scale = self.params
+        a = Loc
+        d = Loc + Scale
+        b = a + C * Scale
+        c = a + D * Scale
+        return f"dist.trapz({a:g}, {b:g}, {c:g}, {d:g})"
+
 
 def make_trapz(a: float, b: float, c: float, d: float) -> "trapz":
     """Create a trapezoidal distribution with validation."""
@@ -409,25 +415,17 @@ def make_trapz(a: float, b: float, c: float, d: float) -> "trapz":
         raise ValueError("Parameters must satisfy a <= b <= c <= d.")
     return trapz(a, b, c, d)
 
+
 class beta(distribution):
     """
     Defines a beta distribution.
-
-    Attributes:
-    -----------
-    dist_type : str
-        The type of distribution.
-    params : list of int
-        The list of parameters of the distribution.
-    dist : scipy distribution
-        The distribution object from scipy.
     """
 
     def __init__(self, a, b, minp, maxp):
         """
         Initializes the beta distribution.
 
-        Parameters:
+        Parameters
         -----------
         a : float
             The first shape parameter of the beta distribution.
@@ -444,6 +442,13 @@ class beta(distribution):
         self.params = [a, b, Loc, Scale]
         self.dist = st.beta(a, b, loc=Loc, scale=Scale)
 
+    def __str__(self):
+        # params = [a, b, Loc, Scale]
+        a, b, Loc, Scale = self.params
+        minp = Loc
+        maxp = Loc + Scale
+        return f"dist.beta({a:g}, {b:g}, {minp:g}, {maxp:g})"
+
 
 def make_beta(a: float, b: float, minp: float, maxp: float) -> "beta":
     """Create a beta distribution with validation."""
@@ -453,25 +458,17 @@ def make_beta(a: float, b: float, minp: float, maxp: float) -> "beta":
         raise ValueError("Minimum bound must be less than maximum bound.")
     return beta(a, b, minp, maxp)
 
+
 class expon(distribution):
     """
     Defines an exponential distribution.
-
-    Attributes:
-    -----------
-    dist_type : str
-        The type of distribution.
-    params : list of int
-        The list of parameters of the distribution.
-    dist : scipy distribution
-        The distribution object from scipy.
     """
 
     def __init__(self, mean):
         """
         Initializes the exponential distribution.
 
-        Parameters:
+        Parameters
         -----------
         mean : float
             The mean of the exponential distribution.
@@ -487,40 +484,33 @@ def make_expon(mean: float) -> "expon":
     _validate_positive(mean, "Mean")
     return expon(mean)
 
+
 class empirical(distribution):
     """
     Defines an empirical distribution based on observed data.
-
-    Attributes:
-    -----------
-    dist_type : str
-        The type of distribution.
-    params : None
-        The parameters of the distribution (not applicable).
-    dist : None
-        The distribution object (not applicable).
-    data : array_like
-        The observed data used to define the empirical distribution.
     """
 
     def __init__(self, data):
         """
         Initializes the empirical distribution with observed data.
 
-        Parameters:
+        Parameters
         -----------
         data : array_like
             The observed data to define the empirical distribution.
         """
         try:
             data = np.concatenate(data).ravel()
-        except:
+        except Exception:
             pass
         self.dist_type = 'empirical'
         self.params = None
         self.dist = None
         self.data = np.sort(data)
-    
+
+    def __str__(self):
+        return f"dist.empirical(n={len(self.data)})"
+
     def cdf_xy(self):
         """
         Returns x, y numpy arrays for plotting the cumulative distribution function (CDF).
@@ -537,12 +527,12 @@ class empirical(distribution):
         x, y = self.cdf_xy()
         plt.step(x, y)
         plt.show()
-    
+
     def pdf_xy(self):
         """
         Returns x, y numpy arrays for plotting the probability density function (PDF).
         """
-        bins = int(2 * len(self.data) ** (1/3))
+        bins = int(2 * len(self.data) ** (1 / 3))
         value, BinList = np.histogram(self.data, bins)
         value = value / len(self.data)
         l = BinList[-1] - BinList[0]
@@ -563,18 +553,8 @@ class empirical(distribution):
     def pdf(self, x):
         """
         Evaluates the probability density function (PDF) of the empirical distribution at the given point.
-
-        Parameters:
-        -----------
-        x : float
-            The value at which to evaluate the PDF.
-
-        Returns:
-        --------
-        float
-            The PDF value at the given point.
         """
-        bins = int(2 * len(self.data) ** (1/3))
+        bins = int(2 * len(self.data) ** (1 / 3))
         value, BinList = np.histogram(self.data, bins)
         if x < BinList[0] or x > BinList[-1]:
             return 0
@@ -582,26 +562,16 @@ class empirical(distribution):
         bl = len(BinList)
         while x >= BinList[i] and i < bl:
             i += 1
-        r = value[i-1] / len(self.data)
+        r = value[i - 1] / len(self.data)
         l = BinList[-1] - BinList[0]
         n = len(BinList)
         width = l / n
         r = r / width
         return r
-       
+
     def cdf(self, x):
         """
         Evaluates the cumulative distribution function (CDF) of the empirical distribution at the given point.
-
-        Parameters:
-        -----------
-        x : float
-            The value at which to evaluate the CDF.
-
-        Returns:
-        --------
-        float
-            The CDF value at the given point.
         """
         if x > self.data[-1]:
             return 1
@@ -609,46 +579,21 @@ class empirical(distribution):
         while x >= self.data[i]:
             i += 1
         return i / len(self.data)
- 
+
     def percentile(self, q):
         """
         Calculates the value corresponding to the given percentile of the empirical distribution.
-
-        Parameters:
-        -----------
-        q : float
-            The percentile value to find.
-
-        Returns:
-        --------
-        float
-            The value corresponding to the given percentile.
         """
         return np.quantile(self.data, q)
 
     def samples(self, n):
         """
         Generates random samples from the empirical distribution.
-
-        Parameters:
-        -----------
-        n : int
-            The number of samples to generate.
-
-        Returns:
-        --------
-        array_like
-            An array containing random samples from the empirical distribution.
         """
         return np.random.choice(self.data, n)
-        
+
     def sample(self):
         """
         Generates a single random sample from the empirical distribution.
-
-        Returns:
-        --------
-        float
-            A random sample from the empirical distribution.
         """
         return np.random.choice(self.data)

@@ -123,9 +123,3 @@ Run the shipped example directly:
 
 Then open the generated logs to see which trucks waited longest and
 how hard the loader was pushed.
-
-Next tutorial
--------------
-
-Continue to :doc:`schedule-risk` to run Monte Carlo simulations for
-schedule risk analysis.

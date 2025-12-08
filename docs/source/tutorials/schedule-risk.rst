@@ -117,8 +117,3 @@ Tips
 * Point readers to ``example/test_cpm.py`` if they want the original
   single-run script without the Monte Carlo wrapper.
 
-Next tutorial
--------------
-
-Proceed to :doc:`resource-bottlenecks` to study resource constraints and
-utilization.

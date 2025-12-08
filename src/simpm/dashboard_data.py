@@ -22,7 +22,7 @@ except Exception:  # pragma: no cover - numpy not required for core logic
     _NUMERIC_TYPES = ()
     _ARRAY_TYPES = ()
 
-from simpm._utils import _swap_dict_keys_values
+from simpm._utils import _swap_dict_keys_values  # noqa: F401  (kept for backward compat)
 
 _ENTITY_RESERVED_ATTRS = {
     "env",
@@ -208,10 +208,14 @@ def _entity_snapshot(entity) -> dict[str, Any]:
     total_active = sum(act.get("duration", 0) or 0 for act in activities)
     total_waiting = sum(waiting_time)
 
+    env = getattr(entity, "env", None)
+    run_id = getattr(env, "run_number", None) if env is not None else None
+
     return {
         "id": getattr(entity, "id", None),
         "name": getattr(entity, "name", None),
         "type": entity.__class__.__name__,
+        "run_id": run_id,
         "created_at": getattr(entity, "created_at", None),
         "completed_at": getattr(entity, "completed_at", None),
         "activities": activities,
@@ -251,10 +255,14 @@ def _resource_snapshot(resource) -> dict[str, Any]:
             except Exception:
                 rec["waiting_duration"] = None
 
+    env = getattr(resource, "env", None)
+    run_id = getattr(env, "run_number", None) if env is not None else None
+
     return {
         "id": resource.id,
         "name": resource.name,
         "type": resource.__class__.__name__,
+        "run_id": run_id,
         "capacity": getattr(resource.container, "capacity", None),
         "initial_level": getattr(resource.container, "_init", None),
         "queue_log": queue_records,
@@ -318,10 +326,24 @@ def collect_run_data(env) -> RunSnapshot:
 
     entities = [_entity_snapshot(entity) for entity in getattr(env, "entities", [])]
     resources = [_resource_snapshot(res) for res in getattr(env, "resources", [])]
+
+    run_number = getattr(env, "run_number", None)
+    finished_times = getattr(env, "finishedTime", None)
+    if finished_times is not None:
+        try:
+            finished_times = list(finished_times)
+        except TypeError:
+            finished_times = [finished_times]
+
     environment = {
         "name": getattr(env, "name", "Environment"),
-        "run_id": getattr(env, "run_number", None),
-        "time": {"start": None, "end": getattr(env, "now", None)},
+        "run_id": run_number,
+        "run_number": run_number,
+        "time": {
+            "start": None,
+            "end": getattr(env, "now", None),
+        },
+        "finished_times": finished_times,
     }
 
     logs = _safe_records(lambda: getattr(env, "logs", []))

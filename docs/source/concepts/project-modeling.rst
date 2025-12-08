@@ -31,10 +31,12 @@ SimPM exposes the usual DES concepts as Python objects:
   * storage yards or other constrained capacities,
   * priority or preemptive resources when some users have higher priority.
 
-* **Distributions** (:mod:`simpm.dist`) – probabilistic durations and
-  quantities (e.g., :func:`simpm.dist.norm`, :func:`simpm.dist.triang`,
-  :func:`simpm.dist.expon`). These are used to sample uncertain activity
-  durations, travel times, or production rates.
+* **Distributions** (:mod:`simpm.dist`) – probabilistic durations and quantities
+  (e.g., :func:`simpm.dist.norm()`, :func:`simpm.dist.triang()`,
+  :func:`simpm.dist.expon()`). You can pass these distribution objects directly
+  to :meth:`simpm.des.Entity.do`, and SimPM will sample a duration internally
+  each time the activity runs.
+
 
 Why SimPM for project management?
 ---------------------------------
@@ -160,7 +162,9 @@ In SimPM, processes are plain Python generator functions that describe
 what happens to an entity over time:
 
 * **`yield entity.do("name", duration)`** – wait for a given duration
-  (deterministic or sampled from a distribution).
+  ``duration`` can be a number (deterministic) or a :mod:`simpm.dist`
+  distribution object; in the latter case SimPM samples a fresh duration
+  internally.
 * **`yield entity.get(resource, amount, priority=...)`** – request
   capacity from a resource; the process is suspended until the request
   is granted.

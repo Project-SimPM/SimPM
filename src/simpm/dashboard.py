@@ -55,6 +55,54 @@ def _basic_statistics(series: pd.Series) -> pd.DataFrame:
     )
 
 
+def _extract_run_id_from_event(event: dict[str, Any], env_run_id: Any = None) -> Any:
+    """Extract run_id from a log event, falling back to the environment run_id."""
+    if "run_id" in event and event["run_id"] is not None:
+        return event["run_id"]
+    metadata = event.get("metadata") or {}
+    if "run_id" in metadata and metadata["run_id"] is not None:
+        return metadata["run_id"]
+    return env_run_id
+
+
+def _available_runs(environment: dict[str, Any], logs: list[dict[str, Any]]) -> list[Any]:
+    """Collect all distinct run IDs from environment metadata and logs."""
+    run_ids: set[Any] = set()
+    env_run_id = environment.get("run_id")
+    if env_run_id is not None:
+        run_ids.add(env_run_id)
+
+    for event in logs or []:
+        rid = _extract_run_id_from_event(event)
+        if rid is not None:
+            run_ids.add(rid)
+
+    return sorted(run_ids, key=lambda v: str(v))
+
+
+def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]]) -> pd.DataFrame:
+    """Build a dataframe with per-run simulation times from environment logs.
+
+    Expects events where metadata contains a ``simulation_time`` field.
+    """
+    env_run_id = environment.get("run_id")
+    records: list[dict[str, Any]] = []
+
+    for event in logs or []:
+        metadata = event.get("metadata") or {}
+        sim_time = metadata.get("simulation_time")
+        if sim_time is None:
+            continue
+        run_id = _extract_run_id_from_event(event, env_run_id)
+        try:
+            sim_val = float(sim_time)
+        except (TypeError, ValueError):
+            continue
+        records.append({"run_id": run_id, "simulation_time": sim_val})
+
+    return pd.DataFrame.from_records(records)
+
+
 def _get_decimal_digits() -> int:
     """Return the configured decimal precision for numeric displays."""
     return int(st.session_state.get("simpm_decimal_digits", DEFAULT_DECIMAL_DIGITS))
@@ -105,18 +153,32 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
     digits = _get_decimal_digits()
     id_cols = [col for col in display_df.columns if "id" in str(col).lower()]
 
+    # Format ID-like columns without decimals
     for col in id_cols:
         display_df[col] = display_df[col].apply(_format_id_value)
 
+    # Detect numeric columns without using errors='ignore'
     numeric_cols: list[str] = []
     for col in display_df.columns:
         if col in id_cols:
             continue
-        display_df[col] = pd.to_numeric(display_df[col], errors="ignore")
-        if pd.api.types.is_numeric_dtype(display_df[col]):
-            numeric_cols.append(col)
+
+        # Try to convert fully to numeric; if it fails, leave column as-is
+        try:
+            converted = pd.to_numeric(display_df[col])
+        except (TypeError, ValueError):
+            # Column is not cleanly numeric; skip conversion
+            continue
+        else:
+            if pd.api.types.is_numeric_dtype(converted):
+                display_df[col] = converted
+                numeric_cols.append(col)
+
+    # Apply pretty formatting to numeric columns
     for col in numeric_cols:
-        display_df[col] = display_df[col].apply(lambda val: _format_numeric_value(val, digits))
+        display_df[col] = display_df[col].apply(
+            lambda val: _format_numeric_value(val, digits)
+        )
 
     return display_df
 
@@ -526,12 +588,17 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
     """Build a unified activity feed from environment, entity, and resource logs."""
     records: list[dict[str, Any]] = []
 
+    env_run_id = snapshot.environment.get("run_id")
+
+    # Environment / run-level logs
     for entry in snapshot.logs:
         rec = dict(entry)
         rec.setdefault("source", "environment")
         rec.setdefault("category", "log")
+        rec["run_id"] = _extract_run_id_from_event(entry, env_run_id)
         records.append(rec)
 
+    # Entity logs
     for entity in snapshot.entities:
         for log_key in ("schedule_log", "waiting_log", "status_log"):
             for row in entity.get(log_key, []):
@@ -558,6 +625,7 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
                     }
                 )
 
+    # Resource logs
     for resource in snapshot.resources:
         for log_key in ("queue_log", "status_log"):
             for row in resource.get(log_key, []):
@@ -677,7 +745,7 @@ class StreamlitDashboard:
             self._render_entities_view()
 
     def _render_overview_switcher(self) -> None:
-        """Show environment facts and clickable model summaries."""
+        """Show environment facts, run selector, and clickable model summaries."""
         env_info = self.snapshot.environment or {}
         logo_b64 = _asset_base64("simpm_logo.png")
         logo_img = (
@@ -694,9 +762,28 @@ class StreamlitDashboard:
             """,
             unsafe_allow_html=True,
         )
+
         cols = st.columns(3)
         cols[0].metric("Environment", env_info.get("name", "Environment"))
-        cols[1].metric("Run ID", env_info.get("run_id", "-"))
+
+        runs = _available_runs(env_info, self.snapshot.logs or [])
+        if len(runs) <= 1:
+            cols[1].metric("Run ID", runs[0] if runs else env_info.get("run_id", "-"))
+            st.session_state.setdefault("simpm_run_filter", "All runs")
+        else:
+            with cols[1]:
+                st.markdown("**Run**")
+                run_options = ["All runs"] + [str(r) for r in runs]
+                current = st.session_state.get("simpm_run_filter")
+                if current not in run_options:
+                    current = "All runs"
+                st.selectbox(
+                    "",
+                    options=run_options,
+                    index=run_options.index(current),
+                    key="simpm_run_filter",
+                )
+
         cols[2].metric("Finished at", env_info.get("time", {}).get("end", "-"))
 
         summary = self._model_summary()
@@ -735,7 +822,7 @@ class StreamlitDashboard:
             "Activity": f"{summary['activities']} Activities",
         }
         active_view = st.session_state.get("simpm_view", "Entities")
-        selection = st.radio(
+        view_selection = st.radio(
             "Navigate dashboard views",
             options=list(nav_options.keys()),
             format_func=lambda key: nav_options[key],
@@ -745,7 +832,54 @@ class StreamlitDashboard:
             horizontal=True,
             key="nav-selector",
         )
-        st.session_state["simpm_view"] = selection
+        st.session_state["simpm_view"] = view_selection
+
+        # Per-run simulation-time summary (across all or selected runs)
+        self._render_simulation_time_overview()
+
+    def _render_simulation_time_overview(self) -> None:
+        """Render simulation-time stats and plots across runs, if available."""
+        sim_df = _simulation_time_df(self.snapshot.environment or {}, self.snapshot.logs or [])
+        if sim_df.empty:
+            return
+
+        run_filter = st.session_state.get("simpm_run_filter", "All runs")
+        display_df = sim_df.copy()
+        display_df["run_id"] = display_df["run_id"].astype(str)
+
+        if run_filter != "All runs":
+            display_df = display_df[display_df["run_id"] == str(run_filter)]
+
+        if display_df.empty:
+            return
+
+        st.markdown("#### Simulation time across runs")
+
+        stats_df = _basic_statistics(display_df["simulation_time"])
+        _render_compact_table(stats_df)
+
+        tab_hist, tab_bar = st.tabs(["Histogram", "Bar chart"])
+
+        with tab_hist:
+            fig = px.histogram(
+                display_df,
+                x="simulation_time",
+                nbins=min(30, max(5, len(display_df))),
+                labels={"simulation_time": "Simulation time"},
+            )
+            fig.update_traces(marker_color="#5bbd89")
+            st.plotly_chart(fig, width="stretch")
+
+        with tab_bar:
+            bar_df = display_df.copy()
+            fig = px.bar(
+                bar_df,
+                x="run_id",
+                y="simulation_time",
+                labels={"run_id": "Run", "simulation_time": "Simulation time"},
+            )
+            fig.update_traces(marker_color="#3a7859")
+            st.plotly_chart(fig, width="stretch")
 
     def _model_summary(self) -> dict[str, int]:
         activities = sum(len(ent.get("activities", [])) for ent in self.snapshot.entities)
@@ -854,6 +988,15 @@ class StreamlitDashboard:
         if activity_df.empty:
             st.info("No activity recorded for this run.")
             return
+
+        # Apply run filter to environment logs while keeping entity/resource logs aggregated.
+        run_filter = st.session_state.get("simpm_run_filter", "All runs")
+        if "run_id" in activity_df.columns and "source" in activity_df.columns:
+            if run_filter and run_filter != "All runs":
+                mask = (activity_df["source"] != "environment") | (
+                    activity_df["run_id"].astype(str) == str(run_filter)
+                )
+                activity_df = activity_df[mask]
 
         def _has_activity_identifier(df: pd.DataFrame) -> pd.Series:
             name_series = (

@@ -81,10 +81,3 @@ What to look for
 * **Preemption vs. fairness** – Switching to :class:`simpm.des.Resource`
   (no priority) will force first-come-first-served behavior.
 
-Where to go next
-----------------
-
-Refer to the :doc:`../concepts/project-modeling` guide for deeper
-conceptual background or explore the :doc:`../api_reference/index`
-for full API details. Run ``python example/test_priority_resource.py`` to
-experiment with the original script.

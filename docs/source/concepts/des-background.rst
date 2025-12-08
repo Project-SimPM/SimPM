@@ -124,9 +124,3 @@ You do not need prior experience with SimPy or other DES tools to use
 SimPM. You can treat it as a focused project-simulation toolkit built
 on these well-established ideas.
 
-Where to go next
-----------------
-
-* :doc:`project-modeling` for SimPM-specific modeling concepts.
-* :doc:`../getting-started` for a minimal runnable example.
-* :doc:`../tutorials/hello-simpm` for a full earthmoving project tutorial.

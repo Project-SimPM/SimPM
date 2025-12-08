@@ -1,7 +1,5 @@
 """
 @author: Naimeh Sadeghi
-"""
-"""
 Probabilistic CPM example with priorities using SimPM.
 
 - Activities have stochastic durations (triangular / normal / fixed).

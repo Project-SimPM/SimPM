@@ -127,6 +127,21 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
     return display_df
 
 
+def _format_attributes_inline(attributes: dict[str, Any]) -> str:
+    """Format an attributes mapping into an inline text representation."""
+
+    parts: list[str] = []
+    for key, value in attributes.items():
+        if isinstance(value, str):
+            formatted = f'"{value}"'
+        elif isinstance(value, (dict, list)):
+            formatted = json.dumps(value, ensure_ascii=False)
+        else:
+            formatted = str(value)
+        parts.append(f"{key}={formatted}")
+    return ", ".join(parts)
+
+
 def _render_settings_panel(*, expanded: bool = True) -> None:
     """Render global system settings for dashboard display preferences."""
 
@@ -171,9 +186,7 @@ def _render_settings_toggle() -> bool:
 
     with st.container():
         st.markdown("<div class='simpm-settings-launcher'>", unsafe_allow_html=True)
-        clicked = st.button(
-            "Open SimPM settings", key="simpm-settings-button", type="secondary", help="Configure SimPM display preferences"
-        )
+        clicked = st.button("", key="simpm-settings-button", type="secondary", help="Open SimPM settings")
         st.markdown("</div>", unsafe_allow_html=True)
     return clicked
 
@@ -205,9 +218,7 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
     col = st.selectbox("Select numeric column", list(numeric_df.columns))
     time_axis = time_col or _find_time_column(df.drop(columns=[col], errors="ignore"))
     st.markdown(f"#### {col}")
-    tab_stats, tab_series, tab_hist, tab_cdf = st.tabs(
-        ["Statistics", "Time series", "Histogram (PDF)", "Empirical CDF"]
-    )
+    tab_stats, tab_series, tab_hist = st.tabs(["Statistics", "Time series", "Histogram"])
 
     with tab_stats:
         stats_df = _basic_statistics(df[col])
@@ -221,13 +232,8 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
-        fig = px.histogram(df, x=col, nbins=min(30, max(5, len(df))), histnorm="probability density")
+        fig = px.histogram(df, x=col, nbins=min(30, max(5, len(df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
-
-    with tab_cdf:
-        fig = px.ecdf(df, x=col)
-        fig.update_traces(line_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
 
 
@@ -336,9 +342,7 @@ def _render_duration_analysis(
         st.info("No duration data available to visualize.")
         return
 
-    tab_stats, tab_series, tab_hist, tab_cdf = st.tabs(
-        ["Statistics", "Time series", "Histogram (PDF)", "Empirical CDF"]
-    )
+    tab_stats, tab_series, tab_hist = st.tabs(["Statistics", "Time series", "Histogram"])
 
     if start_col and start_col in df.columns:
         x_axis_full = df[start_col]
@@ -369,11 +373,6 @@ def _render_duration_analysis(
             labels={"value": duration_candidate},
         )
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
-
-    with tab_cdf:
-        fig = px.ecdf(aligned_series, labels={"value": duration_candidate})
-        fig.update_traces(line_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
 
 
@@ -740,7 +739,6 @@ class StreamlitDashboard:
         cols[2].metric("Finished at", env_info.get("time", {}).get("end", "-"))
 
         summary = self._model_summary()
-        st.markdown("#### Model summary")
         st.markdown(
             """
             <style>
@@ -825,16 +823,8 @@ class StreamlitDashboard:
         st.caption(f"Type: {entity.get('type', 'Unknown')}")
 
         attributes = entity.get("attributes") or entity.get("attr") or {}
-        st.markdown("#### Attributes")
         if attributes:
-            attr_rows = [
-                {"Attribute": key, "Value": json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value}
-                for key, value in attributes.items()
-            ]
-            attr_df = pd.DataFrame(attr_rows)
-            _render_compact_table(attr_df)
-        else:
-            st.info("No attributes recorded for this entity.")
+            st.caption(f"Attributes: {_format_attributes_inline(attributes)}")
 
         schedule_df = pd.DataFrame(entity.get("schedule_log", []))
         if not schedule_df.empty:
@@ -876,8 +866,7 @@ class StreamlitDashboard:
         )
         attributes = resource.get("attributes") or resource.get("attr")
         if attributes:
-            st.markdown("**Attributes**")
-            st.json(attributes)
+            st.caption(f"Attributes: {_format_attributes_inline(attributes)}")
 
         queue_df = pd.DataFrame(resource.get("queue_log", []))
         if not queue_df.empty:

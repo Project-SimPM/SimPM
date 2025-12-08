@@ -81,26 +81,68 @@ def _available_runs(environment: dict[str, Any], logs: list[dict[str, Any]]) -> 
 
 
 def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]]) -> pd.DataFrame:
-    """Build a dataframe with per-run simulation times from environment logs.
+    """Build a dataframe with per-run simulation times.
 
-    Expects events where metadata contains a ``simulation_time`` field.
+    Preferred source is synthetic events with ``category == "simulation_time"``
+    (emitted by :mod:`simpm.dashboard_data`). If those are not present, we
+    fall back to entries in ``environment["run_history"]``.
     """
     env_run_id = environment.get("run_id")
     records: list[dict[str, Any]] = []
 
+    # 1) Synthetic simulation_time events in logs
     for event in logs or []:
-        metadata = event.get("metadata") or {}
-        sim_time = metadata.get("simulation_time")
-        if sim_time is None:
+        if event.get("category") != "simulation_time":
             continue
-        run_id = _extract_run_id_from_event(event, env_run_id)
+
+        run_id = event.get("run_id")
+        if run_id is None:
+            run_id = _extract_run_id_from_event(event, env_run_id)
+
+        duration = event.get("duration")
+        if duration is None:
+            start = event.get("start_time")
+            end = event.get("end_time")
+            if start is not None and end is not None:
+                try:
+                    duration = float(end) - float(start)
+                except Exception:
+                    duration = None
+        if duration is None:
+            continue
+
         try:
-            sim_val = float(sim_time)
+            sim_val = float(duration)
         except (TypeError, ValueError):
             continue
+
         records.append({"run_id": run_id, "simulation_time": sim_val})
 
+    # 2) Fallback: environment["run_history"]
+    if not records:
+        for rh in environment.get("run_history", []) or []:
+            run_id = rh.get("run_id") or env_run_id
+            duration = rh.get("duration")
+            if duration is None:
+                start = rh.get("start_time")
+                end = rh.get("end_time")
+                if start is not None and end is not None:
+                    try:
+                        duration = float(end) - float(start)
+                    except Exception:
+                        duration = None
+            if duration is None:
+                continue
+
+            try:
+                sim_val = float(duration)
+            except (TypeError, ValueError):
+                continue
+
+            records.append({"run_id": run_id, "simulation_time": sim_val})
+
     return pd.DataFrame.from_records(records)
+
 
 
 def _get_decimal_digits() -> int:
@@ -1269,32 +1311,34 @@ def _aggregate_envs_to_snapshot(envs: list[Any]) -> RunSnapshot:
     )
 
 def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050, start_async: bool = True):
-    """Launch the Streamlit dashboard for a simulation environment."""
+    """Launch the Streamlit dashboard for one or many simulation environments.
+
+    Accepts:
+    - a single Environment,
+    - a RunSnapshot, or
+    - a list/tuple of Environments (Monte Carlo).
+    """
+    # Already a prepared snapshot
     if isinstance(env, RunSnapshot):
         snapshot = env
+
+    # List/tuple of environments => aggregate into one snapshot
+    elif isinstance(env, (list, tuple)):
+        snapshot = _aggregate_envs_to_snapshot(list(env))
+
+    # Single environment
     else:
         snapshot = collect_run_data(env)
+
     dashboard = StreamlitDashboard(snapshot=snapshot)
     logger.info(
-        "Starting Streamlit dashboard at http://%s:%s (async=%s)", host, port, start_async
+        "Starting Streamlit dashboard at http://%s:%s (async=%s)",
+        host,
+        port,
+        start_async,
     )
     dashboard.run(host=host, port=port, async_mode=start_async)
     return dashboard
-
-
-def _load_snapshot_from_file(path: str | None) -> RunSnapshot | None:
-    if not path:
-        return None
-    snapshot_path = Path(path)
-    if not snapshot_path.exists():
-        return None
-    data = json.loads(snapshot_path.read_text())
-    return RunSnapshot(
-        environment=data.get("environment", {}),
-        entities=data.get("entities", []),
-        resources=data.get("resources", []),
-        logs=data.get("logs", []),
-    )
 
 
 def main() -> None:  # pragma: no cover - executed by Streamlit runtime

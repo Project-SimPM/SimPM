@@ -1310,35 +1310,22 @@ def _aggregate_envs_to_snapshot(envs: list[Any]) -> RunSnapshot:
         logs=aggregated_logs,
     )
 
-def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050, start_async: bool = True):
-    """Launch the Streamlit dashboard for one or many simulation environments.
+def _load_snapshot_from_file(path: str | None) -> RunSnapshot | None:
+    """Load a RunSnapshot from a JSON file written by StreamlitDashboard.run."""
+    if not path:
+        return None
 
-    Accepts:
-    - a single Environment,
-    - a RunSnapshot, or
-    - a list/tuple of Environments (Monte Carlo).
-    """
-    # Already a prepared snapshot
-    if isinstance(env, RunSnapshot):
-        snapshot = env
+    snapshot_path = Path(path)
+    if not snapshot_path.exists():
+        return None
 
-    # List/tuple of environments => aggregate into one snapshot
-    elif isinstance(env, (list, tuple)):
-        snapshot = _aggregate_envs_to_snapshot(list(env))
-
-    # Single environment
-    else:
-        snapshot = collect_run_data(env)
-
-    dashboard = StreamlitDashboard(snapshot=snapshot)
-    logger.info(
-        "Starting Streamlit dashboard at http://%s:%s (async=%s)",
-        host,
-        port,
-        start_async,
+    data = json.loads(snapshot_path.read_text())
+    return RunSnapshot(
+        environment=data.get("environment", {}),
+        entities=data.get("entities", []),
+        resources=data.get("resources", []),
+        logs=data.get("logs", []),
     )
-    dashboard.run(host=host, port=port, async_mode=start_async)
-    return dashboard
 
 
 def main() -> None:  # pragma: no cover - executed by Streamlit runtime
@@ -1346,15 +1333,22 @@ def main() -> None:  # pragma: no cover - executed by Streamlit runtime
     parser.add_argument("--data", type=str, default=None)
     args, _ = parser.parse_known_args()
 
-    snapshot = _ACTIVE_DASHBOARD.snapshot if _ACTIVE_DASHBOARD else _load_snapshot_from_file(args.data)
+    # If this process was launched from StreamlitDashboard.run, we already
+    # have an in-memory snapshot; otherwise, load from the JSON file.
+    snapshot = (
+        _ACTIVE_DASHBOARD.snapshot
+        if _ACTIVE_DASHBOARD is not None
+        else _load_snapshot_from_file(args.data)
+    )
+
     if snapshot is None:
         st.title("SimPM Dashboard")
-        st.warning(
-            "Run a simulation with dashboard=True to populate this view."
-        )
+        st.warning("Run a simulation with dashboard=True to populate this view.")
         return
+
     StreamlitDashboard(snapshot=snapshot).render()
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
     main()
+

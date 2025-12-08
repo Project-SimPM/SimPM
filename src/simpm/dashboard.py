@@ -763,15 +763,16 @@ class StreamlitDashboard:
             unsafe_allow_html=True,
         )
 
-        cols = st.columns(3)
+        cols = st.columns(2)
         cols[0].metric("Environment", env_info.get("name", "Environment"))
 
         runs = _available_runs(env_info, self.snapshot.logs or [])
-        if len(runs) <= 1:
-            cols[1].metric("Run ID", runs[0] if runs else env_info.get("run_id", "-"))
-            st.session_state.setdefault("simpm_run_filter", "All runs")
-        else:
-            with cols[1]:
+        with cols[1]:
+            if len(runs) <= 1:
+                run_value = runs[0] if runs else env_info.get("run_id", "-")
+                st.metric("Run ID", run_value)
+                st.session_state.setdefault("simpm_run_filter", "All runs")
+            else:
                 st.markdown("**Run**")
                 run_options = ["All runs"] + [str(r) for r in runs]
                 current = st.session_state.get("simpm_run_filter")
@@ -783,8 +784,6 @@ class StreamlitDashboard:
                     index=run_options.index(current),
                     key="simpm_run_filter",
                 )
-
-        cols[2].metric("Finished at", env_info.get("time", {}).get("end", "-"))
 
         summary = self._model_summary()
         st.markdown(
@@ -853,12 +852,29 @@ class StreamlitDashboard:
         if display_df.empty:
             return
 
-        st.markdown("#### Simulation time across runs")
+        # Table + stats/plots in tabs, similar to waiting_duration
+        st.markdown("## Simulation runs")
+        _render_table_preview("Simulation runs", display_df, key_prefix="simulation-runs")
 
-        stats_df = _basic_statistics(display_df["simulation_time"])
-        _render_compact_table(stats_df)
+        st.markdown("#### simulation_time")
+        tab_stats, tab_series, tab_hist, tab_box = st.tabs(
+            ["Statistics", "Time series", "Histogram", "Box plot"]
+        )
 
-        tab_hist, tab_bar = st.tabs(["Histogram", "Bar chart"])
+        with tab_stats:
+            stats_df = _basic_statistics(display_df["simulation_time"])
+            _render_compact_table(stats_df)
+
+        with tab_series:
+            fig = px.line(
+                display_df,
+                x="run_id",
+                y="simulation_time",
+                labels={"run_id": "Run", "simulation_time": "Simulation time"},
+            )
+            fig.update_traces(line_color="#3a7859")
+            fig.update_xaxes(rangeslider_visible=False)
+            st.plotly_chart(fig, width="stretch")
 
         with tab_hist:
             fig = px.histogram(
@@ -870,14 +886,8 @@ class StreamlitDashboard:
             fig.update_traces(marker_color="#5bbd89")
             st.plotly_chart(fig, width="stretch")
 
-        with tab_bar:
-            bar_df = display_df.copy()
-            fig = px.bar(
-                bar_df,
-                x="run_id",
-                y="simulation_time",
-                labels={"run_id": "Run", "simulation_time": "Simulation time"},
-            )
+        with tab_box:
+            fig = px.box(display_df, y="simulation_time")
             fig.update_traces(marker_color="#3a7859")
             st.plotly_chart(fig, width="stretch")
 

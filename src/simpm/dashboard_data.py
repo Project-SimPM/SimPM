@@ -314,38 +314,52 @@ def collect_run_data(env) -> RunSnapshot:
     RunSnapshot
         Structured view of entities, resources, and environment logs suitable
         for serializing to JSON or handing to the dashboard.
-
-    Examples
-    --------
-    >>> snapshot = collect_run_data(env)
-    >>> snapshot.environment['name']
-    'Environment'
-    >>> len(snapshot.entities)  # doctest: +SKIP
-    3
     """
 
     entities = [_entity_snapshot(entity) for entity in getattr(env, "entities", [])]
     resources = [_resource_snapshot(res) for res in getattr(env, "resources", [])]
 
-    run_number = getattr(env, "run_number", None)
-    finished_times = getattr(env, "finishedTime", None)
-    if finished_times is not None:
-        try:
-            finished_times = list(finished_times)
-        except TypeError:
-            finished_times = [finished_times]
+    # Run-level metadata from Environment
+    run_id = getattr(env, "run_number", None)
+    planned_runs = getattr(env, "planned_runs", None)
+    run_history = getattr(env, "run_history", [])
 
-    environment = {
+    environment: dict[str, Any] = {
         "name": getattr(env, "name", "Environment"),
-        "run_id": run_number,
-        "run_number": run_number,
-        "time": {
-            "start": None,
-            "end": getattr(env, "now", None),
-        },
-        "finished_times": finished_times,
+        # Last executed run id
+        "run_id": run_id,
+        # Optional hint: how many runs user intended to do
+        "planned_runs": planned_runs,
+        # Global time window for this snapshot
+        "time": {"start": None, "end": getattr(env, "now", None)},
     }
 
-    logs = _safe_records(lambda: getattr(env, "logs", []))
+    if run_history:
+        # Make sure this is JSON-friendly
+        environment["run_history"] = _to_jsonable(run_history)
 
-    return RunSnapshot(environment=environment, entities=entities, resources=resources, logs=logs)
+    # Start with any environment-level logs provided by recorders
+    env_logs = _safe_records(lambda: getattr(env, "logs", []))
+
+    # Add a synthetic "simulation_time" log entry per run so the Activity
+    # view and future dashboards can inspect run durations directly.
+    if run_history:
+        for rh in run_history:
+            env_logs.append(
+                {
+                    "category": "simulation_time",
+                    "run_id": rh.get("run_id"),
+                    "start_time": rh.get("start_time"),
+                    "end_time": rh.get("end_time"),
+                    "duration": rh.get("duration"),
+                }
+            )
+
+    logs = env_logs
+
+    return RunSnapshot(
+        environment=environment,
+        entities=entities,
+        resources=resources,
+        logs=logs,
+    )

@@ -1384,8 +1384,6 @@ class PreemptiveResource(GeneralResource):
 *****Environment Class*******************
 *****************************************
 """
-
-
 class Environment(simpy.Environment):
     """Simulation environment with observer hooks and logging helpers.
 
@@ -1404,7 +1402,7 @@ class Environment(simpy.Environment):
         super().__init__()
         self.name = name
 
-        # Entity / resource bookkeeping
+        # Entity/resource bookkeeping
         self.last_entity_id = 0
         self.entities: list[Entity] = []
         self.entity_names: dict[int, str] = {}
@@ -1413,26 +1411,36 @@ class Environment(simpy.Environment):
         self.resources: list[Resource] = []
         self.resource_names: dict[int, str] = {}
 
-        # Run bookkeeping
-        self.run_number: int = 0          # monotonically increasing counter
-        self.current_run_id: int | None = None  # run id for the *current* run
-        self.finishedTime: list[float] = []     # historical finish times
+        # Run-level bookkeeping
+        # ----------------------
+        # - run_number: how many times this environment has been executed
+        # - planned_runs: optional hint for "total number of runs" (from num_runs)
+        # - finishedTime: historical end times (for backwards compatibility)
+        # - run_history: rich metadata per run (used by dashboard_data)
+        self.run_number: int = 0
+        self.planned_runs: int | None = None
+        self.finishedTime: list[float] = []
+        self.run_history: list[dict[str, Any]] = []
 
-        # Environment-level event log (used by dashboard_data.collect_run_data)
-        self.logs: list[dict[str, Any]] = []
-
-        # Observer hooks (e.g. recorder, dashboard hooks)
+        # Registered observers (e.g. recorders / dashboard adapters)
         self._observers: list[SimulationObserver] = []
 
+    # ------------------------------------------------------------------
+    # Observer helpers
+    # ------------------------------------------------------------------
     def register_observer(self, observer: SimulationObserver):
         """Register a new simulation observer."""
         self._observers.append(observer)
 
     def _notify_observers(self, method_name: str, **kwargs):
+        """Invoke a method on all observers if they implement it."""
         for observer in self._observers:
             if hasattr(observer, method_name):
                 getattr(observer, method_name)(**kwargs)
 
+    # ------------------------------------------------------------------
+    # Structured environment-level logging
+    # ------------------------------------------------------------------
     def log_event(
         self,
         source_type: str,
@@ -1441,7 +1449,7 @@ class Environment(simpy.Environment):
         time: float | None = None,
         metadata: dict | None = None,
     ):
-        """Send a structured log event to observers and the environment log.
+        """Send a structured log event to observers.
 
         Parameters
         ----------
@@ -1457,33 +1465,20 @@ class Environment(simpy.Environment):
             Free-form payload for dashboards or reporters.
         """
         event_time = time if time is not None else self.now
+        self._notify_observers(
+            "on_log_event",
+            event={
+                "time": event_time,
+                "source_type": source_type,
+                "source_id": source_id,
+                "message": message,
+                "metadata": metadata or {},
+            },
+        )
 
-        # Determine run id for this event. Prefer the explicitly tracked
-        # current_run_id, otherwise fall back to run_number (or None).
-        run_id = self.current_run_id if self.current_run_id is not None else self.run_number or None
-
-        event: dict[str, Any] = {
-            "time": event_time,
-            "source_type": source_type,
-            "source_id": source_id,
-            "message": message,
-            "metadata": metadata or {},
-            # Extra fields to enable multi-run dashboards
-            "run_id": run_id,
-            "simulation_time": event_time,
-        }
-
-        # Store on the environment so dashboard_data.collect_run_data(env)
-        # can see it as env.logs
-        try:
-            self.logs.append(event)
-        except AttributeError:
-            # In case someone deletes/overwrites env.logs, recreate it
-            self.logs = [event]
-
-        # Notify observers (e.g. recorders / live dashboard hooks)
-        self._notify_observers("on_log_event", event=event)
-
+    # ------------------------------------------------------------------
+    # Entity creation
+    # ------------------------------------------------------------------
     def create_entities(self, name, total_number, print_actions: bool = False, log: bool = True):
         """Create and register multiple :class:`Entity` instances at ``env.now``.
 
@@ -1508,42 +1503,76 @@ class Environment(simpy.Environment):
             entities.append(Entity(self, name, print_actions, log))
         return entities
 
+    # ------------------------------------------------------------------
+    # Run with metadata
+    # ------------------------------------------------------------------
     def run(self, *args, **kwargs):
         """Run the simulation while notifying registered observers.
 
-        This increments the run counter, sets a stable ``current_run_id``,
-        and logs a run-summary event (including simulation time) on finish.
+        This method is a thin wrapper around :class:`simpy.Environment.run`
+        that additionally:
+
+        - Keeps track of how many times the environment has been executed
+          (:attr:`run_number`).
+        - Stores rich per-run metadata in :attr:`run_history`.
+        - Accepts an **optional** keyword argument ``num_runs`` which is
+          treated as a *hint* for the dashboard (planned number of total runs).
+
+        Notes
+        -----
+        ``num_runs`` does **not** cause the environment to be executed
+        multiple times inside a single call. SimPy environments cannot be
+        generically "reset", so multiple independent replications still
+        require multiple calls to :meth:`run` (or multiple environments).
         """
-        # Start a new run
+        # Optional hint: how many total runs are planned for this env
+        num_runs = kwargs.pop("num_runs", None)
+        if num_runs is not None:
+            try:
+                self.planned_runs = int(num_runs)
+            except Exception:
+                # Keep it None if conversion fails; we don't want to break the run.
+                self.planned_runs = None
+
+        # One actual execution of the event loop
         self.run_number += 1
-        self.current_run_id = self.run_number
+        run_id = self.run_number
+        start_time = self.now
 
-        self._notify_observers("on_run_started", env=self)
-        print("Run started")
+        self._notify_observers(
+            "on_run_started",
+            env=self,
+            run_id=run_id,
+            start_time=start_time,
+        )
+        print(f"Run {run_id} started")
 
+        # Delegate to SimPy
         result = super().run(*args, **kwargs)
 
-        print(f"Run finished at sim time {self.now}")
-        self.finishedTime.append(self.now)
+        end_time = self.now
+        duration = end_time - start_time
+        print(f"Run {run_id} finished at sim time {end_time}")
 
-        # Log a run-level summary event so dashboards can aggregate over runs.
-        try:
-            self.log_event(
-                source_type="environment",
-                source_id=self.current_run_id,
-                message="Run finished",
-                time=self.now,
-                metadata={
-                    "run_id": self.current_run_id,
-                    "simulation_time": self.now,
-                    "environment_name": self.name,
-                    "entities": len(self.entities),
-                    "resources": len(self.resources),
-                },
-            )
-        except Exception:
-            # Logging should never break the simulation run
-            pass
+        # Legacy list plus richer structured history
+        self.finishedTime.append(end_time)
+        self.run_history.append(
+            {
+                "run_id": run_id,
+                "start_time": start_time,
+                "end_time": end_time,
+                "duration": duration,
+            }
+        )
 
-        self._notify_observers("on_run_finished", env=self)
+        self._notify_observers(
+            "on_run_finished",
+            env=self,
+            run_id=run_id,
+            start_time=start_time,
+            end_time=end_time,
+            duration=duration,
+        )
+
         return result
+

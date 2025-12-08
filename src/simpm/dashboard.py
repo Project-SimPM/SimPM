@@ -114,7 +114,7 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
     for col in id_cols:
         display_df[col] = display_df[col].apply(_format_id_value)
 
-    numeric_cols = []
+    numeric_cols: list[str] = []
     for col in display_df.columns:
         if col in id_cols:
             continue
@@ -158,7 +158,7 @@ def _render_settings_panel(*, expanded: bool = True) -> None:
 
 
 def _render_settings_toggle() -> bool:
-    """Render a SimPM icon button that toggles the settings panel."""
+    """Render the SimPM logo button that toggles the settings panel."""
 
     logo_b64 = _asset_base64("simpm_logo.png")
     if logo_b64:
@@ -186,7 +186,12 @@ def _render_settings_toggle() -> bool:
 
     with st.container():
         st.markdown("<div class='simpm-settings-launcher'>", unsafe_allow_html=True)
-        clicked = st.button("", key="simpm-settings-button", type="secondary", help="Open SimPM settings")
+        clicked = st.button(
+            "",
+            key="simpm-settings-button",
+            type="secondary",
+            help="Open SimPM settings",
+        )
         st.markdown("</div>", unsafe_allow_html=True)
     return clicked
 
@@ -218,7 +223,9 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
     col = st.selectbox("Select numeric column", list(numeric_df.columns))
     time_axis = time_col or _find_time_column(df.drop(columns=[col], errors="ignore"))
     st.markdown(f"#### {col}")
-    tab_stats, tab_series, tab_hist = st.tabs(["Statistics", "Time series", "Histogram"])
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
+        ["Statistics", "Time series", "Histogram", "Box plot"]
+    )
 
     with tab_stats:
         stats_df = _basic_statistics(df[col])
@@ -229,13 +236,17 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         fig = px.line(x=x, y=df[col], labels={"x": time_axis or "Index", "y": col})
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab_hist:
         fig = px.histogram(df, x=col, nbins=min(30, max(5, len(df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
+    with tab_box:
+        fig = px.box(df, y=col)
+        fig.update_traces(marker_color="#3a7859")
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
@@ -312,7 +323,7 @@ def _render_duration_analysis(
 ) -> None:
     """Render duration visuals using the provided duration column when available."""
 
-    duration_candidate = duration_col if duration_col in df.columns else None
+    duration_candidate = duration_col if duration_col and duration_col in df.columns else None
 
     if duration_candidate is None:
         for candidate in ("duration", "activity_duration"):
@@ -342,7 +353,9 @@ def _render_duration_analysis(
         st.info("No duration data available to visualize.")
         return
 
-    tab_stats, tab_series, tab_hist = st.tabs(["Statistics", "Time series", "Histogram"])
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
+        ["Statistics", "Time series", "Histogram", "Box plot"]
+    )
 
     if start_col and start_col in df.columns:
         x_axis_full = df[start_col]
@@ -364,7 +377,7 @@ def _render_duration_analysis(
         fig = px.line(x=x_axis, y=aligned_series, labels={"x": x_label, "y": duration_candidate})
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab_hist:
         fig = px.histogram(
@@ -373,7 +386,12 @@ def _render_duration_analysis(
             labels={"value": duration_candidate},
         )
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
+
+    with tab_box:
+        fig = px.box(y=aligned_series, labels={"y": duration_candidate})
+        fig.update_traces(marker_color="#3a7859")
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def _render_schedule_summary(df: pd.DataFrame, key_prefix: str) -> None:
@@ -430,21 +448,24 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
         fig = px.line(
             x=time_axis,
             y=aligned_durations,
-            labels={"x": "start_waiting" if "start_waiting" in df.columns else "Index", "y": "waiting_duration"},
+            labels={
+                "x": "start_waiting" if "start_waiting" in df.columns else "Index",
+                "y": "waiting_duration",
+            },
         )
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab_hist:
         fig = px.histogram(duration_df, x="waiting_duration", nbins=min(30, max(5, len(duration_df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab_box:
         fig = px.box(duration_df, y="waiting_duration")
         fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
@@ -486,21 +507,24 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
         fig = px.line(
             x=time_axis,
             y=duration_df["waiting_duration"],
-            labels={"x": "start_time" if "start_time" in df.columns else "Index", "y": "waiting_duration"},
+            labels={
+                "x": "start_time" if "start_time" in df.columns else "Index",
+                "y": "waiting_duration",
+            },
         )
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab_hist:
         fig = px.histogram(duration_df, x="waiting_duration", nbins=min(30, max(5, len(duration_df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab_box:
         fig = px.box(duration_df, y="waiting_duration")
         fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
@@ -529,7 +553,9 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         metric_cols,
         key=f"{key_prefix}-status-selection",
     )
-    tab_stats, tab_series, tab_hist = st.tabs(["Statistics", "Time series", "Histogram"])
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
+        ["Statistics", "Time series", "Histogram", "Box plot"]
+    )
 
     with tab_stats:
         stats_df = _basic_statistics(pd.to_numeric(df[selected_metric], errors="coerce"))
@@ -544,12 +570,21 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         )
         fig.update_traces(line_shape="hv", selector=None, line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab_hist:
         fig = px.histogram(df, x=selected_metric, nbins=min(30, max(5, len(df))))
         fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
+
+    with tab_box:
+        metric_series = pd.to_numeric(df[selected_metric], errors="coerce").dropna()
+        if metric_series.empty:
+            st.info("No data available for box plot.")
+        else:
+            fig = px.box(y=metric_series, labels={"y": selected_metric})
+            fig.update_traces(marker_color="#3a7859")
+            st.plotly_chart(fig, use_container_width=True)
 
 
 def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
@@ -620,7 +655,12 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
 
 def _load_logo() -> bytes | None:
     logo_paths = [
-        Path(__file__).resolve().parent.parent / "docs" / "_build" / "html" / "_static" / "simpm_logo.png",
+        Path(__file__).resolve().parent.parent
+        / "docs"
+        / "_build"
+        / "html"
+        / "_static"
+        / "simpm_logo.png",
         Path(__file__).resolve().parent.parent / "docs" / "source" / "images" / "simpm_logo.png",
         Path(__file__).resolve().parent / "assets" / "simpm_logo.png",
     ]
@@ -629,18 +669,6 @@ def _load_logo() -> bytes | None:
         if logo_path.exists():
             return logo_path.read_bytes()
     return None
-
-
-def _render_logo(logo: bytes | None) -> None:
-    if not logo:
-        st.caption("SimPM")
-        return
-
-    encoded = base64.b64encode(logo).decode("utf-8")
-    st.markdown(
-        f"<div class='simpm-logo-card'><img src='data:image/png;base64,{encoded}' alt='SimPM logo'></div>",
-        unsafe_allow_html=True,
-    )
 
 
 def _asset_base64(name: str) -> str | None:
@@ -657,20 +685,82 @@ def _styled_container() -> None:
         """
         <style>
         .block-container {padding-top: 1.5rem;}
-        .stTabs [data-baseweb="tab"] {background-color: #f4fbf7; border-radius: 8px; color: #1f3f2b; border: 1px solid #cce8d9; padding: 0.5rem 1.05rem; margin-right: 0.35rem;}
-        .stTabs [aria-selected="true"] {border: 1px solid #7fd3a8 !important; color: #0c2a1b;}
-        .stButton>button {border-radius: 10px; border: 1px solid #7fd3a8; color: #0c2a1b; background: white;}
-        .stButton>button[data-testid="baseButton-primary"] {background: #e8f5ed; border-color: #7fd3a8; box-shadow: 0 0 0 1px #b6e3c8 inset;}
-        .status-chip {padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid #7fd3a8; display: inline-block;}
-        .simpm-panel {padding: 1rem 1.25rem; border: 1px solid #cce8d9; border-radius: 12px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);}
-        .simpm-logo-card {background: #f4fbf7; border: 1px solid #cce8d9; border-radius: 12px; padding: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04);}
-        .simpm-logo-card img {max-height: 80px; width: auto; display: block;}
-        .simpm-table-wrapper {position: relative;}
-        .simpm-table-wrapper table {width: 100%; border-collapse: collapse;}
-        .simpm-table-wrapper table th, .simpm-table-wrapper table td {border: 1px solid #d6eadf; padding: 0.5rem; font-size: 0.9rem;}
-        .simpm-table-wrapper table th {background: #f4fbf7; color: #1f3f2b;}
-        .simpm-compact-table {display: inline-block; max-width: 520px; min-width: 320px;}
-        .simpm-compact-table table {width: auto;}
+        .stTabs [data-baseweb="tab"] {
+            background-color: #f4fbf7;
+            border-radius: 8px;
+            color: #1f3f2b;
+            border: 1px solid #cce8d9;
+            padding: 0.5rem 1.05rem;
+            margin-right: 0.35rem;
+        }
+        .stTabs [aria-selected="true"] {
+            border: 1px solid #7fd3a8 !important;
+            color: #0c2a1b;
+        }
+        .stButton>button {
+            border-radius: 10px;
+            border: 1px solid #7fd3a8;
+            color: #0c2a1b;
+            background: white;
+        }
+        .stButton>button[data-testid="baseButton-primary"] {
+            background: #e8f5ed;
+            border-color: #7fd3a8;
+            box-shadow: 0 0 0 1px #b6e3c8 inset;
+        }
+        .status-chip {
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid #7fd3a8;
+            display: inline-block;
+        }
+        .simpm-panel {
+            padding: 1rem 1.25rem;
+            border: 1px solid #cce8d9;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        .simpm-logo-card {
+            background: #f4fbf7;
+            border: 1px solid #cce8d9;
+            border-radius: 12px;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        }
+        .simpm-logo-card img {
+            max-height: 80px;
+            width: auto;
+            display: block;
+        }
+        .simpm-table-wrapper {
+            position: relative;
+        }
+        .simpm-table-wrapper table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .simpm-table-wrapper table th,
+        .simpm-table-wrapper table td {
+            border: 1px solid #d6eadf;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .simpm-table-wrapper table th {
+            background: #f4fbf7;
+            color: #1f3f2b;
+        }
+        .simpm-compact-table {
+            display: inline-block;
+            max-width: 520px;
+            min-width: 320px;
+        }
+        .simpm-compact-table table {
+            width: auto;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -695,13 +785,6 @@ class StreamlitDashboard:
         )
         _styled_container()
 
-        if _render_settings_toggle():
-            st.session_state["simpm_settings_open"] = not st.session_state.get(
-                "simpm_settings_open", False
-            )
-        if st.session_state.get("simpm_settings_open", False):
-            _render_settings_panel(expanded=True)
-
         self._render_overview_switcher()
         view = st.session_state.get("simpm_view", "Entities")
 
@@ -718,21 +801,20 @@ class StreamlitDashboard:
         """Show environment facts and clickable model summaries."""
 
         env_info = self.snapshot.environment or {}
-        logo_b64 = _asset_base64("simpm_logo.png")
-        logo_img = (
-            f"<img src='data:image/png;base64,{logo_b64}' style='height: 40px; margin-right: 12px;' alt='SimPM logo'>"
-            if logo_b64
-            else ""
-        )
-        st.markdown(
-            f"""
-            <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                {logo_img}
-                <h2 style="margin: 0;">Overview</h2>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+
+        # Header row: clickable logo (opens settings) + title
+        header_cols = st.columns([1, 6])
+        with header_cols[0]:
+            if _render_settings_toggle():
+                st.session_state["simpm_settings_open"] = not st.session_state.get(
+                    "simpm_settings_open", False
+                )
+        with header_cols[1]:
+            st.markdown("## Overview")
+
+        if st.session_state.get("simpm_settings_open", False):
+            _render_settings_panel(expanded=True)
+
         cols = st.columns(3)
         cols[0].metric("Environment", env_info.get("name", "Environment"))
         cols[1].metric("Run ID", env_info.get("run_id", "-"))
@@ -820,7 +902,8 @@ class StreamlitDashboard:
         entity = options[selected_label]
 
         st.markdown(f"### Entity {entity['id']} • {entity['name']}")
-        st.caption(f"Type: {entity.get('type', 'Unknown')}")
+        entity_type = entity.get("type") or "Entity"
+        st.caption(f"Type: {entity_type}")
 
         attributes = entity.get("attributes") or entity.get("attr") or {}
         if attributes:
@@ -861,8 +944,9 @@ class StreamlitDashboard:
         resource = options[selected_label]
 
         st.markdown(f"### Resource {resource['id']} • {resource['name']}")
+        resource_type = resource.get("type") or "Resource"
         st.caption(
-            f"Type: {resource.get('type', 'Unknown')} • Capacity: {resource.get('capacity', '-') }"
+            f"Type: {resource_type} • Capacity: {resource.get('capacity', '-')}"
         )
         attributes = resource.get("attributes") or resource.get("attr")
         if attributes:
@@ -921,7 +1005,10 @@ class StreamlitDashboard:
                 for col in standard_cols:
                     if col not in display_df.columns:
                         display_df[col] = ""
-                start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
+                start_col = next(
+                    (c for c in ("start_time", "start", "start_at") if c in display_df.columns),
+                    None,
+                )
                 if start_col:
                     display_df = display_df.sort_values(
                         start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
@@ -982,7 +1069,10 @@ class StreamlitDashboard:
 
                 filtered = schedule_df[schedule_df["activity_label"] == selected].copy()
 
-                start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
+                start_col = next(
+                    (c for c in ("start_time", "start", "start_at") if c in filtered.columns),
+                    None,
+                )
                 end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
 
                 if "duration" not in filtered.columns and start_col and end_col:
@@ -1023,7 +1113,8 @@ class StreamlitDashboard:
         _ACTIVE_DASHBOARD = self
 
         snapshot_file = Path(tempfile.mkdtemp()) / "simpm_snapshot.json"
-        snapshot_file.write_text(json.dumps(self.snapshot.as_dict()))
+        # default=str ensures dist.uniform and other non-JSON types become strings
+        snapshot_file.write_text(json.dumps(self.snapshot.as_dict(), default=str))
 
         cmd = [
             "streamlit",

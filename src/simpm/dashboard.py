@@ -10,7 +10,7 @@ import tempfile
 from dataclasses import dataclass
 from numbers import Integral
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, List
 
 import pandas as pd
 import plotly.express as px
@@ -26,9 +26,13 @@ from simpm.dashboard_data import RunSnapshot, collect_run_data
 
 logger = logging.getLogger(__name__)
 
-
 _ACTIVE_DASHBOARD: "StreamlitDashboard | None" = None
 DEFAULT_DECIMAL_DIGITS = 3
+
+
+# ---------------------------------------------------------------------------
+# Helpers for run IDs and simulation time
+# ---------------------------------------------------------------------------
 
 
 def _find_time_column(df: pd.DataFrame) -> str | None:
@@ -68,14 +72,23 @@ def _extract_run_id_from_event(event: dict[str, Any], env_run_id: Any = None) ->
 def _available_runs(environment: dict[str, Any], logs: list[dict[str, Any]]) -> list[Any]:
     """Collect all distinct run IDs from environment metadata and logs."""
     run_ids: set[Any] = set()
-    env_run_id = environment.get("run_id")
-    if env_run_id is not None:
-        run_ids.add(env_run_id)
 
-    for event in logs or []:
-        rid = _extract_run_id_from_event(event)
+    # Prefer run_history if present (Monte Carlo aggregation)
+    for rh in environment.get("run_history") or []:
+        rid = rh.get("run_id")
         if rid is not None:
             run_ids.add(rid)
+
+    # Fallback to environment + log events
+    if not run_ids:
+        env_run_id = environment.get("run_id")
+        if env_run_id is not None:
+            run_ids.add(env_run_id)
+
+        for event in logs or []:
+            rid = _extract_run_id_from_event(event, environment.get("run_id"))
+            if rid is not None:
+                run_ids.add(rid)
 
     return sorted(run_ids, key=lambda v: str(v))
 
@@ -83,66 +96,45 @@ def _available_runs(environment: dict[str, Any], logs: list[dict[str, Any]]) -> 
 def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]]) -> pd.DataFrame:
     """Build a dataframe with per-run simulation times.
 
-    Preferred source is synthetic events with ``category == "simulation_time"``
-    (emitted by :mod:`simpm.dashboard_data`). If those are not present, we
-    fall back to entries in ``environment["run_history"]``.
+    We first look at ``environment["run_history"]`` (the canonical source),
+    and fall back to synthetic log entries that have ``category="simulation_time"``.
     """
-    env_run_id = environment.get("run_id")
     records: list[dict[str, Any]] = []
 
-    # 1) Synthetic simulation_time events in logs
-    for event in logs or []:
-        if event.get("category") != "simulation_time":
+    # Preferred: environment["run_history"]
+    for rh in environment.get("run_history") or []:
+        run_id = rh.get("run_id")
+        duration = rh.get("duration")
+        if run_id is None or duration is None:
             continue
-
-        run_id = event.get("run_id")
-        if run_id is None:
-            run_id = _extract_run_id_from_event(event, env_run_id)
-
-        duration = event.get("duration")
-        if duration is None:
-            start = event.get("start_time")
-            end = event.get("end_time")
-            if start is not None and end is not None:
-                try:
-                    duration = float(end) - float(start)
-                except Exception:
-                    duration = None
-        if duration is None:
-            continue
-
         try:
             sim_val = float(duration)
         except (TypeError, ValueError):
             continue
-
         records.append({"run_id": run_id, "simulation_time": sim_val})
 
-    # 2) Fallback: environment["run_history"]
+    # Fallback: look into logs (older / alternative recorders)
     if not records:
-        for rh in environment.get("run_history", []) or []:
-            run_id = rh.get("run_id") or env_run_id
-            duration = rh.get("duration")
-            if duration is None:
-                start = rh.get("start_time")
-                end = rh.get("end_time")
-                if start is not None and end is not None:
-                    try:
-                        duration = float(end) - float(start)
-                    except Exception:
-                        duration = None
-            if duration is None:
+        env_run_id = environment.get("run_id")
+        for event in logs or []:
+            sim_time = None
+            if event.get("category") == "simulation_time":
+                sim_time = event.get("duration")
+            else:
+                metadata = event.get("metadata") or {}
+                sim_time = metadata.get("simulation_time")
+
+            if sim_time is None:
                 continue
 
+            run_id = _extract_run_id_from_event(event, env_run_id)
             try:
-                sim_val = float(duration)
+                sim_val = float(sim_time)
             except (TypeError, ValueError):
                 continue
-
             records.append({"run_id": run_id, "simulation_time": sim_val})
 
     return pd.DataFrame.from_records(records)
-
 
 
 def _get_decimal_digits() -> int:
@@ -205,18 +197,15 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
         if col in id_cols:
             continue
 
-        # Try to convert fully to numeric; if it fails, leave column as-is
         try:
             converted = pd.to_numeric(display_df[col])
         except (TypeError, ValueError):
-            # Column is not cleanly numeric; skip conversion
             continue
         else:
             if pd.api.types.is_numeric_dtype(converted):
                 display_df[col] = converted
                 numeric_cols.append(col)
 
-    # Apply pretty formatting to numeric columns
     for col in numeric_cols:
         display_df[col] = display_df[col].apply(
             lambda val: _format_numeric_value(val, digits)
@@ -226,15 +215,10 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _format_attributes_inline(attributes: dict[str, Any]) -> str:
-    """Format an attributes mapping into an inline text representation.
-
-    - Strings that look like code (e.g. 'dist.uniform(4, 5)') are left unquoted.
-    - Other strings are quoted.
-    """
+    """Format an attributes mapping into an inline text representation."""
     parts: list[str] = []
     for key, value in attributes.items():
         if isinstance(value, str):
-            # Don't quote distribution-style strings or other code-like values
             if value.strip().startswith("dist.") or "(" in value:
                 formatted = value
             else:
@@ -296,6 +280,14 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         fig = px.box(df, y=col)
         fig.update_traces(marker_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
+
+
+def _asset_base64(name: str) -> str | None:
+    """Return a base64 string for the given asset file if it exists."""
+    asset_path = Path(__file__).resolve().parent / "assets" / name
+    if not asset_path.exists():
+        return None
+    return base64.b64encode(asset_path.read_bytes()).decode("utf-8")
 
 
 def _render_table_preview(title: str, df: pd.DataFrame, key_prefix: str) -> None:
@@ -442,7 +434,7 @@ def _render_duration_analysis(
 
 
 def _render_schedule_summary(df: pd.DataFrame, key_prefix: str) -> None:
-    """Render a schedule table with a compact bar visualization for top activities."""
+    """Render a schedule table."""
     st.markdown("## Schedule")
     if df.empty:
         st.info("No records available yet.")
@@ -722,14 +714,6 @@ def _render_logo(logo: bytes | None) -> None:
     )
 
 
-def _asset_base64(name: str) -> str | None:
-    """Return a base64 string for the given asset file if it exists."""
-    asset_path = Path(__file__).resolve().parent / "assets" / name
-    if not asset_path.exists():
-        return None
-    return base64.b64encode(asset_path.read_bytes()).decode("utf-8")
-
-
 def _styled_container() -> None:
     st.markdown(
         """
@@ -754,6 +738,11 @@ def _styled_container() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# Dashboard class
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -831,7 +820,6 @@ class StreamlitDashboard:
         st.markdown(
             """
             <style>
-            /* Light green treatment for dashboard nav selector */
             div[data-testid="stHorizontalBlock"] div[role="radiogroup"] > label {
                 border: 1px solid #d6eadf;
                 border-radius: 8px;
@@ -875,7 +863,6 @@ class StreamlitDashboard:
         )
         st.session_state["simpm_view"] = view_selection
 
-        # Per-run simulation-time summary (across all or selected runs)
         self._render_simulation_time_overview()
 
     def _render_simulation_time_overview(self) -> None:
@@ -894,7 +881,6 @@ class StreamlitDashboard:
         if display_df.empty:
             return
 
-        # Table + stats/plots in tabs, similar to waiting_duration
         st.markdown("## Simulation runs")
         _render_table_preview("Simulation runs", display_df, key_prefix="simulation-runs")
 
@@ -940,14 +926,6 @@ class StreamlitDashboard:
             "resources": len(self.snapshot.resources),
             "activities": activities,
         }
-
-    def _render_system_view(self) -> None:
-        snapshot = self.snapshot.as_dict()
-        logs_df = pd.DataFrame(snapshot.get("logs", []))
-        if not logs_df.empty:
-            _render_table_with_preview("Environment logs", logs_df, key_prefix="environment-logs")
-        else:
-            st.info("No environment logs captured yet.")
 
     def _render_entities_view(self) -> None:
         entities: Iterable[dict[str, Any]] = self.snapshot.entities
@@ -1041,7 +1019,6 @@ class StreamlitDashboard:
             st.info("No activity recorded for this run.")
             return
 
-        # Apply run filter to environment logs while keeping entity/resource logs aggregated.
         run_filter = st.session_state.get("simpm_run_filter", "All runs")
         if "run_id" in activity_df.columns and "source" in activity_df.columns:
             if run_filter and run_filter != "All runs":
@@ -1192,7 +1169,6 @@ class StreamlitDashboard:
         _ACTIVE_DASHBOARD = self
 
         snapshot_file = Path(tempfile.mkdtemp()) / "simpm_snapshot.json"
-        # default=str makes uniform/triang/... etc serializable using their __str__
         snapshot_file.write_text(json.dumps(self.snapshot.as_dict(), default=str))
 
         cmd = [
@@ -1216,109 +1192,88 @@ class StreamlitDashboard:
         subprocess.run(cmd, check=False)
 
 
+# ---------------------------------------------------------------------------
+# Aggregation helpers and public entry points
+# ---------------------------------------------------------------------------
+
+
+def _aggregate_envs_to_snapshot(envs: List[Any]) -> RunSnapshot:
+    """Aggregate multiple environments into a single RunSnapshot.
+
+    Used when ``simpm.run`` has executed many replications via an env_factory.
+    """
+    snapshots: list[RunSnapshot] = []
+    for env in envs:
+        if isinstance(env, RunSnapshot):
+            snapshots.append(env)
+        else:
+            snapshots.append(collect_run_data(env))
+
+    if not snapshots:
+        return RunSnapshot(environment={}, entities=[], resources=[], logs=[])
+
+    # Use the last environment metadata as base
+    base_env = dict(snapshots[-1].environment)
+    all_entities: list[dict[str, Any]] = []
+    all_resources: list[dict[str, Any]] = []
+    all_logs: list[dict[str, Any]] = []
+    combined_run_history: list[dict[str, Any]] = []
+
+    for snap in snapshots:
+        all_entities.extend(snap.entities)
+        all_resources.extend(snap.resources)
+        all_logs.extend(snap.logs)
+        rh = snap.environment.get("run_history") or []
+        if isinstance(rh, list):
+            combined_run_history.extend(rh)
+
+    # Re-index run_ids to 1..N for clarity in the dashboard
+    for idx, rh in enumerate(combined_run_history, start=1):
+        rh["run_id"] = idx
+
+    if combined_run_history:
+        base_env["run_history"] = combined_run_history
+        base_env["run_id"] = combined_run_history[-1].get("run_id")
+        base_env.setdefault("planned_runs", len(combined_run_history))
+
+    return RunSnapshot(
+        environment=base_env,
+        entities=all_entities,
+        resources=all_resources,
+        logs=all_logs,
+    )
+
+
 def build_app(env) -> StreamlitDashboard:
     """Build a Streamlit dashboard bound to the given environment."""
     snapshot = collect_run_data(env)
     logger.debug("Prepared initial snapshot with %s entities", len(snapshot.entities))
     return StreamlitDashboard(snapshot=snapshot)
 
-def _aggregate_envs_to_snapshot(envs: list[Any]) -> RunSnapshot:
-    """Aggregate multiple environments into a single RunSnapshot.
 
-    - Entities/resources are taken from the *last* environment (for inspection).
-    - Per-run simulation times are aggregated across *all* environments
-      using their run_history.
-    """
-    if not envs:
-        raise ValueError("Cannot aggregate an empty list of environments.")
+def run_post_dashboard(env_or_envs, host: str = "127.0.0.1", port: int = 8050, start_async: bool = True):
+    """Launch the Streamlit dashboard for one or many environments."""
+    if isinstance(env_or_envs, RunSnapshot):
+        snapshot = env_or_envs
+    elif isinstance(env_or_envs, list):
+        snapshot = _aggregate_envs_to_snapshot(env_or_envs)
+    else:
+        snapshot = collect_run_data(env_or_envs)
 
-    # Base snapshot (entities/resources, basic metadata) from last env
-    from simpm.dashboard_data import collect_run_data
-
-    base = collect_run_data(envs[-1])
-
-    aggregated_history: list[dict[str, Any]] = []
-    aggregated_logs: list[dict[str, Any]] = []
-
-    run_counter = 0
-    for env in envs:
-        history = getattr(env, "run_history", []) or []
-
-        # Fallback if run_history is empty but finishedTime exists
-        if not history and getattr(env, "finishedTime", None):
-            for t in getattr(env, "finishedTime", []):
-                run_counter += 1
-                start_t = 0.0
-                end_t = float(t)
-                duration = end_t - start_t
-                entry = {
-                    "run_id": run_counter,
-                    "start_time": start_t,
-                    "end_time": end_t,
-                    "duration": duration,
-                }
-                aggregated_history.append(entry)
-                aggregated_logs.append(
-                    {
-                        "category": "simulation_time",
-                        "run_id": run_counter,
-                        "start_time": start_t,
-                        "end_time": end_t,
-                        "duration": duration,
-                    }
-                )
-            continue
-
-        for rh in history:
-            run_counter += 1
-            start_t = rh.get("start_time")
-            end_t = rh.get("end_time")
-            duration = rh.get("duration")
-            if duration is None and start_t is not None and end_t is not None:
-                try:
-                    duration = float(end_t) - float(start_t)
-                except Exception:
-                    duration = None
-
-            entry = {
-                "run_id": run_counter,
-                "start_time": start_t,
-                "end_time": end_t,
-                "duration": duration,
-            }
-            aggregated_history.append(entry)
-            aggregated_logs.append(
-                {
-                    "category": "simulation_time",
-                    "run_id": run_counter,
-                    "start_time": start_t,
-                    "end_time": end_t,
-                    "duration": duration,
-                }
-            )
-
-    env_meta = dict(base.environment)
-    env_meta["run_id"] = None
-    env_meta["planned_runs"] = len(envs)
-    if aggregated_history:
-        env_meta["run_history"] = aggregated_history
-
-    return RunSnapshot(
-        environment=env_meta,
-        entities=base.entities,
-        resources=base.resources,
-        logs=aggregated_logs,
+    dashboard = StreamlitDashboard(snapshot=snapshot)
+    logger.info(
+        "Starting Streamlit dashboard at http://%s:%s (async=%s)", host, port, start_async
     )
+    dashboard.run(host=host, port=port, async_mode=start_async)
+    return dashboard
+
 
 def _load_snapshot_from_file(path: str | None) -> RunSnapshot | None:
-    """Load a RunSnapshot from a JSON file written by StreamlitDashboard.run."""
     if not path:
         return None
-
     snapshot_path = Path(path)
     if not snapshot_path.exists():
         return None
-
     data = json.loads(snapshot_path.read_text())
     return RunSnapshot(
         environment=data.get("environment", {}),
@@ -1333,22 +1288,19 @@ def main() -> None:  # pragma: no cover - executed by Streamlit runtime
     parser.add_argument("--data", type=str, default=None)
     args, _ = parser.parse_known_args()
 
-    # If this process was launched from StreamlitDashboard.run, we already
-    # have an in-memory snapshot; otherwise, load from the JSON file.
     snapshot = (
         _ACTIVE_DASHBOARD.snapshot
         if _ACTIVE_DASHBOARD is not None
         else _load_snapshot_from_file(args.data)
     )
-
     if snapshot is None:
         st.title("SimPM Dashboard")
-        st.warning("Run a simulation with dashboard=True to populate this view.")
+        st.warning(
+            "Run a simulation with dashboard=True to populate this view."
+        )
         return
-
     StreamlitDashboard(snapshot=snapshot).render()
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
     main()
-

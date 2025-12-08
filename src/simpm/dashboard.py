@@ -1180,6 +1180,93 @@ def build_app(env) -> StreamlitDashboard:
     logger.debug("Prepared initial snapshot with %s entities", len(snapshot.entities))
     return StreamlitDashboard(snapshot=snapshot)
 
+def _aggregate_envs_to_snapshot(envs: list[Any]) -> RunSnapshot:
+    """Aggregate multiple environments into a single RunSnapshot.
+
+    - Entities/resources are taken from the *last* environment (for inspection).
+    - Per-run simulation times are aggregated across *all* environments
+      using their run_history.
+    """
+    if not envs:
+        raise ValueError("Cannot aggregate an empty list of environments.")
+
+    # Base snapshot (entities/resources, basic metadata) from last env
+    from simpm.dashboard_data import collect_run_data
+
+    base = collect_run_data(envs[-1])
+
+    aggregated_history: list[dict[str, Any]] = []
+    aggregated_logs: list[dict[str, Any]] = []
+
+    run_counter = 0
+    for env in envs:
+        history = getattr(env, "run_history", []) or []
+
+        # Fallback if run_history is empty but finishedTime exists
+        if not history and getattr(env, "finishedTime", None):
+            for t in getattr(env, "finishedTime", []):
+                run_counter += 1
+                start_t = 0.0
+                end_t = float(t)
+                duration = end_t - start_t
+                entry = {
+                    "run_id": run_counter,
+                    "start_time": start_t,
+                    "end_time": end_t,
+                    "duration": duration,
+                }
+                aggregated_history.append(entry)
+                aggregated_logs.append(
+                    {
+                        "category": "simulation_time",
+                        "run_id": run_counter,
+                        "start_time": start_t,
+                        "end_time": end_t,
+                        "duration": duration,
+                    }
+                )
+            continue
+
+        for rh in history:
+            run_counter += 1
+            start_t = rh.get("start_time")
+            end_t = rh.get("end_time")
+            duration = rh.get("duration")
+            if duration is None and start_t is not None and end_t is not None:
+                try:
+                    duration = float(end_t) - float(start_t)
+                except Exception:
+                    duration = None
+
+            entry = {
+                "run_id": run_counter,
+                "start_time": start_t,
+                "end_time": end_t,
+                "duration": duration,
+            }
+            aggregated_history.append(entry)
+            aggregated_logs.append(
+                {
+                    "category": "simulation_time",
+                    "run_id": run_counter,
+                    "start_time": start_t,
+                    "end_time": end_t,
+                    "duration": duration,
+                }
+            )
+
+    env_meta = dict(base.environment)
+    env_meta["run_id"] = None
+    env_meta["planned_runs"] = len(envs)
+    if aggregated_history:
+        env_meta["run_history"] = aggregated_history
+
+    return RunSnapshot(
+        environment=env_meta,
+        entities=base.entities,
+        resources=base.resources,
+        logs=aggregated_logs,
+    )
 
 def run_post_dashboard(env, host: str = "127.0.0.1", port: int = 8050, start_async: bool = True):
     """Launch the Streamlit dashboard for a simulation environment."""

@@ -127,7 +127,12 @@ def _to_jsonable(value: Any) -> Any:
     return value
 
 
-def _collect_attributes(obj: Any, reserved_keys: set[str], *, include_public: bool = True) -> dict[str, Any]:
+def _collect_attributes(
+    obj: Any,
+    reserved_keys: set[str],
+    *,
+    include_public: bool = True,
+) -> dict[str, Any]:
     """Gather attribute dictionaries and optional public attributes for display."""
 
     base_attributes = getattr(obj, "attributes", None) or getattr(obj, "attr", None) or {}
@@ -209,7 +214,12 @@ def _entity_snapshot(entity) -> dict[str, Any]:
     total_waiting = sum(waiting_time)
 
     env = getattr(entity, "env", None)
-    run_id = getattr(env, "run_number", None) if env is not None else None
+    # Use current_run_id when available; fall back to run_number
+    run_id = None
+    if env is not None:
+        run_id = getattr(env, "current_run_id", None)
+        if run_id is None:
+            run_id = getattr(env, "run_number", None)
 
     return {
         "id": getattr(entity, "id", None),
@@ -256,7 +266,11 @@ def _resource_snapshot(resource) -> dict[str, Any]:
                 rec["waiting_duration"] = None
 
     env = getattr(resource, "env", None)
-    run_id = getattr(env, "run_number", None) if env is not None else None
+    run_id = None
+    if env is not None:
+        run_id = getattr(env, "current_run_id", None)
+        if run_id is None:
+            run_id = getattr(env, "run_number", None)
 
     return {
         "id": resource.id,
@@ -320,13 +334,16 @@ def collect_run_data(env) -> RunSnapshot:
     resources = [_resource_snapshot(res) for res in getattr(env, "resources", [])]
 
     # Run-level metadata from Environment
-    run_id = getattr(env, "run_number", None)
+    run_id = getattr(env, "current_run_id", None)
+    if run_id is None:
+        run_id = getattr(env, "run_number", None)
+
     planned_runs = getattr(env, "planned_runs", None)
     run_history = getattr(env, "run_history", [])
 
     environment: dict[str, Any] = {
         "name": getattr(env, "name", "Environment"),
-        # Last executed run id
+        # Last executed run id inside this environment
         "run_id": run_id,
         # Optional hint: how many runs user intended to do
         "planned_runs": planned_runs,
@@ -335,27 +352,48 @@ def collect_run_data(env) -> RunSnapshot:
     }
 
     if run_history:
-        # Make sure this is JSON-friendly
         environment["run_history"] = _to_jsonable(run_history)
 
-    # Start with any environment-level logs provided by recorders
-    env_logs = _safe_records(lambda: getattr(env, "logs", []))
+    logs: list[dict[str, Any]] = []
 
-    # Add a synthetic "simulation_time" log entry per run so the Activity
-    # view and future dashboards can inspect run durations directly.
-    if run_history:
+    # 1) Primary event stream from Environment.log_event (new design)
+    event_log = getattr(env, "event_log", None)
+    if isinstance(event_log, list):
+        # they are already dicts; _to_jsonable will be applied in RunSnapshot.as_dict
+        logs.extend(event_log)
+
+    # 2) Legacy environment-level logs, if any
+    logs.extend(_safe_records(lambda: getattr(env, "logs", [])))
+
+    # 3) Ensure at least one simulation_time event per run using run_history.
+    #    This keeps the dashboard "Simulation runs" view working even if
+    #    Environment.log_event was not used.
+    have_sim_time = any(
+        isinstance(evt, dict)
+        and isinstance(evt.get("metadata"), dict)
+        and evt["metadata"].get("simulation_time") is not None
+        for evt in logs
+    )
+
+    if run_history and not have_sim_time:
         for rh in run_history:
-            env_logs.append(
+            rid = rh.get("run_id")
+            end_time = rh.get("end_time")
+            duration = rh.get("duration")
+            logs.append(
                 {
-                    "category": "simulation_time",
-                    "run_id": rh.get("run_id"),
-                    "start_time": rh.get("start_time"),
-                    "end_time": rh.get("end_time"),
-                    "duration": rh.get("duration"),
+                    "time": end_time,
+                    "run_id": rid,
+                    "source_type": "environment",
+                    "source_id": "run",
+                    "message": "Run finished (synthetic)",
+                    "metadata": {
+                        "simulation_time": end_time,
+                        "duration": duration,
+                        "run_id": rid,
+                    },
                 }
             )
-
-    logs = env_logs
 
     return RunSnapshot(
         environment=environment,

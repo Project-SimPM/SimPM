@@ -62,10 +62,7 @@ def run(
     # --- Case 1: user passed a concrete Environment -------------------------
     if isinstance(env_or_factory, Environment):
         if number_runs != 1:
-            raise ValueError(
-                "number_runs > 1 requires an environment *factory*; "
-                "you passed a concrete Environment instance."
-            )
+            raise ValueError("number_runs > 1 requires an environment *factory*; " "you passed a concrete Environment instance.")
 
         env: Environment = env_or_factory
 
@@ -85,10 +82,7 @@ def run(
 
     # --- Case 2: user passed a factory callable -----------------------------
     if not callable(env_or_factory):
-        raise TypeError(
-            "First argument to simpm.run must be either an Environment "
-            "or a factory callable () -> Environment."
-        )
+        raise TypeError("First argument to simpm.run must be either an Environment " "or a factory callable () -> Environment.")
 
     if number_runs < 1:
         raise ValueError("number_runs must be >= 1")
@@ -99,10 +93,7 @@ def run(
     for i in range(number_runs):
         env = factory()
         if not isinstance(env, Environment):
-            raise TypeError(
-                f"env_factory() must return simpm.des.Environment, "
-                f"got {type(env)!r} on run {i + 1}."
-            )
+            raise TypeError(f"env_factory() must return simpm.des.Environment, " f"got {type(env)!r} on run {i + 1}.")
 
         env_run_kwargs = dict(kwargs)
         if until is not None:
@@ -110,6 +101,10 @@ def run(
 
         # Pass planned total number of runs as hint to Environment.run
         env_run_kwargs.setdefault("num_runs", number_runs)
+
+        # Ensure each environment uses a unique run_id that matches the
+        # replication index when running many times from a factory.
+        env.run_number = i
 
         env.run(**env_run_kwargs)
         all_envs.append(env)

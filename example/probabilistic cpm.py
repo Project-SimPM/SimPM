@@ -21,8 +21,8 @@ def env_factory() -> des.Environment:
 
     env = des.Environment("Probabilistic CPM with priorities")
 
-    tasks = env.create_entities("task", len(DURATIONS), print_actions=False, log=False)
-    pool = des.PriorityResource(env, "total_resources", init=4, print_actions=False, log=False)
+    tasks = env.create_entities("task", len(DURATIONS), print_actions=False, log=True)
+    pool = des.PriorityResource(env, "total_resources", init=4, print_actions=False, log=True)
 
     def run_task(i: int, prereq=None):
         if prereq is not None:

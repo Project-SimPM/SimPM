@@ -253,7 +253,10 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
         st.info("No numeric columns available for analysis.")
         return
 
-    col = st.selectbox("Select numeric column", list(numeric_df.columns))
+    col = _compact_selectbox(
+        "Numeric column",
+        options=list(numeric_df.columns),
+    )
     time_axis = time_col or _find_time_column(df.drop(columns=[col], errors="ignore"))
     st.markdown(f"#### {col}")
     tab_stats, tab_series, tab_hist, tab_box = st.tabs(
@@ -296,6 +299,7 @@ def _render_table_preview(
     key_prefix: str,
     *,
     show_index: bool = True,
+    indent_table_for_icon: bool = False,
 ) -> None:
     """Render a table preview with a download button."""
     st.caption(
@@ -335,6 +339,12 @@ def _render_table_preview(
         preview_df.loc["..."] = ellipsis_row
 
     table_html = preview_df.to_html(index=show_index, escape=False)
+
+    # For tables where the icon overlaps the first column (e.g., Simulation runs),
+    # we can add some left padding so the header text is not covered.
+    if icon_html and indent_table_for_icon:
+        table_html = f"<div style='padding-left: 40px;'>{table_html}</div>"
+
     container_html = (
         "<div style='position:relative; display:inline-block;'>"
         f"{icon_html}"
@@ -588,12 +598,13 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         st.info("No status metrics available to plot.")
         return
 
-    st.markdown("#### status metrics")
-    selected_metric = st.selectbox(
-        "Select metric to visualize",
-        metric_cols,
+    st.markdown("#### Status metrics")
+    selected_metric = _compact_selectbox(
+        "Metric",
+        options=metric_cols,
         key=f"{key_prefix}-status-selection",
     )
+
     tab_stats, tab_series, tab_hist, tab_box = st.tabs(
         ["Statistics", "Time series", "Histogram", "Box plot"]
     )
@@ -746,6 +757,29 @@ def _styled_container() -> None:
     )
 
 
+def _compact_selectbox(
+    label: str,
+    options: list[Any],
+    *,
+    key: str | None = None,
+    index: int = 0,
+    format_func: Callable[[Any], str] | None = None,
+) -> Any:
+    """Render a smaller selectbox inline with its label."""
+    col_label, col_widget, _ = st.columns([0.12, 0.32, 0.56])
+    with col_label:
+        st.markdown(f"**{label}**")
+    with col_widget:
+        return st.selectbox(
+            label,
+            options,
+            index=index,
+            key=key,
+            format_func=format_func,
+            label_visibility="collapsed",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Dashboard class
 # ---------------------------------------------------------------------------
@@ -829,17 +863,15 @@ class StreamlitDashboard:
             st.metric("Run ID", run_value)
             st.session_state.setdefault("simpm_run_filter", "All runs")
         else:
-            st.markdown("**Run**")
             run_options = ["All runs"] + [str(r) for r in runs]
             current = st.session_state.get("simpm_run_filter")
             if current not in run_options:
                 current = "All runs"
-            st.selectbox(
-                "Select run",                  # non-empty label (for accessibility)
+            _compact_selectbox(
+                "Run",
                 options=run_options,
-                index=run_options.index(current),
                 key="simpm_run_filter",
-                label_visibility="collapsed",  # keep layout clean while avoiding warnings
+                index=run_options.index(current),
             )
 
     def _render_simulation_time_overview(self) -> None:
@@ -860,7 +892,7 @@ class StreamlitDashboard:
 
         st.markdown("## Simulation runs")
 
-        # One block: table + stats/plots as tabs (no time series)
+        # One block: table + stats/plots in tabs (no time series)
         tab_table, tab_stats, tab_hist, tab_box = st.tabs(
             ["Table", "Statistics", "Histogram", "Box plot"]
         )
@@ -870,7 +902,8 @@ class StreamlitDashboard:
                 "Simulation runs",
                 display_df,
                 key_prefix="simulation-runs",
-                show_index=False,  # hide DataFrame index; only show run_id
+                show_index=False,           # hide DataFrame index; only show run_id
+                indent_table_for_icon=True,  # add padding so download icon doesn't overlap run_id
             )
 
         with tab_stats:
@@ -953,9 +986,10 @@ class StreamlitDashboard:
         options = {f"{ent['name']} ({ent['id']})": ent for ent in entities}
         default_label = st.session_state.get("simpm_entity_label")
         labels = list(options.keys())
-        selected_label = st.selectbox(
-            "Select entity",
-            labels,
+        selected_label = _compact_selectbox(
+            "Entity",
+            options=labels,
+            key="simpm_entity_label",
             index=labels.index(default_label) if default_label in labels else 0,
         )
         st.session_state["simpm_entity_label"] = selected_label
@@ -999,9 +1033,10 @@ class StreamlitDashboard:
         options = {f"{res['name']} ({res['id']})": res for res in resources}
         default_label = st.session_state.get("simpm_resource_label")
         labels = list(options.keys())
-        selected_label = st.selectbox(
-            "Select resource",
-            labels,
+        selected_label = _compact_selectbox(
+            "Resource",
+            options=labels,
+            key="simpm_resource_label",
             index=labels.index(default_label) if default_label in labels else 0,
         )
         st.session_state["simpm_resource_label"] = selected_label
@@ -1132,10 +1167,9 @@ class StreamlitDashboard:
                     st.info("No activity names found to display.")
                     return
 
-                selected = st.selectbox(
-                    "Select activity name",
-                    options,
-                    index=0,
+                selected = _compact_selectbox(
+                    "Activity",
+                    options=options,
                     key="activity-name-filter",
                 )
 

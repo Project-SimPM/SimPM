@@ -985,13 +985,16 @@ class StreamlitDashboard:
         options = {f"{ent['name']} ({ent['id']})": ent for ent in entities}
         default_label = st.session_state.get("simpm_entity_label")
         labels = list(options.keys())
+
         selected_label = _compact_selectbox(
             "Entity",
             options=labels,
             key="simpm_entity_label",
             index=labels.index(default_label) if default_label in labels else 0,
         )
-        st.session_state["simpm_entity_label"] = selected_label
+        # ❌ remove this line:
+        # st.session_state["simpm_entity_label"] = selected_label
+
         entity = options[selected_label]
 
         entity_id = entity.get("id", "-")
@@ -1038,7 +1041,6 @@ class StreamlitDashboard:
             key="simpm_resource_label",
             index=labels.index(default_label) if default_label in labels else 0,
         )
-        st.session_state["simpm_resource_label"] = selected_label
         resource = options[selected_label]
 
         res_id = resource.get("id", "-")

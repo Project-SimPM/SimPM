@@ -756,14 +756,13 @@ def _styled_container() -> None:
         unsafe_allow_html=True,
     )
 
-
 def _compact_selectbox(
     label: str,
     options: list[Any],
     *,
     key: str | None = None,
     index: int = 0,
-    format_func: Callable[[Any], str] | None = None,
+    format_func: Callable[[Any], str] = str,  # <- always callable
 ) -> Any:
     """Render a smaller selectbox inline with its label."""
     col_label, col_widget, _ = st.columns([0.12, 0.32, 0.56])
@@ -775,7 +774,7 @@ def _compact_selectbox(
             options,
             index=index,
             key=key,
-            format_func=format_func,
+            format_func=format_func,      # always a function now
             label_visibility="collapsed",
         )
 

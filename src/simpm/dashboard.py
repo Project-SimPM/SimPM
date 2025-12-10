@@ -1,4 +1,5 @@
 """Streamlit dashboard for SimPM runs."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,6 +7,7 @@ import base64
 import json
 import logging
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from numbers import Integral
@@ -18,9 +20,7 @@ import plotly.express as px
 try:  # pragma: no cover - handled at runtime
     import streamlit as st
 except ImportError as exc:  # pragma: no cover - handled at runtime
-    raise ImportError(
-        "Streamlit is required for dashboard mode. Install with `pip install streamlit plotly`."
-    ) from exc
+    raise ImportError("Streamlit is required for dashboard mode. Install with `pip install streamlit plotly`.") from exc
 
 from simpm.dashboard_data import RunSnapshot, collect_run_data
 
@@ -207,9 +207,7 @@ def _format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
                 numeric_cols.append(col)
 
     for col in numeric_cols:
-        display_df[col] = display_df[col].apply(
-            lambda val: _format_numeric_value(val, digits)
-        )
+        display_df[col] = display_df[col].apply(lambda val: _format_numeric_value(val, digits))
 
     return display_df
 
@@ -259,9 +257,7 @@ def _render_numeric_analysis(df: pd.DataFrame, time_col: str | None = None) -> N
     )
     time_axis = time_col or _find_time_column(df.drop(columns=[col], errors="ignore"))
     st.markdown(f"#### {col}")
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
-        ["Statistics", "Time series", "Histogram", "Box plot"]
-    )
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
 
     with tab_stats:
         stats_df = _basic_statistics(df[col])
@@ -302,39 +298,19 @@ def _render_table_preview(
     indent_table_for_icon: bool = False,
 ) -> None:
     """Render a table preview with a download button."""
-    st.caption(
-        "Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else "")
-    )
+    st.caption("Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else ""))
     download_icon_b64 = _asset_base64("download.png")
     csv_b64 = base64.b64encode(df.to_csv(index=False).encode("utf-8")).decode("utf-8")
     file_name = f"{key_prefix or title}.csv"
     icon_html = ""
     if download_icon_b64:
-        icon_html = (
-            "<a "
-            f"href='data:text/csv;base64,{csv_b64}' "
-            f"download='{file_name}' "
-            "style='position:absolute; top:8px; left:8px; z-index:2;' "
-            "aria-label='Download CSV'>"
-            "<img "
-            f"src='data:image/png;base64,{download_icon_b64}' "
-            "style='width:24px; height:24px; cursor:pointer;' "
-            "alt='Download CSV' />"
-            "</a>"
-        )
+        icon_html = "<a " f"href='data:text/csv;base64,{csv_b64}' " f"download='{file_name}' " "style='position:absolute; top:8px; left:8px; z-index:2;' " "aria-label='Download CSV'>" "<img " f"src='data:image/png;base64,{download_icon_b64}' " "style='width:24px; height:24px; cursor:pointer;' " "alt='Download CSV' />" "</a>"
 
     preview_df = _format_dataframe_for_display(df.head(5))
     if len(df) > 5:
         ellipsis_row = {col: "" for col in df.columns}
         if len(df.columns) > 0:
-            ellipsis_cell = (
-                "<a "
-                "style='text-decoration: none; font-size: 1.2rem;' "
-                "title='Table truncated for readability. Download the CSV to view the complete dataset.' "
-                "aria-label='Download full table' "
-                f"href='data:text/csv;base64,{csv_b64}' "
-                f"download='{file_name}'>...</a>"
-            )
+            ellipsis_cell = "<a " "style='text-decoration: none; font-size: 1.2rem;' " "title='Table truncated for readability. Download the CSV to view the complete dataset.' " "aria-label='Download full table' " f"href='data:text/csv;base64,{csv_b64}' " f"download='{file_name}'>...</a>"
             ellipsis_row[df.columns[0]] = ellipsis_cell
         preview_df.loc["..."] = ellipsis_row
 
@@ -345,12 +321,7 @@ def _render_table_preview(
     if icon_html and indent_table_for_icon:
         table_html = f"<div style='padding-left: 40px;'>{table_html}</div>"
 
-    container_html = (
-        "<div style='position:relative; display:inline-block;'>"
-        f"{icon_html}"
-        f"{table_html}"
-        "</div>"
-    )
+    container_html = "<div style='position:relative; display:inline-block;'>" f"{icon_html}" f"{table_html}" "</div>"
     st.markdown(container_html, unsafe_allow_html=True)
 
 
@@ -373,9 +344,7 @@ def _render_table_with_preview(
         analysis_renderer(df, time_col=_find_time_column(df))
 
 
-def _render_duration_analysis(
-    df: pd.DataFrame, *, duration_col: str | None = None, start_col: str | None = None
-) -> None:
+def _render_duration_analysis(df: pd.DataFrame, *, duration_col: str | None = None, start_col: str | None = None) -> None:
     """Render duration visuals using the provided duration column when available."""
     duration_candidate = duration_col if duration_col in df.columns else None
 
@@ -387,14 +356,10 @@ def _render_duration_analysis(
 
     if duration_candidate is None:
         finish_col = next((c for c in ("finish_time", "finish") if c in df.columns), None)
-        start_candidate = start_col or next(
-            (c for c in ("start_time", "start") if c in df.columns), None
-        )
+        start_candidate = start_col or next((c for c in ("start_time", "start") if c in df.columns), None)
         if finish_col and start_candidate:
             df = df.copy()
-            df["duration"] = pd.to_numeric(df[finish_col], errors="coerce") - pd.to_numeric(
-                df[start_candidate], errors="coerce"
-            )
+            df["duration"] = pd.to_numeric(df[finish_col], errors="coerce") - pd.to_numeric(df[start_candidate], errors="coerce")
             duration_candidate = "duration"
             start_col = start_candidate
 
@@ -407,9 +372,7 @@ def _render_duration_analysis(
         st.info("No duration data available to visualize.")
         return
 
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
-        ["Statistics", "Time series", "Histogram", "Box plot"]
-    )
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
 
     if start_col and start_col in df.columns:
         x_axis_full = df[start_col]
@@ -470,9 +433,7 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
         "end_waiting",
         "start_waiting",
     }.issubset(df.columns):
-        df["waiting_duration"] = pd.to_numeric(df["end_waiting"], errors="coerce") - pd.to_numeric(
-            df["start_waiting"], errors="coerce"
-        )
+        df["waiting_duration"] = pd.to_numeric(df["end_waiting"], errors="coerce") - pd.to_numeric(df["start_waiting"], errors="coerce")
 
     _render_table_preview("Waiting log", df, key_prefix)
 
@@ -486,18 +447,14 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     duration_df = pd.DataFrame({"waiting_duration": aligned_durations})
 
     st.markdown("#### waiting_duration")
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
-        ["Statistics", "Time series", "Histogram", "Box plot"]
-    )
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
 
     with tab_stats:
         stats_df = _basic_statistics(duration_df["waiting_duration"])
         _render_compact_table(stats_df)
 
     with tab_series:
-        time_axis = (
-            df.loc[valid_mask, "start_waiting"] if "start_waiting" in df.columns else duration_df.index
-        )
+        time_axis = df.loc[valid_mask, "start_waiting"] if "start_waiting" in df.columns else duration_df.index
         fig = px.line(
             x=time_axis,
             y=aligned_durations,
@@ -530,9 +487,7 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
 
     df = df.copy()
     if "waiting_duration" not in df.columns and {"finish_time", "start_time"}.issubset(df.columns):
-        df["waiting_duration"] = pd.to_numeric(df["finish_time"], errors="coerce") - pd.to_numeric(
-            df["start_time"], errors="coerce"
-        )
+        df["waiting_duration"] = pd.to_numeric(df["finish_time"], errors="coerce") - pd.to_numeric(df["start_time"], errors="coerce")
 
     _render_table_preview("Queue log", df, key_prefix)
 
@@ -546,9 +501,7 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     duration_df = pd.DataFrame({"waiting_duration": duration_series})
 
     st.markdown("#### waiting_duration")
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
-        ["Statistics", "Time series", "Histogram", "Box plot"]
-    )
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
 
     with tab_stats:
         stats_df = _basic_statistics(duration_df["waiting_duration"])
@@ -605,9 +558,7 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         key=f"{key_prefix}-status-selection",
     )
 
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(
-        ["Statistics", "Time series", "Histogram", "Box plot"]
-    )
+    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
 
     with tab_stats:
         stats_df = _basic_statistics(pd.to_numeric(df[selected_metric], errors="coerce"))
@@ -651,6 +602,7 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
 
     # Entity logs
     for entity in snapshot.entities:
+        ent_run_id = entity.get("run_id")
         for log_key in ("schedule_log", "waiting_log", "status_log"):
             for row in entity.get(log_key, []):
                 rec = dict(row)
@@ -662,6 +614,7 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
                         "category": log_key,
                     }
                 )
+                rec.setdefault("run_id", ent_run_id)
                 records.append(rec)
         if entity.get("waiting_time"):
             for idx, value in enumerate(entity.get("waiting_time", [])):
@@ -673,11 +626,13 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
                         "category": "waiting_time",
                         "index": idx,
                         "value": value,
+                        "run_id": ent_run_id,
                     }
                 )
 
     # Resource logs
     for resource in snapshot.resources:
+        res_run_id = resource.get("run_id")
         for log_key in ("queue_log", "status_log"):
             for row in resource.get(log_key, []):
                 rec = dict(row)
@@ -689,6 +644,7 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
                         "category": log_key,
                     }
                 )
+                rec.setdefault("run_id", res_run_id)
                 records.append(rec)
         if resource.get("waiting_time"):
             for idx, value in enumerate(resource.get("waiting_time", [])):
@@ -700,6 +656,7 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
                         "category": "waiting_time",
                         "index": idx,
                         "value": value,
+                        "run_id": res_run_id,
                     }
                 )
 
@@ -756,6 +713,7 @@ def _styled_container() -> None:
         unsafe_allow_html=True,
     )
 
+
 def _compact_selectbox(
     label: str,
     options: list[Any],
@@ -774,7 +732,7 @@ def _compact_selectbox(
             options,
             index=index,
             key=key,
-            format_func=format_func,      # always a function now
+            format_func=format_func,  # always a function now
             label_visibility="collapsed",
         )
 
@@ -824,24 +782,40 @@ class StreamlitDashboard:
 
     # --------- overview / runs / navigation -----------------------------------
 
-    def _model_summary(self) -> dict[str, int]:
-        activities = sum(len(ent.get("activities", [])) for ent in self.snapshot.entities)
+    def _model_summary(self, run_filter: str) -> dict[str, int]:
+        def _matches_run(row: dict[str, Any]) -> bool:
+            if run_filter == "All runs":
+                return True
+            return str(row.get("run_id")) == str(run_filter)
+
+        filtered_entities = [ent for ent in self.snapshot.entities if _matches_run(ent)]
+        filtered_resources = [res for res in self.snapshot.resources if _matches_run(res)]
+
+        activity_df = _activity_dataframe(self.snapshot)
+        if "run_id" in activity_df.columns and run_filter != "All runs":
+            activity_df = activity_df[activity_df["run_id"].astype(str) == str(run_filter)]
+
+        def _has_activity_identifier(df: pd.DataFrame) -> pd.Series:
+            name_series = df["activity_name"] if "activity_name" in df.columns else pd.Series([None] * len(df))
+            id_series = df["activity_id"] if "activity_id" in df.columns else pd.Series([None] * len(df))
+
+            name_mask = name_series.notna() & name_series.astype(str).str.strip().ne("")
+            id_mask = id_series.notna() & id_series.astype(str).str.strip().ne("")
+            return name_mask | id_mask
+
+        activity_count = int(_has_activity_identifier(activity_df).sum()) if not activity_df.empty else 0
+
         return {
-            "entities": len(self.snapshot.entities),
-            "resources": len(self.snapshot.resources),
-            "activities": activities,
+            "entities": len(filtered_entities),
+            "resources": len(filtered_resources),
+            "activities": activity_count,
         }
 
     def _render_overview_switcher(self) -> None:
         """Show environment info and run selector."""
         env_info = self.snapshot.environment or {}
         logo_b64 = _asset_base64("simpm_logo.png")
-        logo_img = (
-            f"<img src='data:image/png;base64,{logo_b64}' "
-            "style='height: 40px; margin-right: 12px;' alt='SimPM logo'>"
-            if logo_b64
-            else ""
-        )
+        logo_img = f"<img src='data:image/png;base64,{logo_b64}' " "style='height: 40px; margin-right: 12px;' alt='SimPM logo'>" if logo_b64 else ""
         st.markdown(
             f"""
             <div style="display: flex; align-items: center; margin-bottom: 16px;">
@@ -892,16 +866,14 @@ class StreamlitDashboard:
         st.markdown("## Simulation runs")
 
         # One block: table + stats/plots in tabs (no time series)
-        tab_table, tab_stats, tab_hist, tab_box = st.tabs(
-            ["Table", "Statistics", "Histogram", "Box plot"]
-        )
+        tab_table, tab_stats, tab_hist, tab_box = st.tabs(["Table", "Statistics", "Histogram", "Box plot"])
 
         with tab_table:
             _render_table_preview(
                 "Simulation runs",
                 display_df,
                 key_prefix="simulation-runs",
-                show_index=False,           # hide DataFrame index; only show run_id
+                show_index=False,  # hide DataFrame index; only show run_id
                 indent_table_for_icon=True,  # add padding so download icon doesn't overlap run_id
             )
 
@@ -926,7 +898,8 @@ class StreamlitDashboard:
 
     def _render_navigation(self) -> None:
         """Render Entities/Resources/Activity navigation after Simulation runs."""
-        summary = self._model_summary()
+        run_filter = st.session_state.get("simpm_run_filter", "All runs")
+        summary = self._model_summary(run_filter)
 
         st.markdown(
             """
@@ -966,9 +939,7 @@ class StreamlitDashboard:
             "Navigate dashboard views",
             options=list(nav_options.keys()),
             format_func=lambda key: nav_options[key],
-            index=list(nav_options.keys()).index(active_view)
-            if active_view in nav_options
-            else 0,
+            index=list(nav_options.keys()).index(active_view) if active_view in nav_options else 0,
             horizontal=True,
             key="nav-selector",
         )
@@ -978,6 +949,9 @@ class StreamlitDashboard:
 
     def _render_entities_view(self) -> None:
         entities: Iterable[dict[str, Any]] = self.snapshot.entities
+        run_filter = st.session_state.get("simpm_run_filter", "All runs")
+        if run_filter != "All runs":
+            entities = [ent for ent in entities if str(ent.get("run_id")) == str(run_filter)]
         if not entities:
             st.info("No entities available.")
             return
@@ -998,7 +972,7 @@ class StreamlitDashboard:
         entity = options[selected_label]
 
         entity_id = entity.get("id", "-")
-        entity_name = (str(entity.get("name", "")).strip() or f"Entity {entity_id}")
+        entity_name = str(entity.get("name", "")).strip() or f"Entity {entity_id}"
         st.markdown(f"### Entity {entity_id} • {entity_name}")
         st.caption(f"Type: {entity.get('type', 'Unknown')}")
 
@@ -1028,6 +1002,9 @@ class StreamlitDashboard:
 
     def _render_resources_view(self) -> None:
         resources: Iterable[dict[str, Any]] = self.snapshot.resources
+        run_filter = st.session_state.get("simpm_run_filter", "All runs")
+        if run_filter != "All runs":
+            resources = [res for res in resources if str(res.get("run_id")) == str(run_filter)]
         if not resources:
             st.info("No resources available.")
             return
@@ -1044,11 +1021,9 @@ class StreamlitDashboard:
         resource = options[selected_label]
 
         res_id = resource.get("id", "-")
-        res_name = (str(resource.get("name", "")).strip() or f"Resource {res_id}")
+        res_name = str(resource.get("name", "")).strip() or f"Resource {res_id}"
         st.markdown(f"### Resource {res_id} • {res_name}")
-        st.caption(
-            f"Type: {resource.get('type', 'Unknown')} • Capacity: {resource.get('capacity', '-') }"
-        )
+        st.caption(f"Type: {resource.get('type', 'Unknown')} • Capacity: {resource.get('capacity', '-') }")
         attributes = resource.get("attributes") or resource.get("attr")
         if attributes:
             st.markdown(
@@ -1072,19 +1047,12 @@ class StreamlitDashboard:
             st.info("No activity recorded for this run.")
             return
 
-        # Apply run filter to environment logs while keeping entity/resource logs aggregated.
         run_filter = st.session_state.get("simpm_run_filter", "All runs")
-        if "run_id" in activity_df.columns and "source" in activity_df.columns:
-            if run_filter and run_filter != "All runs":
-                mask = (activity_df["source"] != "environment") | (
-                    activity_df["run_id"].astype(str) == str(run_filter)
-                )
-                activity_df = activity_df[mask]
+        if "run_id" in activity_df.columns and run_filter != "All runs":
+            activity_df = activity_df[activity_df["run_id"].astype(str) == str(run_filter)]
 
         def _has_activity_identifier(df: pd.DataFrame) -> pd.Series:
-            name_series = (
-                df["activity_name"] if "activity_name" in df.columns else pd.Series([None] * len(df))
-            )
+            name_series = df["activity_name"] if "activity_name" in df.columns else pd.Series([None] * len(df))
             id_series = df["activity_id"] if "activity_id" in df.columns else pd.Series([None] * len(df))
 
             name_mask = name_series.notna() & name_series.astype(str).str.strip().ne("")
@@ -1118,13 +1086,9 @@ class StreamlitDashboard:
                 for col in standard_cols:
                     if col not in display_df.columns:
                         display_df[col] = ""
-                start_col = next(
-                    (c for c in ("start_time", "start", "start_at") if c in display_df.columns), None
-                )
+                start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
                 if start_col:
-                    display_df = display_df.sort_values(
-                        start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
-                    ).reset_index(drop=True)
+                    display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
                 display_df = display_df[standard_cols].fillna("")
 
                 _render_table_with_preview(
@@ -1135,11 +1099,7 @@ class StreamlitDashboard:
                 )
 
             with tab_by_name:
-                schedule_df = (
-                    filtered_activity[filtered_activity["category"] == "schedule_log"].copy()
-                    if "category" in filtered_activity.columns
-                    else pd.DataFrame()
-                )
+                schedule_df = filtered_activity[filtered_activity["category"] == "schedule_log"].copy() if "category" in filtered_activity.columns else pd.DataFrame()
 
                 label_col = next(
                     (candidate for candidate in ["activity_name", "activity"] if candidate in schedule_df.columns),
@@ -1180,15 +1140,11 @@ class StreamlitDashboard:
 
                 filtered = schedule_df[schedule_df["activity_label"] == selected].copy()
 
-                start_col = next(
-                    (c for c in ("start_time", "start", "start_at") if c in filtered.columns), None
-                )
+                start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
                 end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
 
                 if "duration" not in filtered.columns and start_col and end_col:
-                    filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(
-                        filtered[start_col], errors="coerce"
-                    )
+                    filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(filtered[start_col], errors="coerce")
 
                 if "activity_name" not in filtered.columns or filtered["activity_name"].isna().all():
                     filtered["activity_name"] = filtered.get("activity", "")
@@ -1199,9 +1155,7 @@ class StreamlitDashboard:
 
                 display_df = filtered[standard_cols]
                 if start_col and start_col in display_df.columns:
-                    display_df = display_df.sort_values(
-                        start_col, key=lambda s: pd.to_numeric(s, errors="coerce")
-                    ).reset_index(drop=True)
+                    display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
                 display_df = display_df.fillna("")
 
                 _render_table_with_preview(
@@ -1228,6 +1182,8 @@ class StreamlitDashboard:
         snapshot_file.write_text(json.dumps(self.snapshot.as_dict(), default=str))
 
         cmd = [
+            sys.executable,
+            "-m",
             "streamlit",
             "run",
             str(Path(__file__).resolve()),
@@ -1317,9 +1273,7 @@ def run_post_dashboard(env_or_envs, host: str = "127.0.0.1", port: int = 8050, s
         snapshot = collect_run_data(env_or_envs)
 
     dashboard = StreamlitDashboard(snapshot=snapshot)
-    logger.info(
-        "Starting Streamlit dashboard at http://%s:%s (async=%s)", host, port, start_async
-    )
+    logger.info("Starting Streamlit dashboard at http://%s:%s (async=%s)", host, port, start_async)
     dashboard.run(host=host, port=port, async_mode=start_async)
     return dashboard
 
@@ -1344,16 +1298,10 @@ def main() -> None:  # pragma: no cover - executed by Streamlit runtime
     parser.add_argument("--data", type=str, default=None)
     args, _ = parser.parse_known_args()
 
-    snapshot = (
-        _ACTIVE_DASHBOARD.snapshot
-        if _ACTIVE_DASHBOARD is not None
-        else _load_snapshot_from_file(args.data)
-    )
+    snapshot = _ACTIVE_DASHBOARD.snapshot if _ACTIVE_DASHBOARD is not None else _load_snapshot_from_file(args.data)
     if snapshot is None:
         st.title("SimPM Dashboard")
-        st.warning(
-            "Run a simulation with dashboard=True to populate this view."
-        )
+        st.warning("Run a simulation with dashboard=True to populate this view.")
         return
     StreamlitDashboard(snapshot=snapshot).render()
 

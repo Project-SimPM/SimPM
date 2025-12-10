@@ -221,6 +221,16 @@ def _entity_snapshot(entity) -> dict[str, Any]:
         if run_id is None:
             run_id = getattr(env, "run_number", None)
 
+    def _attach_run_id(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for rec in records:
+            rec.setdefault("run_id", run_id)
+        return records
+
+    schedule_log = _attach_run_id(schedule_log)
+    waiting_log = _attach_run_id(waiting_log)
+    status_log = _attach_run_id(_safe_records(entity.status_log))
+    logs = _attach_run_id(_safe_records(lambda: getattr(entity, "logs", [])))
+
     return {
         "id": getattr(entity, "id", None),
         "name": getattr(entity, "name", None),
@@ -230,10 +240,10 @@ def _entity_snapshot(entity) -> dict[str, Any]:
         "completed_at": getattr(entity, "completed_at", None),
         "activities": activities,
         "schedule_log": schedule_log,
-        "status_log": _safe_records(entity.status_log),
+        "status_log": status_log,
         "waiting_log": waiting_log,
         "waiting_time": waiting_time,
-        "logs": _safe_records(lambda: getattr(entity, "logs", [])),
+        "logs": logs,
         "total_active_time": total_active,
         "total_waiting_time": total_waiting,
         "attributes": _collect_attributes(entity, _ENTITY_RESERVED_ATTRS, include_public=True),
@@ -272,6 +282,15 @@ def _resource_snapshot(resource) -> dict[str, Any]:
         if run_id is None:
             run_id = getattr(env, "run_number", None)
 
+    def _attach_run_id(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for rec in records:
+            rec.setdefault("run_id", run_id)
+        return records
+
+    queue_records = _attach_run_id(queue_records)
+    status_log = _attach_run_id(_safe_records(resource.status_log))
+    logs = _attach_run_id(_safe_records(lambda: getattr(resource, "logs", [])))
+
     return {
         "id": resource.id,
         "name": resource.name,
@@ -280,10 +299,10 @@ def _resource_snapshot(resource) -> dict[str, Any]:
         "capacity": getattr(resource.container, "capacity", None),
         "initial_level": getattr(resource.container, "_init", None),
         "queue_log": queue_records,
-        "status_log": _safe_records(resource.status_log),
+        "status_log": status_log,
         "waiting_time": _safe_array(resource.waiting_time),
         "stats": _resource_stats(resource),
-        "logs": _safe_records(lambda: getattr(resource, "logs", [])),
+        "logs": logs,
         "attributes": _collect_attributes(resource, _RESOURCE_RESERVED_ATTRS, include_public=False),
     }
 
@@ -368,12 +387,7 @@ def collect_run_data(env) -> RunSnapshot:
     # 3) Ensure at least one simulation_time event per run using run_history.
     #    This keeps the dashboard "Simulation runs" view working even if
     #    Environment.log_event was not used.
-    have_sim_time = any(
-        isinstance(evt, dict)
-        and isinstance(evt.get("metadata"), dict)
-        and evt["metadata"].get("simulation_time") is not None
-        for evt in logs
-    )
+    have_sim_time = any(isinstance(evt, dict) and isinstance(evt.get("metadata"), dict) and evt["metadata"].get("simulation_time") is not None for evt in logs)
 
     if run_history and not have_sim_time:
         for rh in run_history:

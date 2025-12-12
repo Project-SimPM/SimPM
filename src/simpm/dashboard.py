@@ -1210,10 +1210,44 @@ class StreamlitDashboard:
 
 
 def _aggregate_envs_to_snapshot(envs: List[Any]) -> RunSnapshot:
-    """Aggregate multiple environments into a single RunSnapshot.
+    """Aggregate multiple environments into a single :class:`RunSnapshot`.
 
-    Used when ``simpm.run`` has executed many replications via an env_factory.
+    The dashboard can be launched after a Monte Carlo experiment where an
+    environment factory was executed many times. Each replication maintains its
+    own entities, resources, and log streams, but the dashboard should present
+    the complete set rather than only the final run. This helper collects a
+    snapshot per environment and *reindexes* every run to a unique ``run_id`` so
+    that run filters, tables, and plots operate on all runs consistently.
     """
+
+    def _with_run_id(snapshot: RunSnapshot, run_id: int) -> RunSnapshot:
+        """Deep-copy a snapshot while forcing ``run_id`` fields to ``run_id``.
+
+        This keeps per-run data aligned with the combined ``run_history`` and
+        prevents multiple replications from reusing ``run_id=1`` (the default
+        when each environment only executes once).
+        """
+
+        def _set_run_id(obj: Any) -> Any:
+            if isinstance(obj, dict):
+                updated: dict[str, Any] = {}
+                for key, value in obj.items():
+                    if key == "run_id":
+                        updated[key] = run_id
+                    else:
+                        updated[key] = _set_run_id(value)
+                return updated
+            if isinstance(obj, list):
+                return [_set_run_id(item) for item in obj]
+            return obj
+
+        return RunSnapshot(
+            environment=_set_run_id(snapshot.environment),
+            entities=[_set_run_id(ent) for ent in snapshot.entities],
+            resources=[_set_run_id(res) for res in snapshot.resources],
+            logs=[_set_run_id(log) for log in snapshot.logs],
+        )
+
     snapshots: list[RunSnapshot] = []
     for env in envs:
         if isinstance(env, RunSnapshot):
@@ -1231,13 +1265,18 @@ def _aggregate_envs_to_snapshot(envs: List[Any]) -> RunSnapshot:
     all_logs: list[dict[str, Any]] = []
     combined_run_history: list[dict[str, Any]] = []
 
-    for snap in snapshots:
-        all_entities.extend(snap.entities)
-        all_resources.extend(snap.resources)
-        all_logs.extend(snap.logs)
+    for idx, snap in enumerate(snapshots, start=1):
+        remapped_snap = _with_run_id(snap, idx)
+        all_entities.extend(remapped_snap.entities)
+        all_resources.extend(remapped_snap.resources)
+        all_logs.extend(remapped_snap.logs)
+
         rh = snap.environment.get("run_history") or []
         if isinstance(rh, list):
-            combined_run_history.extend(rh)
+            for row in rh:
+                rh_row = dict(row)
+                rh_row["run_id"] = idx
+                combined_run_history.append(rh_row)
 
     # Re-index run_ids to 1..N for clarity in the dashboard
     for idx, rh in enumerate(combined_run_history, start=1):

@@ -34,3 +34,15 @@ Usage
    :undoc-members:
    :show-inheritance:
    :noindex:
+
+
+Aggregating many runs
+---------------------
+
+When :func:`simpm.run` executes a factory multiple times (for example, in a
+Monte Carlo experiment), the dashboard automatically aggregates the results.
+Each replication is assigned a unique ``run_id`` and all entity, resource, and
+environment logs are merged into a single dataset so the dashboard tables,
+charts, and download buttons display *every* run—not just the last one. Use the
+"Run" selector in the Overview panel to focus on a specific replication or pick
+"All runs" to view the combined history.

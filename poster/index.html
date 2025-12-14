@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interactive research poster for SimPM: discrete-event simulation for project and construction management in Python." />
+  <title>SimPM — Simulation Tool in Project Management (Interactive Poster)</title>
+
+  <!-- Persisted language (EN/FA) before paint -->
+  <script>
+    (() => {
+      const key = 'simpm-poster-lang';
+      const saved = (() => {
+        try { return localStorage.getItem(key); } catch { return null; }
+      })();
+      const sys = (navigator.language || '').toLowerCase();
+      const systemLang = sys.startsWith('fa') ? 'fa' : 'en';
+      const lang = (saved === 'en' || saved === 'fa') ? saved : systemLang;
+      document.documentElement.dataset.lang = lang;
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
+    })();
+  </script>
+
+  <!-- Persisted theme (light/dark) before paint -->
+  <script>
+    (() => {
+      const key = 'simpm-poster-theme';
+      const saved = (() => {
+        try { return localStorage.getItem(key); } catch { return null; }
+      })();
+      const prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const theme = (saved === 'light' || saved === 'dark') ? saved : (prefersDark ? 'dark' : 'light');
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
+
+  <!-- Persian-capable font (CDN) -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&display=swap" />
+
+  <link rel="stylesheet" href="assets/styles.css" />
+
+  <!-- Syntax highlighting (Python) - local copies -->
+  <link rel="stylesheet" href="assets/hljs-github-dark-dimmed.min.css" id="hljs-dark" />
+  <link rel="stylesheet" href="assets/hljs-github.min.css" id="hljs-light" disabled />
+
+  <!-- Mermaid (local for offline) -->
+  <script src="assets/mermaid.min.js"></script>
+  <!-- Highlight.js (local) -->
+  <script src="assets/hljs.min.js"></script>
+  <script src="assets/hljs-python.min.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <div class="headerTop">
+        <div class="brand">
+          <img class="logo" src="images/kntu_logo.jpg" alt="KNTU logo" />
+          <div>
+            <div class="kicker" data-i18n="header.exhibition">Research Exhibition Poster</div>
+            <div class="brandName" data-i18n="header.university">K. N. Toosi University of Technology</div>
+          </div>
+        </div>
+        <img class="logo" src="images/simpm_logo.png" alt="SimPM logo" />
+      </div>
+
+      <div class="titleWrap">
+        <h1 class="h1" data-i18n="header.title">SimPM — Simulation Tool in Project Management</h1>
+        <p class="sub" data-i18n-html="header.subtitle">
+          SimPM is a <b>process-based discrete-event simulation</b> library for modeling projects and
+          construction operations in <b>Python</b>—with built-in <b>logging</b>, schedule-friendly
+          <b>probability distributions</b>, and optional <b>Dash dashboards</b>.
+        </p>
+        <div class="badges">
+          <span class="badge" data-i18n="badge.python">Python</span>
+          <span class="badge" data-i18n="badge.des">Process-based DES</span>
+          <span class="badge" data-i18n="badge.dist">Schedule distributions</span>
+          <span class="badge" data-i18n="badge.logs">Tabular logging</span>
+          <span class="badge" data-i18n="badge.dashboard">Optional dashboards</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="nav" aria-label="Poster navigation">
+    <div class="container">
+      <div class="navInner">
+        <div class="navLinks">
+          <a href="#overview" data-i18n="nav.overview">Overview</a>
+          <a href="#building-blocks" data-i18n="nav.blocks">Building Blocks</a>
+          <a href="#workflow" data-i18n="nav.workflow">Workflow</a>
+          <a href="#modeling" data-i18n="nav.modeling">Modeling</a>
+          <a href="#engine" data-i18n="nav.engine">Engine</a>
+          <a href="#outputs" data-i18n="nav.outputs">Outputs</a>
+          <a href="#examples" data-i18n="nav.examples">Examples</a>
+        </div>
+        <div class="navActions">
+          <button class="btn" id="langToggle" type="button" aria-label="Toggle language" aria-pressed="false">EN</button>
+          <button class="btn" id="themeToggle" type="button" aria-label="Toggle theme" aria-pressed="false">Theme</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+
+      <section class="panel" id="overview" aria-label="Overview">
+        <div class="panelHeader">
+          <div>
+            <h2 data-i18n="overview.title">Overview</h2>
+            <p data-i18n="overview.subtitle">A project-focused discrete-event simulation toolkit for studying duration risk, bottlenecks, and resource plans.</p>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="grid2">
+            <div class="card">
+              <h3 data-i18n="overview.what.title">What it does</h3>
+              <ul>
+                <li data-i18n-html="overview.what.li1">Model activities as <b>processes</b> (generator functions) that request resources and do work.</li>
+                <li data-i18n-html="overview.what.li2">Represent crews/equipment as <b>resources</b> with capacity, priorities, and (optionally) preemption.</li>
+                <li data-i18n-html="overview.what.li3">Use <b>distributions</b> (triangular, beta, empirical, …) for realistic task durations.</li>
+                <li data-i18n-html="overview.what.li4">Produce <b>tables</b> for schedules, queues, waiting times, and utilization—plus optional dashboards.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3 data-i18n="overview.poster.title">Interactive poster</h3>
+              <ul>
+                <li data-i18n="overview.poster.li1">Click any figure (diagram/code) to zoom and read the caption.</li>
+                <li data-i18n="overview.poster.li2">Use the sticky navigation to jump between panels.</li>
+                <li data-i18n="overview.poster.li3">All figures are generated (Mermaid) to stay lightweight.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="building-blocks" aria-label="Building blocks">
+        <div class="panelHeader">
+          <div>
+            <h2 data-i18n="blocks.title">Building blocks</h2>
+            <p data-i18n="blocks.subtitle">SimPM maps core DES ideas to practical project-management objects.</p>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="grid2">
+            <div class="card">
+              <h3 data-i18n="blocks.list.title">Core objects</h3>
+              <ul>
+                <li data-i18n-html="blocks.list.li1"><b>Environment</b>: simulation clock + event scheduler (e.g., <span class="inlineCode">env.now</span>).</li>
+                <li data-i18n-html="blocks.list.li2"><b>Entity</b>: a work item (task, truck, activity) with attributes and a schedule.</li>
+                <li data-i18n-html="blocks.list.li3"><b>Resource</b>: crew/equipment/workspace capacity with queueing and logging.</li>
+                <li data-i18n-html="blocks.list.li4"><b>Distributions</b>: duration uncertainty passed directly to <span class="inlineCode">Entity.do</span>.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3 data-i18n="blocks.figures.title">Figures</h3>
+              <div class="figureGrid" id="blocksGrid" aria-label="Building block figures"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="workflow" aria-label="Workflow">
+        <div class="panelHeader">
+          <div>
+            <h2 data-i18n="workflow.title">Workflow</h2>
+            <p data-i18n="workflow.subtitle">Write a model in Python → run the environment → analyze logs → (optionally) open a dashboard.</p>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="figureGrid" id="workflowGrid" aria-label="Workflow figures"></div>
+          <div class="footer" data-i18n="workflow.tip">Tip: switch themes to see the Mermaid figures re-render.</div>
+        </div>
+      </section>
+
+      <section class="panel" id="modeling" aria-label="Modeling">
+        <div class="panelHeader">
+          <div>
+            <h2 data-i18n="modeling.title">Modeling: activities, resources, distributions</h2>
+            <p data-i18n-html="modeling.subtitle">Model logic using <span class="inlineCode">get</span>/<span class="inlineCode">do</span>/<span class="inlineCode">put</span>; add priority or preemption when needed.</p>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="grid2">
+            <div class="card">
+              <h3 data-i18n="modeling.patterns.title">Common patterns</h3>
+              <ul>
+                <li data-i18n-html="modeling.patterns.li1"><b>Resource contention</b>: entities queue when capacity is unavailable.</li>
+                <li data-i18n-html="modeling.patterns.li2"><b>Priorities</b>: urgent tasks jump ahead in the queue.</li>
+                <li data-i18n-html="modeling.patterns.li3"><b>Preemption</b>: high-priority work can interrupt lower-priority usage.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3 data-i18n="modeling.figures.title">Figures</h3>
+              <div class="figureGrid" id="modelingGrid" aria-label="Modeling figures"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="engine" aria-label="Engine">
+        <div class="panelHeader">
+          <div>
+            <h2 data-i18n="engine.title">Engine: process-based DES</h2>
+            <p data-i18n="engine.subtitle">Processes yield actions; the environment advances time from event to event.</p>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="grid2">
+            <div class="card">
+              <h3 data-i18n="engine.why.title">Why DES</h3>
+              <ul>
+                <li data-i18n="engine.why.li1">Efficiently represents queues and limited crews without stepping through every second.</li>
+                <li data-i18n="engine.why.li2">Supports stochastic durations for schedule risk and Monte Carlo experiments.</li>
+                <li data-i18n="engine.why.li3">Produces explicit waiting/working intervals, enabling bottleneck analysis.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3 data-i18n="engine.figures.title">Figures</h3>
+              <div class="figureGrid" id="engineGrid" aria-label="Engine figures"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="outputs" aria-label="Outputs">
+        <div class="panelHeader">
+          <div>
+            <h2 data-i18n="outputs.title">Outputs: logs and dashboards</h2>
+            <p data-i18n="outputs.subtitle">SimPM produces pandas-friendly tables for schedules and resource performance; dashboards are optional.</p>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="figureGrid" id="outputsGrid" aria-label="Outputs figures"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="examples" aria-label="Examples">
+        <div class="panelHeader">
+          <div>
+            <h2 data-i18n="examples.title">Examples</h2>
+            <p data-i18n="examples.subtitle">Minimal activity, distributions, and dashboard mode.</p>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="grid2">
+            <div class="card">
+              <h3 data-i18n="examples.install.title">Install</h3>
+              <pre class="code">pip install simpm
+pip install simpm[dash]</pre>
+              <div class="footer" data-i18n="examples.install.tip">Use the extra to enable Plotly Dash dashboards.</div>
+            </div>
+            <div class="card">
+              <h3 data-i18n="examples.figures.title">Code figures</h3>
+              <div class="figureGrid" id="examplesGrid" aria-label="Example code figures"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer footerTight" data-i18n="footer.built">
+        Built for offline exhibition display. Use the sticky navigation for fast jumps.
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-label="Figure viewer">
+    <div class="lightboxCard" role="document">
+      <div class="lightboxTop">
+        <div class="title" id="lightboxTitle" data-i18n="lightbox.title">Figure</div>
+        <button class="close" id="lightboxClose" type="button" data-i18n="lightbox.close">Close (Esc)</button>
+      </div>
+      <div class="lightboxBody">
+        <img id="lightboxImg" alt="" />
+        <div id="lightboxSvg" class="lightboxSvg" aria-hidden="true"></div>
+        <pre id="lightboxCode" class="lightboxCode" aria-hidden="true"><code id="lightboxCodeInner" class="language-python"></code></pre>
+        <div class="lightboxCaption" id="lightboxCaption"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

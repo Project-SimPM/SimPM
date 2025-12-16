@@ -93,6 +93,30 @@ def _available_runs(environment: dict[str, Any], logs: list[dict[str, Any]]) -> 
     return sorted(run_ids, key=lambda v: str(v))
 
 
+def _standardize_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Sort dataframe by run_id (if present), move run_id right after index, and reset index.
+    
+    This ensures consistent column ordering and sorting across all log displays.
+    """
+    if df.empty:
+        return df
+    
+    df = df.copy()
+    
+    # Sort by run_id if it exists, preserving other sort orders within each run
+    if "run_id" in df.columns:
+        df = df.sort_values(by="run_id", ignore_index=False)
+        
+        # Move run_id to be the first column (right after implicit index)
+        cols = [col for col in df.columns if col != "run_id"]
+        df = df[["run_id"] + cols]
+    
+    # Reset index to make it clean
+    df = df.reset_index(drop=True)
+    
+    return df
+
+
 def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]]) -> pd.DataFrame:
     """Build a dataframe with per-run simulation times.
 
@@ -298,6 +322,9 @@ def _render_table_preview(
     indent_table_for_icon: bool = False,
 ) -> None:
     """Render a table preview with a download button."""
+    # Standardize dataframe: sort by run_id, move it to first position, and reset index
+    df = _standardize_dataframe_columns(df)
+    
     st.caption("Showing the first 5 rows" + (f" of {len(df)} total" if len(df) > 5 else ""))
     download_icon_b64 = _asset_base64("download.png")
     csv_b64 = base64.b64encode(df.to_csv(index=False).encode("utf-8")).decode("utf-8")
@@ -391,22 +418,29 @@ def _render_duration_analysis(df: pd.DataFrame, *, duration_col: str | None = No
         _render_compact_table(stats_df)
 
     with tab_series:
-        fig = px.line(x=x_axis, y=aligned_series, labels={"x": x_label, "y": duration_candidate})
+        plot_df = pd.DataFrame({duration_candidate: aligned_series})
+        if "run_id" in df.columns:
+            plot_df["run_id"] = df.loc[valid_mask, "run_id"].values
+            plot_df = _standardize_dataframe_columns(plot_df)
+        fig = px.line(plot_df, x=x_axis, y=duration_candidate, labels={"x": x_label, "y": duration_candidate})
         fig.update_traces(line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
         st.plotly_chart(fig, width="stretch")
 
     with tab_hist:
-        fig = px.histogram(
-            aligned_series,
-            nbins=min(30, max(5, len(aligned_series))),
-            labels={"value": duration_candidate},
-        )
+        hist_df = pd.DataFrame({duration_candidate: aligned_series})
+        if "run_id" in df.columns:
+            hist_df["run_id"] = df.loc[valid_mask, "run_id"].values
+            hist_df = _standardize_dataframe_columns(hist_df)
+        fig = px.histogram(hist_df, x=duration_candidate, nbins=min(30, max(5, len(hist_df))))
         fig.update_traces(marker_color="#5bbd89")
         st.plotly_chart(fig, width="stretch")
 
     with tab_box:
         box_df = pd.DataFrame({duration_candidate: aligned_series})
+        if "run_id" in df.columns:
+            box_df["run_id"] = df.loc[valid_mask, "run_id"].values
+            box_df = _standardize_dataframe_columns(box_df)
         fig = px.box(box_df, y=duration_candidate)
         fig.update_traces(marker_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
@@ -445,6 +479,13 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     valid_mask = raw_durations.notna()
     aligned_durations = raw_durations[valid_mask]
     duration_df = pd.DataFrame({"waiting_duration": aligned_durations})
+    
+    # Include run_id if available to show which run each duration came from
+    if "run_id" in df.columns:
+        duration_df["run_id"] = df.loc[valid_mask, "run_id"].values
+    
+    # Standardize column ordering and sorting
+    duration_df = _standardize_dataframe_columns(duration_df)
 
     st.markdown("#### waiting_duration")
     tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
@@ -456,8 +497,9 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     with tab_series:
         time_axis = df.loc[valid_mask, "start_waiting"] if "start_waiting" in df.columns else duration_df.index
         fig = px.line(
+            duration_df,
             x=time_axis,
-            y=aligned_durations,
+            y="waiting_duration",
             labels={
                 "x": "start_waiting" if "start_waiting" in df.columns else "Index",
                 "y": "waiting_duration",
@@ -499,6 +541,13 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     valid_mask = raw_durations.notna()
     duration_series = raw_durations[valid_mask]
     duration_df = pd.DataFrame({"waiting_duration": duration_series})
+    
+    # Include run_id if available to show which run each duration came from
+    if "run_id" in df.columns:
+        duration_df["run_id"] = df.loc[valid_mask, "run_id"].values
+    
+    # Standardize column ordering and sorting
+    duration_df = _standardize_dataframe_columns(duration_df)
 
     st.markdown("#### waiting_duration")
     tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
@@ -510,8 +559,9 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
     with tab_series:
         time_axis = df.loc[valid_mask, "start_time"] if "start_time" in df.columns else duration_df.index
         fig = px.line(
+            duration_df,
             x=time_axis,
-            y=duration_df["waiting_duration"],
+            y="waiting_duration",
             labels={
                 "x": "start_time" if "start_time" in df.columns else "Index",
                 "y": "waiting_duration",
@@ -539,6 +589,9 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         st.info("No status records available yet.")
         return
 
+    # Standardize column ordering and sorting before any processing
+    df = _standardize_dataframe_columns(df)
+    
     metric_cols = [col for col in ("in_use", "idle", "queue_length") if col in df.columns]
     time_axis = _find_time_column(df) or "time"
     if time_axis not in df.columns:
@@ -956,7 +1009,18 @@ class StreamlitDashboard:
             st.info("No entities available.")
             return
 
-        options = {f"{ent['name']} ({ent['id']})": ent for ent in entities}
+        # Group entities by ID for display, allowing selection across runs
+        if run_filter == "All runs":
+            entity_dict = {}
+            for ent in entities:
+                ent_id = ent.get("id")
+                if ent_id not in entity_dict:
+                    entity_dict[ent_id] = []
+                entity_dict[ent_id].append(ent)
+            options = {f"{entity_dict[eid][0].get('name', 'Entity')} ({eid})": eid for eid in entity_dict}
+        else:
+            options = {f"{ent['name']} ({ent['id']})": ent for ent in entities}
+        
         default_label = st.session_state.get("simpm_entity_label")
         labels = list(options.keys())
 
@@ -969,8 +1033,19 @@ class StreamlitDashboard:
         # ❌ remove this line:
         # st.session_state["simpm_entity_label"] = selected_label
 
-        entity = options[selected_label]
+        # Get all entities matching the selection
+        if run_filter == "All runs":
+            entity_id = options[selected_label]
+            selected_entities = [ent for ent in entities if ent.get("id") == entity_id]
+        else:
+            selected_entities = [options[selected_label]]
 
+        if not selected_entities:
+            st.info("No entities available.")
+            return
+
+        # Display info for the first entity (they're all the same type)
+        entity = selected_entities[0]
         entity_id = entity.get("id", "-")
         entity_name = str(entity.get("name", "")).strip() or f"Entity {entity_id}"
         st.markdown(f"### Entity {entity_id} • {entity_name}")
@@ -983,15 +1058,16 @@ class StreamlitDashboard:
                 unsafe_allow_html=True,
             )
 
-        schedule_df = pd.DataFrame(entity.get("schedule_log", []))
+        # Combine logs from all instances of this entity across runs
+        schedule_df = pd.concat([pd.DataFrame(ent.get("schedule_log", [])) for ent in selected_entities], ignore_index=True)
         if not schedule_df.empty:
             _render_schedule_summary(schedule_df, key_prefix=f"entity-{entity_id}-schedule")
 
-        waiting_df = pd.DataFrame(entity.get("waiting_log", []))
+        waiting_df = pd.concat([pd.DataFrame(ent.get("waiting_log", [])) for ent in selected_entities], ignore_index=True)
         if not waiting_df.empty:
             _render_waiting_log(waiting_df, key_prefix=f"entity-{entity_id}-waiting")
 
-        status_df = pd.DataFrame(entity.get("status_log", []))
+        status_df = pd.concat([pd.DataFrame(ent.get("status_log", [])) for ent in selected_entities], ignore_index=True)
         if not status_df.empty:
             _render_table_with_preview(
                 "Status log",
@@ -1009,7 +1085,18 @@ class StreamlitDashboard:
             st.info("No resources available.")
             return
 
-        options = {f"{res['name']} ({res['id']})": res for res in resources}
+        # Group resources by ID for display, allowing selection across runs
+        if run_filter == "All runs":
+            resource_dict = {}
+            for res in resources:
+                res_id = res.get("id")
+                if res_id not in resource_dict:
+                    resource_dict[res_id] = []
+                resource_dict[res_id].append(res)
+            options = {f"{resource_dict[rid][0].get('name', 'Resource')} ({rid})": rid for rid in resource_dict}
+        else:
+            options = {f"{res['name']} ({res['id']})": res for res in resources}
+        
         default_label = st.session_state.get("simpm_resource_label")
         labels = list(options.keys())
         selected_label = _compact_selectbox(
@@ -1018,7 +1105,20 @@ class StreamlitDashboard:
             key="simpm_resource_label",
             index=labels.index(default_label) if default_label in labels else 0,
         )
-        resource = options[selected_label]
+        
+        # Get all resources matching the selection
+        if run_filter == "All runs":
+            resource_id = options[selected_label]
+            selected_resources = [res for res in resources if res.get("id") == resource_id]
+        else:
+            selected_resources = [options[selected_label]]
+        
+        if not selected_resources:
+            st.info("No resources available.")
+            return
+
+        # Display info for the first resource (they're all the same type)
+        resource = selected_resources[0]
 
         res_id = resource.get("id", "-")
         res_name = str(resource.get("name", "")).strip() or f"Resource {res_id}"
@@ -1031,11 +1131,12 @@ class StreamlitDashboard:
                 unsafe_allow_html=True,
             )
 
-        queue_df = pd.DataFrame(resource.get("queue_log", []))
+        # Combine logs from all instances of this resource across runs
+        queue_df = pd.concat([pd.DataFrame(res.get("queue_log", [])) for res in selected_resources], ignore_index=True)
         if not queue_df.empty:
             _render_queue_waiting_log(queue_df, key_prefix=f"resource-{res_id}-queue")
 
-        status_df = pd.DataFrame(resource.get("status_log", []))
+        status_df = pd.concat([pd.DataFrame(res.get("status_log", [])) for res in selected_resources], ignore_index=True)
         if not status_df.empty:
             _render_resource_status(status_df, key_prefix=f"resource-{res_id}-status")
 
@@ -1050,6 +1151,9 @@ class StreamlitDashboard:
         run_filter = st.session_state.get("simpm_run_filter", "All runs")
         if "run_id" in activity_df.columns and run_filter != "All runs":
             activity_df = activity_df[activity_df["run_id"].astype(str) == str(run_filter)]
+        else:
+            # Standardize the activity dataframe for proper ordering when viewing all runs
+            activity_df = _standardize_dataframe_columns(activity_df)
 
         def _has_activity_identifier(df: pd.DataFrame) -> pd.Series:
             name_series = df["activity_name"] if "activity_name" in df.columns else pd.Series([None] * len(df))
@@ -1074,101 +1178,101 @@ class StreamlitDashboard:
             "entity_id",
             "entity_name",
         ]
+        
+        # Always include run_id if it exists in the data
+        run_filter = st.session_state.get("simpm_run_filter", "All runs")
+        if "run_id" in filtered_activity.columns:
+            standard_cols.insert(0, "run_id")
 
-        with st.container():
-            tab_all, tab_by_name = st.tabs(["All activity", "By activity name"])
+        # Display all activity log
+        st.markdown("#### Activity Log")
+        display_df = filtered_activity.copy()
+        display_df["activity_name"] = display_df.get("activity_name")
+        if "activity_name" not in display_df.columns or display_df["activity_name"].isna().all():
+            display_df["activity_name"] = display_df.get("activity")
+        for col in standard_cols:
+            if col not in display_df.columns:
+                display_df[col] = ""
+        start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
+        if start_col:
+            display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
+        display_df = display_df[standard_cols].fillna("")
 
-            with tab_all:
-                display_df = filtered_activity.copy()
-                display_df["activity_name"] = display_df.get("activity_name")
-                if "activity_name" not in display_df.columns or display_df["activity_name"].isna().all():
-                    display_df["activity_name"] = display_df.get("activity")
-                for col in standard_cols:
-                    if col not in display_df.columns:
-                        display_df[col] = ""
-                start_col = next((c for c in ("start_time", "start", "start_at") if c in display_df.columns), None)
-                if start_col:
-                    display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
-                display_df = display_df[standard_cols].fillna("")
+        _render_table_with_preview(
+            "Activity",
+            display_df,
+            key_prefix="activity",
+            analysis_renderer=None,
+        )
 
-                _render_table_with_preview(
-                    "Activity",
-                    display_df,
-                    key_prefix="activity",
-                    analysis_renderer=None,
-                )
+        # Display activity by name section
+        st.markdown("#### Activity by Name")
+        schedule_df = filtered_activity[filtered_activity["category"] == "schedule_log"].copy() if "category" in filtered_activity.columns else pd.DataFrame()
 
-            with tab_by_name:
-                schedule_df = filtered_activity[filtered_activity["category"] == "schedule_log"].copy() if "category" in filtered_activity.columns else pd.DataFrame()
+        label_col = next(
+            (candidate for candidate in ["activity_name", "activity"] if candidate in schedule_df.columns),
+            None,
+        )
 
-                label_col = next(
-                    (candidate for candidate in ["activity_name", "activity"] if candidate in schedule_df.columns),
-                    None,
-                )
+        if schedule_df.empty or not label_col:
+            st.info("No scheduled activities with names are available to inspect.")
+            fallback_df = filtered_activity.copy()
+            for col in standard_cols:
+                if col not in fallback_df.columns:
+                    fallback_df[col] = ""
+            _render_table_with_preview(
+                "Activity",
+                fallback_df[standard_cols],
+                key_prefix="activity-name",
+                analysis_renderer=None,
+            )
+        else:
+            schedule_df = schedule_df[_has_activity_identifier(schedule_df)].copy()
+            schedule_df["activity_label"] = schedule_df[label_col].astype(str)
+            options = sorted(schedule_df["activity_label"].dropna().unique())
 
-                if schedule_df.empty or not label_col:
-                    st.info("No scheduled activities with names are available to inspect.")
-                    fallback_df = filtered_activity.copy()
-                    for col in standard_cols:
-                        if col not in fallback_df.columns:
-                            fallback_df[col] = ""
-                    _render_table_with_preview(
-                        "Activity",
-                        fallback_df[standard_cols],
-                        key_prefix="activity-name",
-                        analysis_renderer=None,
-                    )
-                    return
-
-                schedule_df = schedule_df[_has_activity_identifier(schedule_df)].copy()
-                schedule_df["activity_label"] = schedule_df[label_col].astype(str)
-                options = sorted(schedule_df["activity_label"].dropna().unique())
-
-                if not options:
-                    st.info("No activity names found to display.")
-                    return
-
+            if not options:
+                st.info("No activity names found to display.")
+            else:
                 selected = _compact_selectbox(
                     "Activity",
                     options=options,
                     key="activity-name-filter",
                 )
 
-                if not selected:
-                    st.info("Choose an activity to view its schedule across entities.")
-                    return
+                if selected:
+                    filtered = schedule_df[schedule_df["activity_label"] == selected].copy()
 
-                filtered = schedule_df[schedule_df["activity_label"] == selected].copy()
+                    start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
+                    end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
 
-                start_col = next((c for c in ("start_time", "start", "start_at") if c in filtered.columns), None)
-                end_col = next((c for c in ("finish_time", "end", "finish") if c in filtered.columns), None)
+                    if "duration" not in filtered.columns and start_col and end_col:
+                        filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(filtered[start_col], errors="coerce")
 
-                if "duration" not in filtered.columns and start_col and end_col:
-                    filtered["duration"] = pd.to_numeric(filtered[end_col], errors="coerce") - pd.to_numeric(filtered[start_col], errors="coerce")
+                    if "activity_name" not in filtered.columns or filtered["activity_name"].isna().all():
+                        filtered["activity_name"] = filtered.get("activity", "")
 
-                if "activity_name" not in filtered.columns or filtered["activity_name"].isna().all():
-                    filtered["activity_name"] = filtered.get("activity", "")
+                    for col in standard_cols:
+                        if col not in filtered.columns:
+                            filtered[col] = ""
 
-                for col in standard_cols:
-                    if col not in filtered.columns:
-                        filtered[col] = ""
+                    display_df = filtered[standard_cols]
+                    if start_col and start_col in display_df.columns:
+                        display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
+                    display_df = display_df.fillna("")
 
-                display_df = filtered[standard_cols]
-                if start_col and start_col in display_df.columns:
-                    display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
-                display_df = display_df.fillna("")
+                    _render_table_with_preview(
+                        "Activity by name",
+                        display_df,
+                        key_prefix="activity-name",
+                        analysis_renderer=None,
+                    )
+                    _render_duration_analysis(
+                        filtered,
+                        duration_col="duration" if "duration" in filtered.columns else None,
+                        start_col=start_col,
+                    )
 
-                _render_table_with_preview(
-                    "Activity by name",
-                    display_df,
-                    key_prefix="activity-name",
-                    analysis_renderer=None,
-                )
-                _render_duration_analysis(
-                    filtered,
-                    duration_col="duration" if "duration" in filtered.columns else None,
-                    start_col=start_col,
-                )
 
     # --------- launching ------------------------------------------------------
 

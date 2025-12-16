@@ -1,4 +1,4 @@
-﻿simpm.dashboard.run\_post\_dashboard
+simpm.dashboard.run\_post\_dashboard
 ====================================
 
 .. currentmodule:: simpm.dashboard

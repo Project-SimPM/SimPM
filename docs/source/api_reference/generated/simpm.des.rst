@@ -1,4 +1,4 @@
-﻿simpm.des
+simpm.des
 =========
 
 .. automodule:: simpm.des

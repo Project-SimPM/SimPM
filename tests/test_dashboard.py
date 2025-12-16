@@ -115,7 +115,7 @@ def test_dashboard_launch_logging(monkeypatch, caplog, dashboard_module):
     snapshot = dashboard_module.RunSnapshot(environment={}, entities=[], resources=[], logs=[])
 
     with caplog.at_level(logging.INFO):
-        dashboard_module.run_post_dashboard(env=snapshot, host="0.0.0.0", port=9100, start_async=False)
+        dashboard_module.run_post_dashboard(snapshot, host="0.0.0.0", port=9100, start_async=False)
 
     assert calls and calls[0][0] == "run"
     assert "Starting Streamlit dashboard" in caplog.text

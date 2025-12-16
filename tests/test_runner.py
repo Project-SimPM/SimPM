@@ -37,7 +37,7 @@ def test_run_recorder_collects_basic_data():
 def test_run_function_without_dashboard():
     env, _, _ = _build_simple_environment()
     result = simpm.run(env, dashboard=False)
-    assert result is None
+    assert result is env
 
 
 def test_resources_recorded_without_usage():

@@ -59,12 +59,12 @@ class RunRecorder:  # pragma: no cover - compatibility shim
     run_data: dict[str, Any] = field(default_factory=dict)
     _env: Any | None = None
 
-    def on_run_started(self, env):
+    def on_run_started(self, env, run_id=None, start_time=None):
         """Store the environment reference when a run begins."""
 
         self._env = env
 
-    def on_run_finished(self, env):
+    def on_run_finished(self, env, run_id=None, start_time=None, end_time=None, duration=None):
         """Collect a final dashboard snapshot when the run ends."""
 
         self._env = env
@@ -113,8 +113,8 @@ class StreamingRunRecorder(RunRecorder):  # pragma: no cover - compatibility shi
         super().__init__(collect_logs=collect_logs)
         self.event_queue: Queue = event_queue or Queue()
 
-    def on_run_finished(self, env):
+    def on_run_finished(self, env, run_id=None, start_time=None, end_time=None, duration=None):
         """Forward the final snapshot through the event queue."""
 
-        super().on_run_finished(env)
+        super().on_run_finished(env, run_id=run_id, start_time=start_time, end_time=end_time, duration=duration)
         self.event_queue.put({"event": "run_finished", "run_data": self.run_data})

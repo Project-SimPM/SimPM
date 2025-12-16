@@ -371,10 +371,13 @@ def _render_table_with_preview(
         analysis_renderer(df, time_col=_find_time_column(df))
 
 
-def _render_duration_analysis(df: pd.DataFrame, *, duration_col: str | None = None, start_col: str | None = None) -> None:
-    """Render duration visuals using the provided duration column when available."""
+def _render_duration_analysis(df: pd.DataFrame, *, duration_col: str | None = None, start_col: str | None = None, show_metric_selector: bool = True) -> None:
+    """Render statistics and visuals for duration or time-based metrics with optional metric selection."""
+    # Determine available metrics
+    available_metrics = {}
+    
+    # Add duration if available
     duration_candidate = duration_col if duration_col in df.columns else None
-
     if duration_candidate is None:
         for candidate in ("duration", "activity_duration"):
             if candidate in df.columns:
@@ -390,58 +393,67 @@ def _render_duration_analysis(df: pd.DataFrame, *, duration_col: str | None = No
             duration_candidate = "duration"
             start_col = start_candidate
 
-    if duration_candidate is None:
-        st.info("No duration data available to visualize.")
+    if duration_candidate and duration_candidate in df.columns:
+        available_metrics["duration"] = duration_candidate
+
+    # Add start_time if available
+    start_candidate = start_col or next((c for c in ("start_time", "start", "start_at") if c in df.columns), None)
+    if start_candidate and start_candidate in df.columns:
+        available_metrics["start_time"] = start_candidate
+
+    # Add finish_time if available
+    finish_candidate = next((c for c in ("finish_time", "finish", "finish_at", "end", "end_time") if c in df.columns), None)
+    if finish_candidate and finish_candidate in df.columns:
+        available_metrics["finish_time"] = finish_candidate
+
+    if not available_metrics:
+        st.info("No duration or time data available to visualize.")
         return
 
-    duration_series = pd.to_numeric(df[duration_candidate], errors="coerce").dropna()
-    if duration_series.empty:
-        st.info("No duration data available to visualize.")
-        return
-
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
-
-    if start_col and start_col in df.columns:
-        x_axis_full = df[start_col]
-        x_label = start_col
+    # Select metric to display
+    if show_metric_selector and len(available_metrics) > 1:
+        metric_choice = _compact_selectbox(
+            "Metric",
+            options=list(available_metrics.keys()),
+            index=0 if "duration" in available_metrics else 0,
+            key="metric-selector"
+        )
+        selected_col = available_metrics[metric_choice]
     else:
-        x_axis_full = df.index
-        x_label = "Index"
+        selected_col = available_metrics.get("duration") or next(iter(available_metrics.values()))
 
-    aligned_series = pd.to_numeric(df[duration_candidate], errors="coerce")
-    valid_mask = aligned_series.notna()
-    x_axis = x_axis_full[valid_mask]
-    aligned_series = aligned_series[valid_mask]
+    # Get valid data for selected metric
+    metric_series = pd.to_numeric(df[selected_col], errors="coerce")
+    valid_mask = metric_series.notna()
+    
+    if valid_mask.sum() == 0:
+        st.info(f"No valid data available for {selected_col}.")
+        return
+
+    aligned_series = metric_series[valid_mask]
+
+    # Render tabs without "Time series"
+    tab_stats, tab_hist, tab_box = st.tabs(["Statistics", "Histogram", "Box plot"])
 
     with tab_stats:
         stats_df = _basic_statistics(aligned_series)
         _render_compact_table(stats_df)
 
-    with tab_series:
-        plot_df = pd.DataFrame({duration_candidate: aligned_series})
-        if "run_id" in df.columns:
-            plot_df["run_id"] = df.loc[valid_mask, "run_id"].values
-            plot_df = _standardize_dataframe_columns(plot_df)
-        fig = px.line(plot_df, x=x_axis, y=duration_candidate, labels={"x": x_label, "y": duration_candidate})
-        fig.update_traces(line_color="#3a7859")
-        fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
-
     with tab_hist:
-        hist_df = pd.DataFrame({duration_candidate: aligned_series})
+        hist_df = pd.DataFrame({selected_col: aligned_series})
         if "run_id" in df.columns:
             hist_df["run_id"] = df.loc[valid_mask, "run_id"].values
             hist_df = _standardize_dataframe_columns(hist_df)
-        fig = px.histogram(hist_df, x=duration_candidate, nbins=min(30, max(5, len(hist_df))))
+        fig = px.histogram(hist_df, x=selected_col, nbins=min(30, max(5, len(hist_df))))
         fig.update_traces(marker_color="#5bbd89")
         st.plotly_chart(fig, width="stretch")
 
     with tab_box:
-        box_df = pd.DataFrame({duration_candidate: aligned_series})
+        box_df = pd.DataFrame({selected_col: aligned_series})
         if "run_id" in df.columns:
             box_df["run_id"] = df.loc[valid_mask, "run_id"].values
             box_df = _standardize_dataframe_columns(box_df)
-        fig = px.box(box_df, y=duration_candidate)
+        fig = px.box(box_df, y=selected_col)
         fig.update_traces(marker_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
 
@@ -471,51 +483,61 @@ def _render_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
 
     _render_table_preview("Waiting log", df, key_prefix)
 
-    if "waiting_duration" not in df.columns or df["waiting_duration"].dropna().empty:
+    # Build list of available waiting-related metrics
+    available_metrics = []
+    metric_labels = {}
+    
+    if "waiting_duration" in df.columns and not df["waiting_duration"].dropna().empty:
+        available_metrics.append("waiting_duration")
+        metric_labels["waiting_duration"] = "waiting_duration"
+    
+    if "start_waiting" in df.columns and not df["start_waiting"].dropna().empty:
+        available_metrics.append("start_waiting")
+        metric_labels["start_waiting"] = "start waiting"
+    
+    if "end_waiting" in df.columns and not df["end_waiting"].dropna().empty:
+        available_metrics.append("end_waiting")
+        metric_labels["end_waiting"] = "finish waiting"
+
+    if not available_metrics:
         st.info("No waiting duration data available to plot.")
         return
 
-    raw_durations = pd.to_numeric(df["waiting_duration"], errors="coerce")
-    valid_mask = raw_durations.notna()
-    aligned_durations = raw_durations[valid_mask]
-    duration_df = pd.DataFrame({"waiting_duration": aligned_durations})
+    # Dropdown to select which metric to display
+    selected_metric = _compact_selectbox(
+        "Metric",
+        options=available_metrics,
+        format_func=lambda x: metric_labels.get(x, x),
+        key=f"{key_prefix}-waiting-selection",
+        index=0,  # Default to first available metric (usually waiting_duration)
+    )
+
+    # Prepare data for selected metric
+    raw_values = pd.to_numeric(df[selected_metric], errors="coerce")
+    valid_mask = raw_values.notna()
+    selected_values = raw_values[valid_mask]
+    metric_df = pd.DataFrame({selected_metric: selected_values})
     
-    # Include run_id if available to show which run each duration came from
+    # Include run_id if available to show which run each value came from
     if "run_id" in df.columns:
-        duration_df["run_id"] = df.loc[valid_mask, "run_id"].values
+        metric_df["run_id"] = df.loc[valid_mask, "run_id"].values
     
     # Standardize column ordering and sorting
-    duration_df = _standardize_dataframe_columns(duration_df)
+    metric_df = _standardize_dataframe_columns(metric_df)
 
-    st.markdown("#### waiting_duration")
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
+    tab_stats, tab_hist, tab_box = st.tabs(["Statistics", "Histogram", "Box plot"])
 
     with tab_stats:
-        stats_df = _basic_statistics(duration_df["waiting_duration"])
+        stats_df = _basic_statistics(metric_df[selected_metric])
         _render_compact_table(stats_df)
 
-    with tab_series:
-        time_axis = df.loc[valid_mask, "start_waiting"] if "start_waiting" in df.columns else duration_df.index
-        fig = px.line(
-            duration_df,
-            x=time_axis,
-            y="waiting_duration",
-            labels={
-                "x": "start_waiting" if "start_waiting" in df.columns else "Index",
-                "y": "waiting_duration",
-            },
-        )
-        fig.update_traces(line_color="#3a7859")
-        fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
-
     with tab_hist:
-        fig = px.histogram(duration_df, x="waiting_duration", nbins=min(30, max(5, len(duration_df))))
+        fig = px.histogram(metric_df, x=selected_metric, nbins=min(30, max(5, len(metric_df))))
         fig.update_traces(marker_color="#5bbd89")
         st.plotly_chart(fig, width="stretch")
 
     with tab_box:
-        fig = px.box(duration_df, y="waiting_duration")
+        fig = px.box(metric_df, y=selected_metric)
         fig.update_traces(marker_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
 
@@ -533,51 +555,62 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
 
     _render_table_preview("Queue log", df, key_prefix)
 
-    if "waiting_duration" not in df.columns or df["waiting_duration"].dropna().empty:
+    # Build list of available waiting-related metrics
+    available_metrics = []
+    metric_labels = {}
+    
+    if "waiting_duration" in df.columns and not df["waiting_duration"].dropna().empty:
+        available_metrics.append("waiting_duration")
+        metric_labels["waiting_duration"] = "waiting_duration"
+    
+    if "start_time" in df.columns and not df["start_time"].dropna().empty:
+        available_metrics.append("start_time")
+        metric_labels["start_time"] = "start waiting"
+    
+    if "finish_time" in df.columns and not df["finish_time"].dropna().empty:
+        available_metrics.append("finish_time")
+        metric_labels["finish_time"] = "finish waiting"
+
+    if not available_metrics:
         st.info("No waiting duration data available to plot.")
         return
 
-    raw_durations = pd.to_numeric(df["waiting_duration"], errors="coerce")
-    valid_mask = raw_durations.notna()
-    duration_series = raw_durations[valid_mask]
-    duration_df = pd.DataFrame({"waiting_duration": duration_series})
+    # Dropdown to select which metric to display
+    selected_metric = _compact_selectbox(
+        "Metric",
+        options=available_metrics,
+        format_func=lambda x: metric_labels.get(x, x),
+        key=f"{key_prefix}-queue-waiting-selection",
+        index=0,  # Default to first available metric (usually waiting_duration)
+    )
+
+    # Prepare data for selected metric
+    raw_values = pd.to_numeric(df[selected_metric], errors="coerce")
+    valid_mask = raw_values.notna()
+    selected_values = raw_values[valid_mask]
+    metric_df = pd.DataFrame({selected_metric: selected_values})
     
-    # Include run_id if available to show which run each duration came from
+    # Include run_id if available to show which run each value came from
     if "run_id" in df.columns:
-        duration_df["run_id"] = df.loc[valid_mask, "run_id"].values
+        metric_df["run_id"] = df.loc[valid_mask, "run_id"].values
     
     # Standardize column ordering and sorting
-    duration_df = _standardize_dataframe_columns(duration_df)
+    metric_df = _standardize_dataframe_columns(metric_df)
 
-    st.markdown("#### waiting_duration")
-    tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
+    st.markdown(f"#### {metric_labels.get(selected_metric, selected_metric)}")
+    tab_stats, tab_hist, tab_box = st.tabs(["Statistics", "Histogram", "Box plot"])
 
     with tab_stats:
-        stats_df = _basic_statistics(duration_df["waiting_duration"])
+        stats_df = _basic_statistics(metric_df[selected_metric])
         _render_compact_table(stats_df)
 
-    with tab_series:
-        time_axis = df.loc[valid_mask, "start_time"] if "start_time" in df.columns else duration_df.index
-        fig = px.line(
-            duration_df,
-            x=time_axis,
-            y="waiting_duration",
-            labels={
-                "x": "start_time" if "start_time" in df.columns else "Index",
-                "y": "waiting_duration",
-            },
-        )
-        fig.update_traces(line_color="#3a7859")
-        fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
-
     with tab_hist:
-        fig = px.histogram(duration_df, x="waiting_duration", nbins=min(30, max(5, len(duration_df))))
+        fig = px.histogram(metric_df, x=selected_metric, nbins=min(30, max(5, len(metric_df))))
         fig.update_traces(marker_color="#5bbd89")
         st.plotly_chart(fig, width="stretch")
 
     with tab_box:
-        fig = px.box(duration_df, y="waiting_duration")
+        fig = px.box(metric_df, y=selected_metric)
         fig.update_traces(marker_color="#3a7859")
         st.plotly_chart(fig, width="stretch")
 
@@ -604,7 +637,6 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         st.info("No status metrics available to plot.")
         return
 
-    st.markdown("#### Status metrics")
     selected_metric = _compact_selectbox(
         "Metric",
         options=metric_cols,
@@ -1141,7 +1173,6 @@ class StreamlitDashboard:
             _render_resource_status(status_df, key_prefix=f"resource-{res_id}-status")
 
     def _render_activity_view(self) -> None:
-        st.markdown("### Activity feed")
         activity_df = _activity_dataframe(self.snapshot)
 
         if activity_df.empty:
@@ -1184,8 +1215,8 @@ class StreamlitDashboard:
         if "run_id" in filtered_activity.columns:
             standard_cols.insert(0, "run_id")
 
-        # Display all activity log
-        st.markdown("#### Activity Log")
+        # Display activity log
+        st.markdown("## Activity Log")
         display_df = filtered_activity.copy()
         display_df["activity_name"] = display_df.get("activity_name")
         if "activity_name" not in display_df.columns or display_df["activity_name"].isna().all():
@@ -1198,15 +1229,9 @@ class StreamlitDashboard:
             display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
         display_df = display_df[standard_cols].fillna("")
 
-        _render_table_with_preview(
-            "Activity",
-            display_df,
-            key_prefix="activity",
-            analysis_renderer=None,
-        )
+        _render_table_preview("Activity Log", display_df, key_prefix="activity")
 
         # Display activity by name section
-        st.markdown("#### Activity by Name")
         schedule_df = filtered_activity[filtered_activity["category"] == "schedule_log"].copy() if "category" in filtered_activity.columns else pd.DataFrame()
 
         label_col = next(
@@ -1214,26 +1239,14 @@ class StreamlitDashboard:
             None,
         )
 
-        if schedule_df.empty or not label_col:
-            st.info("No scheduled activities with names are available to inspect.")
-            fallback_df = filtered_activity.copy()
-            for col in standard_cols:
-                if col not in fallback_df.columns:
-                    fallback_df[col] = ""
-            _render_table_with_preview(
-                "Activity",
-                fallback_df[standard_cols],
-                key_prefix="activity-name",
-                analysis_renderer=None,
-            )
-        else:
+        if not (schedule_df.empty or not label_col):
             schedule_df = schedule_df[_has_activity_identifier(schedule_df)].copy()
             schedule_df["activity_label"] = schedule_df[label_col].astype(str)
             options = sorted(schedule_df["activity_label"].dropna().unique())
 
-            if not options:
-                st.info("No activity names found to display.")
-            else:
+
+            if options:
+                st.markdown("## Activity by Name")
                 selected = _compact_selectbox(
                     "Activity",
                     options=options,
@@ -1261,16 +1274,17 @@ class StreamlitDashboard:
                         display_df = display_df.sort_values(start_col, key=lambda s: pd.to_numeric(s, errors="coerce")).reset_index(drop=True)
                     display_df = display_df.fillna("")
 
-                    _render_table_with_preview(
+                    _render_table_preview(
                         "Activity by name",
                         display_df,
                         key_prefix="activity-name",
-                        analysis_renderer=None,
                     )
+                    
                     _render_duration_analysis(
                         filtered,
                         duration_col="duration" if "duration" in filtered.columns else None,
                         start_col=start_col,
+                        show_metric_selector=True,
                     )
 
 

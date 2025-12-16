@@ -1,4 +1,4 @@
-simpm.dashboard
+﻿simpm.dashboard
 ===============
 
 .. automodule:: simpm.dashboard

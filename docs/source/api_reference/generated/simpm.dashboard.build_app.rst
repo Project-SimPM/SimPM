@@ -1,4 +1,4 @@
-simpm.dashboard.build\_app
+﻿simpm.dashboard.build\_app
 ==========================
 
 .. currentmodule:: simpm.dashboard

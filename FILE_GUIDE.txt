@@ -1,0 +1,359 @@
+════════════════════════════════════════════════════════════════════════════════
+                    FILE GUIDE - DASHBOARD DOCUMENTATION PROJECT
+════════════════════════════════════════════════════════════════════════════════
+
+📂 MAIN DOCUMENTATION
+════════════════════════════════════════════════════════════════════════════════
+
+📄 docs/source/tutorials/dashboard-guide.rst
+   └─ THE MAIN DOCUMENTATION (433 lines)
+   
+   What: Comprehensive tutorial on the SimPM dashboard
+   
+   Sections:
+   • Overview - What the dashboard is
+   • Starting the Dashboard - How to launch
+   • Dashboard Layout - Structure of the dashboard
+   • Overview Section - Environment and run selection
+   • Simulation Runs Section - Execution statistics
+   • Navigation Section - View switching
+   • Entities View - Per-entity analysis (Schedule, Waiting, Status logs)
+   • Resources View - Per-resource analysis (Queue, Status logs)
+   • Activity View - Unified event feed
+   • Understanding Visualizations - How to read graphs/histograms/box plots
+   • Exporting Data - CSV downloads
+   • Tips & Troubleshooting - Common issues and solutions
+   • Advanced Usage - Custom metrics, external analysis
+   • FAQ - Frequently asked questions with answers
+   
+   Current Status: ✅ COMPLETE & PRODUCTION READY
+   Screenshots: ⏳ Placeholders ready, waiting for images
+   
+   Usage: This is what users will read to learn the dashboard
+   
+
+📄 docs/source/tutorials/index.rst
+   └─ TUTORIALS TABLE OF CONTENTS
+   
+   Status: ✅ UPDATED - Now includes dashboard-guide
+   
+   Change: Added "dashboard-guide" to tutorial list
+   Order:
+     1. hello-simpm
+     2. dashboard-guide ← NEW
+     3. schedule-risk
+     4. resource-bottlenecks
+
+
+════════════════════════════════════════════════════════════════════════════════
+📋 IMPLEMENTATION GUIDES (For Adding Screenshots)
+════════════════════════════════════════════════════════════════════════════════
+
+Pick ONE of these to follow for adding screenshots:
+
+Option A: STEP-BY-STEP GUIDE
+───────────────────────────────
+
+📄 DASHBOARD_SCREENSHOTS_GUIDE.txt
+   └─ Complete how-to guide for adding screenshots
+   
+   Sections:
+   • CAPTURE SCREENSHOTS (15 recommended locations with details)
+   • ORGANIZE SCREENSHOTS (File structure and naming)
+   • UPDATE DOCUMENTATION (How to add images to RST)
+   • SCREENSHOT BEST PRACTICES (Technical recommendations)
+   • TEST DOCUMENTATION BUILD (Verification steps)
+   
+   Best For: Understanding the overall process
+   Time to Read: 15 minutes
+   Then Follow: Use SCREENSHOT_IMPLEMENTATION_CHECKLIST.md for details
+
+
+Option B: DETAILED CHECKLIST
+──────────────────────────────
+
+📄 SCREENSHOT_IMPLEMENTATION_CHECKLIST.md
+   └─ Systematic step-by-step checklist
+   
+   Sections:
+   • PREPARATION - Setup test scenario and directories
+   • SCREENSHOT CAPTURE (In Order)
+     - Overview Section (1 image)
+     - Simulation Runs (4 images: table, stats, histogram, box plot)
+     - Navigation (1 image)
+     - Entities View (3-4 images)
+     - Resources View (2-3 images)
+     - Activity View (1 image)
+   • FILE ORGANIZATION - How to organize captured images
+   • DOCUMENTATION UPDATES - Exact RST code for each location
+   • VERIFICATION - Testing procedures
+   
+   Best For: Following systematically through the process
+   Time to Read: 5 minutes
+   Time to Execute: 30-40 minutes
+   Then Use: As a checklist while capturing/documenting
+
+
+Option C: VISUAL OVERVIEW
+──────────────────────────
+
+📄 DASHBOARD_DOCUMENTATION_OVERVIEW.md
+   └─ High-level architecture and content guide
+   
+   Sections:
+   • Information Architecture - How content is organized
+   • Content by Dashboard Component - What's explained
+   • Visualization Teaching - How to read each chart type
+   • Quick Reference - Summary table
+   • Use Cases by Audience - Who needs what info
+   
+   Best For: Understanding the documentation structure
+   Time to Read: 10 minutes
+
+
+════════════════════════════════════════════════════════════════════════════════
+📊 SUMMARY DOCUMENTS (Reference & Status)
+════════════════════════════════════════════════════════════════════════════════
+
+📄 FINAL_SUMMARY.txt
+   └─ COMPREHENSIVE PROJECT SUMMARY
+   
+   Includes:
+   • What Was Requested / What Was Delivered
+   • Complete documentation content breakdown
+   • Screenshot plan (all 15 locations)
+   • Status indicators
+   • Next steps and recommendations
+   
+   Best For: Getting full project overview
+   Read This: First, to understand what was created
+
+
+📄 IMPLEMENTATION_COMPLETE.txt
+   └─ PROJECT COMPLETION REPORT
+   
+   Includes:
+   • What's been created (with stats)
+   • Documentation structure
+   • File locations and purposes
+   • Current status (✅ complete, ⏳ pending)
+   • How to use each file
+   
+   Best For: Quick status check
+   Read This: To confirm everything is ready
+
+
+📄 DASHBOARD_DOCS_SUMMARY.md
+   └─ QUICK OVERVIEW OF PROJECT
+   
+   Includes:
+   • What's been created (3 items)
+   • Documentation sections covered
+   • 15 recommended screenshots
+   • How to add screenshots (quick start)
+   • Current status and next steps
+   
+   Best For: Quick reference
+   Read This: When you want a 2-minute overview
+
+
+════════════════════════════════════════════════════════════════════════════════
+📁 DIRECTORY STRUCTURE (Current & Future)
+════════════════════════════════════════════════════════════════════════════════
+
+CURRENT STATE:
+──────────────
+SimPM/
+├─ docs/
+│  └─ source/
+│     └─ tutorials/
+│        ├─ index.rst ........................... ✅ Updated
+│        ├─ dashboard-guide.rst ................ ✅ New, 433 lines
+│        ├─ hello-simpm.rst ................... (existing)
+│        ├─ schedule-risk.rst ................. (existing)
+│        ├─ resource-bottlenecks.rst .......... (existing)
+│        └─ images/
+│           └─ dashboard/ ..................... ⏳ Ready for images
+│
+├─ FINAL_SUMMARY.txt ........................... 📄 New reference
+├─ IMPLEMENTATION_COMPLETE.txt ................. 📄 New status report
+├─ DASHBOARD_DOCS_SUMMARY.md ................... 📄 New quick overview
+├─ DASHBOARD_DOCUMENTATION_OVERVIEW.md ......... 📄 New architecture guide
+├─ DASHBOARD_SCREENSHOTS_GUIDE.txt ............. 📄 New how-to guide
+├─ SCREENSHOT_IMPLEMENTATION_CHECKLIST.md ..... 📄 New checklist
+└─ This file: FILE_GUIDE.txt ................... 📄 New navigation guide
+
+
+AFTER SCREENSHOTS ARE ADDED:
+─────────────────────────────
+SimPM/
+├─ docs/
+│  └─ source/
+│     └─ tutorials/
+│        └─ images/
+│           └─ dashboard/
+│              ├─ 01-overview.png ...................... (from you)
+│              ├─ 02-simulation-runs-table.png ........ (from you)
+│              ├─ 03-simulation-runs-stats.png ........ (from you)
+│              ├─ 04-simulation-runs-histogram.png .... (from you)
+│              ├─ 05-simulation-runs-boxplot.png ...... (from you)
+│              ├─ 06-navigation-tabs.png .............. (from you)
+│              ├─ 07-entity-schedule-table.png ........ (from you)
+│              ├─ 08-entity-schedule-timeseries.png ... (from you)
+│              ├─ 09-entity-schedule-histogram.png .... (from you)
+│              ├─ 10-entity-waiting-log.png ........... (from you)
+│              ├─ 11-entity-status-log-timeseries.png . (optional)
+│              ├─ 12-resource-queue-log.png ........... (from you)
+│              ├─ 13-resource-status-log-timeseries.png (from you)
+│              ├─ 14-resource-status-log-histogram.png (from you)
+│              └─ 15-activity-view-table.png .......... (from you)
+│
+└─ docs/source/tutorials/dashboard-guide.rst ......... ✅ Updated with images
+
+
+════════════════════════════════════════════════════════════════════════════════
+🗺️  HOW TO USE THESE FILES
+════════════════════════════════════════════════════════════════════════════════
+
+IF YOU WANT TO:
+───────────────
+
+□ Understand what was created
+  → Read: IMPLEMENTATION_COMPLETE.txt (5 min)
+
+□ Get a quick overview
+  → Read: DASHBOARD_DOCS_SUMMARY.md (3 min)
+
+□ See the full documentation
+  → Read: docs/source/tutorials/dashboard-guide.rst (20 min)
+
+□ Build the HTML docs now (without screenshots)
+  → Do: cd docs && make html
+
+□ Add screenshots to complete the documentation
+  → Option 1: Follow SCREENSHOT_IMPLEMENTATION_CHECKLIST.md (systematic)
+  → Option 2: Follow DASHBOARD_SCREENSHOTS_GUIDE.txt (overview first)
+
+□ Understand the documentation structure
+  → Read: DASHBOARD_DOCUMENTATION_OVERVIEW.md (15 min)
+
+□ See what screenshots are needed
+  → Read: Any of the guides (list of 15 locations)
+
+□ Get technical details on each section
+  → Read: FINAL_SUMMARY.txt (40 min - very comprehensive)
+
+□ Check current project status
+  → Read: IMPLEMENTATION_COMPLETE.txt (10 min)
+
+
+════════════════════════════════════════════════════════════════════════════════
+⏱️  READING TIME ESTIMATES
+════════════════════════════════════════════════════════════════════════════════
+
+Quick Orientation:
+   IMPLEMENTATION_COMPLETE.txt ............... 5 minutes
+   DASHBOARD_DOCS_SUMMARY.md ................ 3 minutes
+
+Moderate Detail:
+   DASHBOARD_DOCUMENTATION_OVERVIEW.md ...... 15 minutes
+   DASHBOARD_SCREENSHOTS_GUIDE.txt .......... 15 minutes
+
+Complete Understanding:
+   FINAL_SUMMARY.txt ........................ 30 minutes
+   dashboard-guide.rst ....................... 20 minutes
+
+Implementation:
+   SCREENSHOT_IMPLEMENTATION_CHECKLIST.md:
+     • Reading: 5 minutes
+     • Execution: 30-45 minutes
+
+
+════════════════════════════════════════════════════════════════════════════════
+✅ COMPLETION CHECKLIST
+════════════════════════════════════════════════════════════════════════════════
+
+WHAT'S DONE:
+   ✅ Comprehensive dashboard documentation written
+   ✅ Documentation integrated into tutorials index
+   ✅ Step-by-step implementation guide created
+   ✅ Detailed checklist provided
+   ✅ Architecture guide created
+   ✅ Multiple summary documents provided
+   ✅ Documentation ready to build as HTML/PDF
+
+WHAT YOU CAN DO NOW:
+   ✅ Review documentation (docs/source/tutorials/dashboard-guide.rst)
+   ✅ Build HTML version (make html)
+   ✅ Publish documentation
+   ✅ Share with users (text version)
+
+WHAT REMAINS (OPTIONAL):
+   ⏳ Add screenshots (follow provided guides)
+   ⏳ Rebuild documentation with images
+   ⏳ Redeploy documentation
+
+
+════════════════════════════════════════════════════════════════════════════════
+📞 QUICK REFERENCE - FILE PURPOSES
+════════════════════════════════════════════════════════════════════════════════
+
+Type: MAIN DOCUMENTATION
+File: dashboard-guide.rst
+Purpose: User-facing tutorial on dashboard
+Action: Read/publish this
+
+Type: IMPLEMENTATION GUIDE (Pick One)
+File: SCREENSHOT_IMPLEMENTATION_CHECKLIST.md
+Purpose: Step-by-step checklist for screenshots
+Action: Follow this to add images
+
+Type: IMPLEMENTATION GUIDE (Alternative)
+File: DASHBOARD_SCREENSHOTS_GUIDE.txt
+Purpose: How-to guide for screenshots
+Action: Read first, then follow checklist
+
+Type: REFERENCE
+File: DASHBOARD_DOCUMENTATION_OVERVIEW.md
+Purpose: Architecture and organization
+Action: Understand structure before implementing
+
+Type: STATUS REPORT
+File: IMPLEMENTATION_COMPLETE.txt
+Purpose: Project completion status
+Action: Review for overview
+
+Type: SUMMARY
+File: FINAL_SUMMARY.txt
+Purpose: Comprehensive project summary
+Action: Read for complete understanding
+
+Type: QUICK OVERVIEW
+File: DASHBOARD_DOCS_SUMMARY.md
+Purpose: Quick 5-minute overview
+Action: Read for fast summary
+
+Type: THIS FILE
+File: FILE_GUIDE.txt
+Purpose: Navigate all created files
+Action: You're reading it now!
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+YOUR NEXT STEPS:
+
+1. Pick one of these:
+   A) Read IMPLEMENTATION_COMPLETE.txt (5 min) → Be satisfied
+   B) Read SCREENSHOT_IMPLEMENTATION_CHECKLIST.md (45 min) → Add screenshots
+   C) Read FINAL_SUMMARY.txt (30 min) → Full understanding
+
+2. Build documentation: cd docs && make html
+
+3. Review in browser: open docs/_build/html/tutorials/dashboard-guide.html
+
+4. (Optional) Add screenshots following the provided guides
+
+Questions? Check the relevant guide from the list above! 📚
+
+════════════════════════════════════════════════════════════════════════════════

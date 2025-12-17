@@ -1,0 +1,263 @@
+DASHBOARD DOCUMENTATION - SCREENSHOT GUIDE
+============================================
+
+I've created a comprehensive dashboard documentation guide at:
+  docs/source/tutorials/dashboard-guide.rst
+
+And updated the tutorials index to include it.
+
+ADDING SCREENSHOTS
+------------------
+
+To enhance the documentation with visual examples, follow these steps:
+
+1. CAPTURE SCREENSHOTS
+   =====================
+   
+   Using Streamlit's built-in features or browser tools:
+   
+   a) Run your simulation with the dashboard:
+      $ python your_simulation.py  # with simpm.run(env, dashboard=True)
+   
+   b) Take screenshots of each section:
+      
+      RECOMMENDED SECTIONS TO CAPTURE:
+      ================================
+      
+      1. Overview Section
+         - File: 01-overview.png
+         - Show: Environment name + Run selector
+         - Location: Top of page
+      
+      2. Simulation Runs Table
+         - File: 02-simulation-runs-table.png
+         - Show: Table preview with download button
+         - Location: Simulation Runs section, Table tab
+      
+      3. Simulation Runs Statistics
+         - File: 03-simulation-runs-stats.png
+         - Show: Statistics table (Count, Mean, Median, Min, Max, Std)
+         - Location: Simulation Runs section, Statistics tab
+      
+      4. Simulation Runs Histogram
+         - File: 04-simulation-runs-histogram.png
+         - Show: Distribution of simulation times
+         - Location: Simulation Runs section, Histogram tab
+      
+      5. Simulation Runs Box Plot
+         - File: 05-simulation-runs-boxplot.png
+         - Show: Quartile visualization
+         - Location: Simulation Runs section, Box plot tab
+      
+      6. Navigation Tabs
+         - File: 06-navigation-tabs.png
+         - Show: Entities / Resources / Activity radio buttons
+         - Location: After Simulation Runs section
+      
+      7. Entity Schedule (Table)
+         - File: 07-entity-schedule-table.png
+         - Show: Entity selector + Schedule table preview
+         - Location: Entities view, Schedule section, Table tab
+      
+      8. Entity Schedule (Time Series)
+         - File: 08-entity-schedule-timeseries.png
+         - Show: Line graph with range slider
+         - Location: Entities view, Schedule section, Time series tab
+      
+      9. Entity Schedule (Histogram)
+         - File: 09-entity-schedule-histogram.png
+         - Show: Distribution of activity durations
+         - Location: Entities view, Schedule section, Histogram tab
+      
+      10. Entity Waiting Log
+          - File: 10-entity-waiting-log.png
+          - Show: Waiting log table + metric selector
+          - Location: Entities view, Waiting log section
+      
+      11. Entity Status Log (Time Series)
+          - File: 11-entity-status-log-timeseries.png
+          - Show: Step graph of entity state changes
+          - Location: Entities view, Status log section, Time series tab
+      
+      12. Resource Queue Log
+          - File: 12-resource-queue-log.png
+          - Show: Queue log table for selected resource
+          - Location: Resources view, Queue log section
+      
+      13. Resource Status Log (Time Series)
+          - File: 13-resource-status-log-timeseries.png
+          - Show: Step graph of resource utilization/queue length
+          - Location: Resources view, Status log section, Time series tab
+      
+      14. Resource Status Log (Histogram)
+          - File: 14-resource-status-log-histogram.png
+          - Show: Time-weighted distribution histogram
+          - Location: Resources view, Status log section, Histogram tab
+      
+      15. Activity View
+          - File: 15-activity-view-table.png
+          - Show: Unified activity log table
+          - Location: Activity view, full table preview
+
+2. ORGANIZE SCREENSHOTS
+   =====================
+   
+   Create a directory structure:
+   
+   docs/source/tutorials/images/dashboard/
+   ├── 01-overview.png
+   ├── 02-simulation-runs-table.png
+   ├── 03-simulation-runs-stats.png
+   ├── 04-simulation-runs-histogram.png
+   ├── 05-simulation-runs-boxplot.png
+   ├── 06-navigation-tabs.png
+   ├── 07-entity-schedule-table.png
+   ├── 08-entity-schedule-timeseries.png
+   ├── 09-entity-schedule-histogram.png
+   ├── 10-entity-waiting-log.png
+   ├── 11-entity-status-log-timeseries.png
+   ├── 12-resource-queue-log.png
+   ├── 13-resource-status-log-timeseries.png
+   ├── 14-resource-status-log-histogram.png
+   └── 15-activity-view-table.png
+
+3. UPDATE DOCUMENTATION
+   ======================
+   
+   Add these image directives to docs/source/tutorials/dashboard-guide.rst:
+   
+   In the "Overview Section" subsection, add:
+   
+   .. image:: images/dashboard/01-overview.png
+      :alt: Dashboard overview showing environment and run selector
+      :width: 90%
+   
+   In the "Simulation Runs Section" subsection, add:
+   
+   **Table Tab**
+   
+   .. image:: images/dashboard/02-simulation-runs-table.png
+      :alt: Simulation runs table preview with download button
+      :width: 90%
+   
+   **Statistics Tab**
+   
+   .. image:: images/dashboard/03-simulation-runs-stats.png
+      :alt: Simulation runs statistics table
+      :width: 90%
+   
+   **Histogram Tab**
+   
+   .. image:: images/dashboard/04-simulation-runs-histogram.png
+      :alt: Distribution of simulation times as histogram
+      :width: 90%
+   
+   **Box Plot Tab**
+   
+   .. image:: images/dashboard/05-simulation-runs-boxplot.png
+      :alt: Simulation times as box plot with quartiles
+      :width: 90%
+   
+   In the "Navigation Section" subsection, add:
+   
+   .. image:: images/dashboard/06-navigation-tabs.png
+      :alt: Navigation tabs for Entities, Resources, and Activity views
+      :width: 90%
+   
+   In the "Entities View" subsection:
+   
+   **Schedule Section**
+   
+   .. image:: images/dashboard/07-entity-schedule-table.png
+      :alt: Entity schedule table showing activities and timing
+      :width: 90%
+   
+   .. image:: images/dashboard/08-entity-schedule-timeseries.png
+      :alt: Time series graph of activity durations with range slider
+      :width: 90%
+   
+   .. image:: images/dashboard/09-entity-schedule-histogram.png
+      :alt: Histogram showing distribution of activity durations
+      :width: 90%
+   
+   **Waiting Log Section**
+   
+   .. image:: images/dashboard/10-entity-waiting-log.png
+      :alt: Entity waiting log table with metric selector
+      :width: 90%
+   
+   **Status Log Section**
+   
+   .. image:: images/dashboard/11-entity-status-log-timeseries.png
+      :alt: Step graph showing entity status changes over simulation time
+      :width: 90%
+   
+   In the "Resources View" subsection:
+   
+   **Queue Log Section**
+   
+   .. image:: images/dashboard/12-resource-queue-log.png
+      :alt: Resource queue log showing waiting times and entities
+      :width: 90%
+   
+   **Status Log Section**
+   
+   .. image:: images/dashboard/13-resource-status-log-timeseries.png
+      :alt: Step graph of resource in-use, idle, and queue length metrics
+      :width: 90%
+   
+   .. image:: images/dashboard/14-resource-status-log-histogram.png
+      :alt: Time-weighted histogram of resource utilization
+      :width: 90%
+   
+   In the "Activity View" subsection, add:
+   
+   .. image:: images/dashboard/15-activity-view-table.png
+      :alt: Unified activity log showing all events across the simulation
+      :width: 90%
+
+4. SCREENSHOT BEST PRACTICES
+   ==========================
+   
+   When capturing screenshots:
+   
+   ✓ Use a clear, readable font size (Streamlit default works well)
+   ✓ Show a realistic example with sample data (e.g., the earthmoving scenario)
+   ✓ For tables: include at least 5 rows to show the data structure
+   ✓ For graphs: ensure axis labels and legend are clearly visible
+   ✓ Remove sensitive information if applicable
+   ✓ Capture at a width that works in documentation (1200px is ideal)
+   ✓ Use PNG format for lossless quality
+   ✓ Consider adding captions below each image (using.. image:: directive)
+   
+   Optional: Add callout boxes or arrows to highlight key UI elements
+   (can be done in image editors like Snagit, Pinta, or GIMP)
+
+5. TEST DOCUMENTATION BUILD
+   ==========================
+   
+   After adding images, rebuild the documentation:
+   
+   $ cd docs
+   $ make html
+   
+   Then open build/html/tutorials/dashboard-guide.html in your browser
+   to verify images appear correctly and layout looks good.
+
+CURRENT STATUS
+==============
+
+✓ dashboard-guide.rst created with comprehensive explanations
+✓ Tutorials index updated to include the new guide
+✓ Ready for screenshot additions
+
+NEXT STEPS
+==========
+
+1. Capture the 15 recommended screenshots
+2. Create docs/source/tutorials/images/dashboard/ directory
+3. Add screenshots to the RST file using .. image:: directives
+4. Rebuild documentation and verify appearance
+5. Commit changes to version control
+
+The documentation framework is complete. Screenshots will add visual clarity!

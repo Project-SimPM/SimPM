@@ -1,0 +1,512 @@
+═══════════════════════════════════════════════════════════════════════════════
+                   DASHBOARD DOCUMENTATION - FINAL SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+PROJECT COMPLETION REPORT
+
+What Was Requested:
+───────────────────
+"Update or add a section in the tutorial documentation that explains dashboard 
+descriptions, like explain what each part of dashboard is showing. If you think 
+it's proper add screenshots or just tell me to add screenshots of a special 
+program dashboard to certain folders and make the documentation accordingly!"
+
+What Was Delivered:
+───────────────────
+
+✅ COMPREHENSIVE DASHBOARD DOCUMENTATION
+   Location: docs/source/tutorials/dashboard-guide.rst
+   Length: 433 lines
+   Status: Production ready, integrated into tutorials
+
+✅ COMPLETE COVERAGE
+   Every dashboard section fully explained
+   All visualizations described and interpreted
+   Use cases provided for each feature
+   Troubleshooting and tips included
+
+✅ IMPLEMENTATION GUIDES FOR SCREENSHOTS
+   Three detailed guides for adding screenshots:
+   1. DASHBOARD_SCREENSHOTS_GUIDE.txt - Complete how-to
+   2. SCREENSHOT_IMPLEMENTATION_CHECKLIST.md - Step-by-step checklist
+   3. DASHBOARD_DOCUMENTATION_OVERVIEW.md - Visual architecture
+
+✅ SUPPORTING DOCUMENTS
+   IMPLEMENTATION_COMPLETE.txt - Status report
+   DASHBOARD_DOCS_SUMMARY.md - Quick overview
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                           DOCUMENTATION CONTENT
+═══════════════════════════════════════════════════════════════════════════════
+
+OVERVIEW (What the dashboard is)
+───────────────────────────────
+"The SimPM dashboard is an interactive Streamlit-based web interface for 
+visualizing and analyzing discrete-event simulation results."
+
+Explains the purpose and benefits.
+
+STARTING THE DASHBOARD (How to launch it)
+──────────────────────────────────────────
+Code example showing:
+  simpm.run(env, dashboard=True)
+
+Also explains browser launch and localhost access.
+
+
+DASHBOARD LAYOUT (Structural breakdown)
+───────────────────────────────────────
+Explains 4 main sections:
+
+1. Overview Section
+   ├─ What it shows: Environment name, run selector
+   ├─ Covered: Single run vs. multiple runs
+   └─ Explained: Run filter persistence
+
+2. Simulation Runs Section
+   ├─ What it shows: Execution time statistics across all runs
+   ├─ Covered: Table, Statistics, Histogram, Box Plot tabs
+   ├─ Explained: What each tab shows and why
+   └─ Guidance: How to interpret each visualization
+
+3. Navigation Section
+   ├─ What it shows: Three view tabs (Entities, Resources, Activity)
+   ├─ Covered: Purpose of each view
+   └─ Explained: Filter persistence across views
+
+4. Content Views
+   ├─ Entities View - Per-entity analysis
+   ├─ Resources View - Per-resource analysis
+   └─ Activity View - Unified event feed
+
+
+ENTITIES VIEW (Detailed breakdown)
+──────────────────────────────────
+
+Entity Selector
+  What it is: Dropdown to choose which entity to analyze
+  Why: Multiple entities in simulation, analyze one at a time
+
+Schedule Section
+  What it shows: Activity timeline for the selected entity
+  Columns explained: start_time, finish_time, duration, activity_name
+  Table preview with CSV download
+
+  Visualizations (4 tabs):
+    • Statistics - Numeric summary (count, mean, median, min, max, std)
+    • Time series - Graph of durations over simulation time
+    • Histogram - Distribution of activity durations
+    • Box plot - Quartile-based distribution summary
+
+Waiting Log Section
+  What it shows: When entity was waiting for resources
+  Columns: start_waiting, end_waiting, waiting_duration
+  
+  Metric Selector: Choose which metric to analyze
+    - waiting_duration (how long the wait was)
+    - start_waiting (when waiting started)
+    - finish_waiting (when waiting ended)
+  
+  Visualizations (3 tabs):
+    • Statistics - Summary for selected metric
+    • Histogram - Frequency distribution
+    • Box plot - Quartile summary
+
+Status Log Section (if applicable)
+  What it shows: Entity state changes over time
+  Columns: time, status (busy/idle/etc.)
+  
+  Visualizations with TIME-WEIGHTED statistics:
+    • Statistics - Weighted by duration (% of time in each state)
+    • Time series - Step graph showing state transitions
+    • Histogram - Time-weighted distribution
+    • Box plot - Time-weighted quartiles
+
+
+RESOURCES VIEW (Detailed breakdown)
+───────────────────────────────────
+
+Resource Selector
+  What it is: Dropdown to choose which resource to analyze
+  Why: Multiple resources, analyze one at a time
+
+Queue Log Section
+  What it shows: Requests waiting for or using the resource
+  Columns: entity_id, start_time, finish_time, waiting_duration
+  
+  Metric Selector: Choose metric to visualize
+  
+  Visualizations (3 tabs):
+    • Statistics - Summary for selected metric
+    • Histogram - Waiting duration frequency
+    • Box plot - Quartile summary
+
+Status Log Section
+  What it shows: Resource state changes
+  Columns: time, in_use, idle, queue_length
+  
+  Metric Selector: Choose which status metric
+    - in_use (units currently in use)
+    - idle (units available)
+    - queue_length (entities waiting)
+  
+  Visualizations with TIME-WEIGHTED statistics:
+    • Statistics - Time-weighted metrics
+    • Time series - Step graph of state changes
+    • Histogram - Time-weighted distribution
+    • Box plot - Time-weighted quartiles
+
+
+ACTIVITY VIEW (Consolidated view)
+──────────────────────────────────
+
+What it shows: Unified event feed from entire simulation
+
+Activity Table includes:
+  • Entity schedules (what each entity did)
+  • Entity waiting logs (when entities were blocked)
+  • Resource queue logs (who waited for each resource)
+  • Environment logs (system-level events)
+  • Custom logs (any user-logged data)
+
+Typical columns:
+  - run_id (which run)
+  - time/start_time (when event occurred)
+  - entity_name/id (which entity)
+  - activity_name/id (what activity)
+  - source (where log came from)
+  - Additional columns (user-defined metadata)
+
+CSV Export: Download full activity log for external analysis
+
+
+UNDERSTANDING VISUALIZATIONS (How to read and interpret)
+─────────────────────────────────────────────────────────
+
+Time Series Graphs
+  What: How a metric changes over simulation time
+  Reading: X-axis = time, Y-axis = metric value
+  Features:
+    ✓ Hover to see exact values
+    ✓ Range slider to zoom
+    ✓ Line graphs for continuous metrics
+    ✓ Step graphs for discrete/status metrics
+  Use cases:
+    • Identify when problems start
+    • Track bottleneck evolution
+    • Spot patterns in system behavior
+
+Histograms
+  What: Distribution/frequency of values
+  Reading: X-axis = value, Y-axis = how many times that value occurred
+  Shapes mean:
+    • Bell curve = normal distribution (expected variability)
+    • Skewed = unbalanced (many short waits, few long waits)
+    • Narrow = consistent (predictable behavior)
+    • Wide = variable (unpredictable behavior)
+  Use cases:
+    • Identify bottlenecks (cluster of long durations)
+    • Check variability (spread of values)
+    • Spot outliers (rare extreme values)
+
+Box Plots
+  What: Compact distribution summary using quartiles
+  Reading:
+    • Box = middle 50% of data
+    • Line in box = median (50th percentile)
+    • Whiskers = extend to min/max (or 1.5× IQR)
+    • Dots beyond whiskers = outliers
+  Use cases:
+    • Compare multiple distributions
+    • Spot skewness (asymmetry)
+    • Identify outliers
+    • Quick visual summary
+
+Statistics Tables
+  Metrics shown:
+    • Count - Number of data points
+    • Mean - Average value
+    • Median - Middle value (robust to outliers)
+    • Min - Smallest value
+    • Max - Largest value
+    • Std - Standard deviation (variability measure)
+  
+  Time-Weighted Statistics (special for status logs):
+    "Weighted by duration" means each value is weighted by how long 
+    that state lasted.
+    Example: If resource was busy 10 min, idle 90 min → 
+             Time-weighted idle = 90%
+             (Not 50% like simple average would suggest)
+
+
+EXPORTING DATA
+──────────────
+
+Where: Download buttons (📥) appear in most table sections
+
+What: Full dataset as CSV (not just preview)
+
+How: Click download icon in top-left of table
+
+Uses:
+  ✓ Excel/Sheets - Create pivot tables, additional charts
+  ✓ Python/R - Advanced statistical analysis
+  ✓ Custom reports - Build dashboards in BI tools
+  ✓ Data science - Machine learning, deeper analysis
+
+
+TIPS & TROUBLESHOOTING
+──────────────────────
+
+Problem: No Data in a Section
+  Cause: Metric not logged during simulation
+  Solution: Use log=True when creating entities/resources
+  Example: 
+    truck = des.Entity(env, name="truck", log=True)
+    loader = des.Resource(env, name="loader", log=True)
+
+Problem: Empty Visualizations
+  Cause: Selected metric has no valid numbers
+  Solution: Check that data columns contain numbers (not text/missing)
+
+Problem: Dashboard Freezes / Runs Slowly
+  Cause: Very large simulations overwhelm browser
+  Solutions:
+    • Export data and analyze with Python/R
+    • Use search/filter features
+    • Run smaller scenario for prototyping
+
+Problem: Multiple Runs - How to Compare
+  Use Run Selector dropdown:
+    • "All runs" = aggregate statistics across all runs
+    • Specific Run ID = zoom into that run
+  
+  Interpretation:
+    • Narrow histogram = consistent results (stable model)
+    • Wide histogram = high variability (stochastic/sensitive model)
+
+
+ADVANCED USAGE
+──────────────
+
+Decimal Precision: Adjust if available in dashboard settings
+
+Custom Metrics: Log additional data during simulation
+  truck.log(category="custom_event", data={"load": 60})
+  → Appears in Activity view
+
+External Analysis: Export CSV and use Python
+  import pandas as pd
+  df = pd.read_csv("simulation_activity.csv")
+  entity_df = df[df["source"] == "entity"]
+  entity_df.groupby("entity_name")["duration"].mean().plot()
+
+Printing: Use browser Print (Ctrl+P or Cmd+P) for documentation
+
+
+FAQ (Frequently Asked Questions)
+────────────────────────────────
+
+Q: Can I print the dashboard?
+A: Yes, use browser Print. Better for PDFs: export to CSV and use 
+   spreadsheet/BI tool.
+
+Q: What if my simulation has no queues?
+A: Focus on Schedule and Status Log sections. Waiting Log will be empty.
+
+Q: How to interpret time-weighted statistics?
+A: Value is weighted by duration. Resource idle 90% of time shows 90% 
+   idle utilization, not 50% (which simple average would show).
+
+Q: Can I compare two simulations side-by-side?
+A: Not in dashboard directly. Export both as CSV and use Excel/Python 
+   for comparison.
+
+Q: Why so many visualizations and tabs?
+A: Different questions need different views:
+   • Histograms → Distribution shape
+   • Time series → Trends and timing
+   • Box plots → Outliers and quartiles
+   • Statistics → Exact numbers
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                            SCREENSHOT PLAN
+═══════════════════════════════════════════════════════════════════════════════
+
+The documentation is structured to include 15 screenshots:
+
+OVERVIEW & EXECUTION (5 images)
+  1. 01-overview.png - Environment name + Run selector
+  2. 02-simulation-runs-table.png - Run data table
+  3. 03-simulation-runs-stats.png - Statistics table
+  4. 04-simulation-runs-histogram.png - Time distribution
+  5. 05-simulation-runs-boxplot.png - Quartile view
+
+NAVIGATION (1 image)
+  6. 06-navigation-tabs.png - Entities/Resources/Activity buttons
+
+ENTITIES (4 images)
+  7. 07-entity-schedule-table.png - Activity timeline table
+  8. 08-entity-schedule-timeseries.png - Duration trends over time
+  9. 09-entity-schedule-histogram.png - Duration distribution
+  10. 10-entity-waiting-log.png - Waiting times analysis
+
+RESOURCES (3 images)
+  12. 12-resource-queue-log.png - Queue data table
+  13. 13-resource-status-log-timeseries.png - Utilization trends
+  14. 14-resource-status-log-histogram.png - Utilization distribution
+
+ACTIVITY (1 image)
+  15. 15-activity-view-table.png - Unified event log
+
+Optional:
+  11. 11-entity-status-log-timeseries.png - Entity state changes
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                         ADDING SCREENSHOTS (YOUR TURN)
+═══════════════════════════════════════════════════════════════════════════════
+
+Three guides are provided:
+
+1. DASHBOARD_SCREENSHOTS_GUIDE.txt
+   └─ Overview + step-by-step instructions
+      • How to set up test scenario
+      • Where to capture each screenshot
+      • How to organize files
+      • How to update documentation
+      • Best practices
+
+2. SCREENSHOT_IMPLEMENTATION_CHECKLIST.md
+   └─ Detailed checklist format
+      • Preparation checklist
+      • 15 screenshots with exact locations and what to show
+      • File organization
+      • Exact RST code to add
+      • Verification steps
+      • Testing procedures
+
+3. This summary + DASHBOARD_DOCUMENTATION_OVERVIEW.md
+   └─ High-level overview and quick reference
+
+
+QUICK START (When ready):
+
+Step 1: Prepare
+  mkdir -p docs/source/tutorials/images/dashboard
+  Run your simulation with simpm.run(env, dashboard=True)
+
+Step 2: Capture (Using checklist as guide)
+  15 screenshots from the running dashboard
+  Save to: docs/source/tutorials/images/dashboard/01-overview.png, etc.
+
+Step 3: Document
+  For each image, add to dashboard-guide.rst:
+  .. image:: images/dashboard/01-overview.png
+     :alt: Dashboard overview showing environment and run selector
+     :width: 90%
+  
+  See guides for exact locations in each section
+
+Step 4: Build & Verify
+  cd docs
+  make html
+  open _build/html/tutorials/dashboard-guide.html
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                             FINAL STATUS
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ TEXT DOCUMENTATION: COMPLETE & PRODUCTION READY
+   - 433 lines of comprehensive content
+   - Every dashboard section covered
+   - All visualizations explained
+   - Troubleshooting included
+   - FAQ provided
+   - Advanced usage guidance
+   - Integrated into tutorials index
+
+✅ DOCUMENTATION STRUCTURE: READY FOR SCREENSHOTS
+   - Placeholders positioned at logical locations
+   - RST image directive templates prepared
+   - Three implementation guides created
+   - Directory structure documented
+
+⏳ SCREENSHOTS: READY TO IMPLEMENT
+   - 15 recommended locations identified
+   - Naming convention established
+   - Exact capture instructions provided
+   - RST code ready to insert
+   - Implementation checklist created
+
+✨ ADDITIONAL RESOURCES: COMPLETE
+   - DASHBOARD_DOCS_SUMMARY.md - Quick overview
+   - DASHBOARD_DOCUMENTATION_OVERVIEW.md - Architecture guide
+   - DASHBOARD_SCREENSHOTS_GUIDE.txt - How-to guide
+   - SCREENSHOT_IMPLEMENTATION_CHECKLIST.md - Step-by-step
+   - IMPLEMENTATION_COMPLETE.txt - Status report
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                         WHAT YOU CAN DO NOW
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Build Documentation
+   cd docs
+   make html
+   → Full HTML documentation ready (text only, no screenshots yet)
+
+✅ Publish Online
+   → Upload to Read the Docs or similar
+   → Users can immediately access dashboard guide
+
+✅ Link from README
+   → Users can find "See docs/source/tutorials/dashboard-guide.rst"
+
+✅ Generate PDF
+   make latexpdf
+   → PDF version for distribution
+
+✅ Add Screenshots Later
+   → Follow provided guides anytime
+   → Documentation framework is complete and flexible
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              NEXT STEPS
+═══════════════════════════════════════════════════════════════════════════════
+
+Option 1: COMPLETE IMMEDIATELY (Recommended)
+  Time: ~45 minutes
+  Follow: SCREENSHOT_IMPLEMENTATION_CHECKLIST.md
+  Result: Full visual + text documentation
+  Benefit: Professional, complete user guide
+
+Option 2: PUBLISH NOW, ADD SCREENSHOTS LATER
+  Time: 5 minutes
+  Action: Build docs, publish HTML
+  Result: Comprehensive text documentation available
+  Later: Add screenshots when convenient
+  Benefit: Users can start learning immediately
+
+Option 3: PARTIAL SCREENSHOTS
+  Time: ~20 minutes
+  Capture: Just key views (Entities, Resources, Activity)
+  Skip: Optional sections (Status Log)
+  Result: Balanced documentation with main views illustrated
+
+My Recommendation: Option 1 (Complete Now)
+  The checklist makes it straightforward and fast
+  Results in professional, complete documentation
+  Users get full visual + text guidance
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+That's it! Your dashboard documentation is now ready for users. 🎉
+
+Questions? Check the implementation guides for step-by-step instructions.
+

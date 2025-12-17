@@ -1,11 +1,1 @@
-API
-===
-
-.. autosummary::
-   :toctree: generated
-
-   simpm
-   simpm.dashboard
-   simpm.des
-   simpm.dist
-   simpm.log_cfg
+.. This file is deprecated. Use api_reference/index.rst instead.

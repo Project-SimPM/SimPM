@@ -1,0 +1,33 @@
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+# Required
+version: 2
+
+# Build documentation in the "docs" directory with Sphinx
+build:
+  os: ubuntu-20.04
+  tools:
+    python: "3.11"
+  jobs:
+    post_build:
+      # Clean old build artifacts
+      - rm -rf docs/_build
+      - rm -rf docs/build
+
+# Build documentation with Sphinx
+sphinx:
+  configuration: docs/source/conf.py
+  fail_on_warning: false
+
+# Install dependencies
+python:
+  version: "3.11"
+  install:
+    - requirements: docs/requirements.txt
+    - method: pip
+      path: .
+
+# Only build HTML for faster builds (can add pdf/epub if needed later)
+formats:
+  - html

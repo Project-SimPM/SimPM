@@ -615,8 +615,181 @@ def _render_queue_waiting_log(df: pd.DataFrame, key_prefix: str) -> None:
         st.plotly_chart(fig, width="stretch")
 
 
+
+
+def _remove_duplicate_status_rows(df: pd.DataFrame, time_col: str, metric_col: str) -> pd.DataFrame:
+    """Remove rows with duplicate values at the same simulation time, keeping only the last occurrence.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Status log dataframe with time and metric columns
+    time_col : str
+        Name of the time column
+    metric_col : str
+        Name of the metric column
+    
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with duplicates at same time removed, keeping only the last row per time point.
+    """
+    if df.empty or time_col not in df.columns or metric_col not in df.columns:
+        return df
+    
+    df = df.copy()
+    # Sort by time to ensure proper ordering
+    df = df.sort_values(by=time_col, ignore_index=True)
+    
+    # Group by time and keep only the last row for each time point
+    df = df.drop_duplicates(subset=[time_col], keep='last')
+    
+    return df.reset_index(drop=True)
+
+
+def _time_weighted_statistics(df: pd.DataFrame, time_col: str, value_col: str) -> pd.DataFrame:
+    """Calculate time-weighted statistics where values are weighted by their duration.
+    
+    Each status value is weighted by the time duration until the next status change.
+    The last value is weighted until the end of simulation.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Status log dataframe sorted by time
+    time_col : str
+        Name of the time column
+    value_col : str
+        Name of the value column to analyze
+    
+    Returns
+    -------
+    pd.DataFrame
+        Statistics including time-weighted mean, weighted median approximation, etc.
+    """
+    if df.empty or time_col not in df.columns or value_col not in df.columns:
+        return pd.DataFrame()
+    
+    df = df.copy().sort_values(by=time_col, ignore_index=True)
+    
+    # Get numeric values
+    values = pd.to_numeric(df[value_col], errors='coerce')
+    times = pd.to_numeric(df[time_col], errors='coerce')
+    
+    if values.isna().all() or times.isna().all():
+        return pd.DataFrame()
+    
+    # Calculate time intervals (duration for each value)
+    durations = times.diff()
+    durations.iloc[0] = times.iloc[0] if len(times) > 0 else 0  # First duration starts from 0
+    
+    # For the last point, assume it lasts until the end of simulation
+    if len(durations) > 0:
+        durations.iloc[-1] = times.iloc[-1] - times.iloc[-2] if len(times) > 1 else times.iloc[-1]
+    
+    # Calculate weighted statistics
+    total_duration = durations.sum()
+    
+    if total_duration == 0:
+        return _basic_statistics(values)
+    
+    # Weighted mean
+    weighted_mean = (values * durations).sum() / total_duration if total_duration > 0 else values.mean()
+    
+    # Weighted min/max (just regular min/max)
+    val_min = values.min()
+    val_max = values.max()
+    
+    # Weighted median approximation: use cumulative weighted distribution
+    cumsum = (values * durations).cumsum() / total_duration
+    median_idx = (cumsum - 0.5).abs().idxmin()
+    weighted_median = values.iloc[median_idx]
+    
+    # Weighted std (approximate)
+    weighted_var = ((values - weighted_mean) ** 2 * durations).sum() / total_duration
+    weighted_std = weighted_var ** 0.5
+    
+    return pd.DataFrame(
+        {
+            "Count": [int(len(values))],
+            "Mean": [weighted_mean],
+            "Median": [weighted_median],
+            "Min": [val_min],
+            "Max": [val_max],
+            "Std": [weighted_std],
+        }
+    )
+
+
+def _generate_time_weighted_samples(df: pd.DataFrame, time_col: str, value_col: str, num_samples: int = 1000) -> list[float]:
+    """Generate synthetic samples from time-weighted distribution for histogram/boxplot.
+    
+    This implements a Monte Carlo approach: for each time interval, samples are drawn
+    proportionally to the duration of that interval.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Status log dataframe sorted by time
+    time_col : str
+        Name of the time column
+    value_col : str
+        Name of the value column
+    num_samples : int
+        Number of synthetic samples to generate (default 1000)
+    
+    Returns
+    -------
+    list[float]
+        Synthetic samples representing the time-weighted distribution
+    """
+    if df.empty or time_col not in df.columns or value_col not in df.columns:
+        return []
+    
+    df = df.copy().sort_values(by=time_col, ignore_index=True)
+    
+    values = pd.to_numeric(df[value_col], errors='coerce')
+    times = pd.to_numeric(df[time_col], errors='coerce')
+    
+    if values.isna().all() or times.isna().all():
+        return []
+    
+    # Calculate durations for each interval
+    durations = times.diff()
+    durations.iloc[0] = times.iloc[0] if len(times) > 0 else 0
+    if len(durations) > 0:
+        durations.iloc[-1] = times.iloc[-1] - times.iloc[-2] if len(times) > 1 else times.iloc[-1]
+    
+    total_duration = durations.sum()
+    if total_duration == 0:
+        # If no time variation, just repeat the value
+        return [values.iloc[0]] * num_samples
+    
+    # Calculate sampling weights: proportion of time for each value
+    weights = durations / total_duration
+    
+    # Generate samples proportional to time duration
+    samples = []
+    for val, weight in zip(values, weights):
+        num_samples_for_this_val = max(1, int(round(num_samples * weight)))
+        samples.extend([val] * num_samples_for_this_val)
+    
+    # Adjust to exact sample count
+    samples = samples[:num_samples]
+    if len(samples) < num_samples:
+        samples.extend([values.iloc[-1]] * (num_samples - len(samples)))
+    
+    return samples
+
+
 def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
-    """Render resource status log with selectable metric plots."""
+    """Render resource status log with selectable metric plots using time-weighted statistics.
+    
+    This function:
+    1. Removes duplicate rows at the same simulation time (keeps only the last)
+    2. Calculates time-weighted statistics (values weighted by duration)
+    3. Generates time-weighted histograms/boxplots using Monte Carlo approach
+    """
     st.markdown("## Status log")
     if df.empty:
         st.info("No status records available yet.")
@@ -643,32 +816,54 @@ def _render_resource_status(df: pd.DataFrame, key_prefix: str) -> None:
         key=f"{key_prefix}-status-selection",
     )
 
+    # Remove duplicate rows at same time, keeping only the last occurrence
+    df_clean = _remove_duplicate_status_rows(df, time_axis, selected_metric)
+
     tab_stats, tab_series, tab_hist, tab_box = st.tabs(["Statistics", "Time series", "Histogram", "Box plot"])
 
     with tab_stats:
-        stats_df = _basic_statistics(pd.to_numeric(df[selected_metric], errors="coerce"))
-        _render_compact_table(stats_df)
+        # Use time-weighted statistics
+        st.markdown("**Time-weighted statistics** (values weighted by duration between status changes)")
+        stats_df = _time_weighted_statistics(df_clean, time_axis, selected_metric)
+        if not stats_df.empty:
+            _render_compact_table(stats_df)
+        else:
+            st.info("Unable to calculate statistics for this metric.")
 
     with tab_series:
         fig = px.line(
-            df,
+            df_clean,
             x=time_axis,
             y=selected_metric,
             labels={"value": "Value", time_axis: time_axis, selected_metric: selected_metric},
         )
         fig.update_traces(line_shape="hv", selector=None, line_color="#3a7859")
         fig.update_xaxes(rangeslider_visible=True)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, width="stretch", key=f"{key_prefix}-series")
 
     with tab_hist:
-        fig = px.histogram(df, x=selected_metric, nbins=min(30, max(5, len(df))))
-        fig.update_traces(marker_color="#5bbd89")
-        st.plotly_chart(fig, width="stretch")
+        # Generate time-weighted samples for histogram
+        st.markdown("**Time-weighted histogram** (distribution weighted by time duration)")
+        samples = _generate_time_weighted_samples(df_clean, time_axis, selected_metric, num_samples=1000)
+        if samples:
+            hist_df = pd.DataFrame({selected_metric: samples})
+            fig = px.histogram(hist_df, x=selected_metric, nbins=min(30, max(5, len(set(samples)))))
+            fig.update_traces(marker_color="#5bbd89")
+            st.plotly_chart(fig, width="stretch", key=f"{key_prefix}-hist")
+        else:
+            st.info("Unable to generate histogram for this metric.")
 
     with tab_box:
-        fig = px.box(df, y=selected_metric)
-        fig.update_traces(marker_color="#3a7859")
-        st.plotly_chart(fig, width="stretch")
+        # Generate time-weighted samples for boxplot
+        st.markdown("**Time-weighted boxplot** (quartiles based on time-weighted distribution)")
+        samples = _generate_time_weighted_samples(df_clean, time_axis, selected_metric, num_samples=1000)
+        if samples:
+            box_df = pd.DataFrame({selected_metric: samples})
+            fig = px.box(box_df, y=selected_metric)
+            fig.update_traces(marker_color="#3a7859")
+            st.plotly_chart(fig, width="stretch", key=f"{key_prefix}-box")
+        else:
+            st.info("Unable to generate boxplot for this metric.")
 
 
 def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
@@ -1155,13 +1350,123 @@ class StreamlitDashboard:
         res_id = resource.get("id", "-")
         res_name = str(resource.get("name", "")).strip() or f"Resource {res_id}"
         st.markdown(f"### Resource {res_id} • {res_name}")
-        st.caption(f"Type: {resource.get('type', 'Unknown')} • Capacity: {resource.get('capacity', '-') }")
+        
+        # Get initial level from status_log (first idle value) or from initial_level attribute
+        initial_level = resource.get('initial_level', None)
+        if initial_level is None or initial_level == '-':
+            # Try to get from status_log: the first idle value represents initial available resources
+            status_log = resource.get("status_log", [])
+            if status_log and len(status_log) > 0:
+                first_status = status_log[0]
+                idle_val = first_status.get("idle")
+                if idle_val is not None:
+                    initial_level = idle_val
+        if initial_level is None:
+            initial_level = '-'
+        
+        st.caption(f"Type: {resource.get('type', 'Unknown')} • Initial: {initial_level} • Capacity: {resource.get('capacity', '-') }")
         attributes = resource.get("attributes") or resource.get("attr")
         if attributes:
             st.markdown(
                 f"<div class='simpm-attributes'><strong>Attributes:</strong> {_format_attributes_inline(attributes)}</div>",
                 unsafe_allow_html=True,
             )
+
+        # Display average utilization and average queue length with tabs
+        # Collect metrics from all selected resources (across runs if viewing "All runs")
+        metrics_records = []
+        for res in selected_resources:
+            stats = res.get("stats", {})
+            run_id = res.get("run_id")
+            util = stats.get("average_utilization")
+            queue = stats.get("average_queue_length")
+            
+            if util is not None or queue is not None:
+                rec = {"run_id": run_id}
+                if util is not None:
+                    try:
+                        rec["average_utilization"] = float(util)
+                    except (TypeError, ValueError):
+                        pass
+                if queue is not None:
+                    try:
+                        rec["average_queue_length"] = float(queue)
+                    except (TypeError, ValueError):
+                        pass
+                if len(rec) > 1:  # More than just run_id
+                    metrics_records.append(rec)
+        
+        if metrics_records:
+            metrics_df = pd.DataFrame(metrics_records)
+            
+            # Display tabs for each metric
+            if "average_utilization" in metrics_df.columns:
+                st.markdown("### Average Utilization")
+                util_df = metrics_df[["run_id", "average_utilization"]].copy() if "run_id" in metrics_df.columns else metrics_df[["average_utilization"]].copy()
+                
+                tab_table, tab_stats, tab_hist, tab_box = st.tabs(["Table", "Statistics", "Histogram", "Box plot"])
+                
+                with tab_table:
+                    _render_table_preview(
+                        "Average Utilization",
+                        util_df,
+                        key_prefix=f"resource-{res_id}-util",
+                        show_index=False,
+                        indent_table_for_icon=True,
+                    )
+                
+                with tab_stats:
+                    stats_df = _basic_statistics(util_df["average_utilization"])
+                    _render_compact_table(stats_df)
+                
+                with tab_hist:
+                    fig = px.histogram(
+                        util_df,
+                        x="average_utilization",
+                        nbins=min(30, max(5, len(util_df))),
+                        labels={"average_utilization": "Average Utilization"},
+                    )
+                    fig.update_traces(marker_color="#5bbd89")
+                    st.plotly_chart(fig, width='stretch', key=f"util-hist-{res_id}")
+                
+                with tab_box:
+                    fig = px.box(util_df, y="average_utilization")
+                    fig.update_traces(marker_color="#3a7859")
+                    st.plotly_chart(fig, width='stretch', key=f"util-box-{res_id}")
+            
+            if "average_queue_length" in metrics_df.columns:
+                st.markdown("### Average Queue Length")
+                queue_df_display = metrics_df[["run_id", "average_queue_length"]].copy() if "run_id" in metrics_df.columns else metrics_df[["average_queue_length"]].copy()
+                
+                tab_table, tab_stats, tab_hist, tab_box = st.tabs(["Table", "Statistics", "Histogram", "Box plot"])
+                
+                with tab_table:
+                    _render_table_preview(
+                        "Average Queue Length",
+                        queue_df_display,
+                        key_prefix=f"resource-{res_id}-queue-length",
+                        show_index=False,
+                        indent_table_for_icon=True,
+                    )
+                
+                with tab_stats:
+                    stats_df = _basic_statistics(queue_df_display["average_queue_length"])
+                    _render_compact_table(stats_df)
+                
+                with tab_hist:
+                    fig = px.histogram(
+                        queue_df_display,
+                        x="average_queue_length",
+                        nbins=min(30, max(5, len(queue_df_display))),
+                        labels={"average_queue_length": "Average Queue Length"},
+                    )
+                    fig.update_traces(marker_color="#5bbd89")
+                    st.plotly_chart(fig, width='stretch', key=f"queue-hist-{res_id}")
+                
+                with tab_box:
+                    fig = px.box(queue_df_display, y="average_queue_length")
+                    fig.update_traces(marker_color="#3a7859")
+                    st.plotly_chart(fig, width='stretch', key=f"queue-box-{res_id}")
 
         # Combine logs from all instances of this resource across runs
         queue_df = pd.concat([pd.DataFrame(res.get("queue_log", [])) for res in selected_resources], ignore_index=True)

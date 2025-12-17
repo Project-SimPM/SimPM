@@ -62,6 +62,9 @@ templates_path = ["_templates"]
 # The master toctree document.
 master_doc = "index"
 
+# Exclude api.rst since API documentation is now at api_reference/index.rst
+exclude_patterns = ['api.rst']
+
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'sphinx': ('https://www.sphinx-doc.org/en/master/', None),

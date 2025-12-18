@@ -1,7 +1,7 @@
 digraph SimPM_ClassHierarchy {
-    graph [rankdir=TB, bgcolor=white];
-    node [shape=box, style="filled", fillcolor=lightblue];
-    edge [arrowhead=empty];
+    graph [rankdir=TB, bgcolor=white, fontsize=10];
+    node [shape=box, style="filled", fillcolor=lightblue, fontsize=9, fontname="Arial"];
+    edge [arrowhead=empty, fontsize=8];
     
     // Base classes
     SimObject [label="SimObject

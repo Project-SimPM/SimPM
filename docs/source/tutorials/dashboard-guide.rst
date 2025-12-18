@@ -1,5 +1,5 @@
-04 – Dashboard Guide
-====================
+Dashboard Guide
+===============
 
 .. contents:: On this page
    :local:

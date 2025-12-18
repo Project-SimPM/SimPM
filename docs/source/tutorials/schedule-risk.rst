@@ -1,5 +1,5 @@
-02 – Schedule risk analysis with Monte Carlo
-============================================
+Schedule risk analysis with Monte Carlo
+=========================================
 
 .. contents:: On this page
    :local:

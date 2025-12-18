@@ -1,5 +1,5 @@
-03 – Resource bottlenecks and utilization
-=========================================
+Resource bottlenecks and utilization
+====================================
 
 .. contents:: On this page
    :local:

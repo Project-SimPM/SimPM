@@ -1,6 +1,6 @@
 digraph SimPM_Workflow {
-    graph [rankdir=TB, bgcolor=white, fontsize=10];
-    node [shape=box, style="filled", fillcolor=lightblue, fontsize=9, fontname="Arial"];
+    graph [rankdir=TB, bgcolor=white];
+    node [shape=box, style="filled", fillcolor=lightblue];
     
     Start [shape=ellipse, label="Start"];
     CreateEnv [label="1. Create Environment"];

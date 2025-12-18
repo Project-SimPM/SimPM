@@ -1,7 +1,6 @@
 digraph SimPM_Architecture {
-    graph [rankdir=LR, bgcolor=white, fontsize=10];
-    node [shape=box, style="filled,rounded", fillcolor=lightblue, fontsize=9, fontname="Arial"];
-    edge [fontsize=8];
+    graph [rankdir=LR, bgcolor=white];
+    node [shape=box, style="filled,rounded", fillcolor=lightblue];
     
     // Core modules
     Environment [label="Environment

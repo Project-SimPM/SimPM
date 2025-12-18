@@ -36,7 +36,7 @@ except importlib.metadata.PackageNotFoundError:
         if match:
             release = match.group(1)
         else:
-            release = "2.0.3"
+            release = "2.1.0"
     except Exception:
         release = "2.0.3"
 

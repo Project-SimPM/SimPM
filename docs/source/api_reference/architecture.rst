@@ -11,44 +11,10 @@ SimPM Architecture
 
 The following diagram shows the core components of SimPM and how they interact:
 
-.. graphviz::
-
-   digraph SimPM_Architecture {
-       graph [rankdir=LR, bgcolor=white, splines=ortho];
-       node [shape=box, style="filled,rounded", fillcolor=lightblue, margin="0.3,0.2"];
-       edge [color=gray];
-       
-       // Core modules
-       Environment [label="Environment\n(Simulation Clock)", fillcolor=lightcoral, fontcolor=white, fontweight=bold];
-       Entity [label="Entity\n(Agents/Items)", fillcolor=lightblue];
-       Resource [label="Resource\n(Capacity Pools)", fillcolor=lightyellow];
-       Distribution [label="Distribution\n(Random Variables)", fillcolor=lightcyan];
-       
-       // Process management
-       Process [label="Process\n(Generator Functions)", fillcolor=lightgray];
-       Event [label="Event Queue\n(Event Scheduler)", fillcolor=lightpink];
-       
-       // Logging & Output
-       Recorder [label="Recorder\n(Data Collection)", fillcolor=lightyellow];
-       Dashboard [label="Dashboard\n(Streamlit UI)", fillcolor=lightgreen];
-       Logger [label="Logger Config\n(Log Management)", fillcolor=lightsteelblue];
-       
-       // Relationships
-       Environment -> Entity [label="creates\ninstances"];
-       Environment -> Resource [label="manages"];
-       Environment -> Process [label="schedules"];
-       Environment -> Event [label="drives"];
-       
-       Entity -> Process [label="runs"];
-       Entity -> Resource [label="requests"];
-       Entity -> Recorder [label="records to"];
-       
-       Resource -> Recorder [label="logs state"];
-       Distribution -> Entity [label="provides\ndurations"];
-       
-       Recorder -> Dashboard [label="feeds data"];
-       Recorder -> Logger [label="configured by"];
-   }
+.. image:: ../_visualizations/simpm_architecture.svg
+   :alt: SimPM Architecture Diagram
+   :align: center
+   :width: 90%
 
 **Key Components:**
 
@@ -67,35 +33,10 @@ Class Hierarchy
 
 The following diagram shows the relationship between SimPM's main classes:
 
-.. graphviz::
-
-   digraph SimPM_ClassHierarchy {
-       graph [rankdir=TB, bgcolor=white];
-       node [shape=box, style="filled", fillcolor=lightblue, margin="0.3,0.2"];
-       edge [arrowhead=empty, style=bold];
-       
-       // Base class
-       SimObject [label="SimObject\n(Base Class)", fillcolor=lightcoral, fontcolor=white, fontweight=bold];
-       
-       // Main classes
-       Environment [label="Environment\n(Simulation World)", fillcolor=lightcoral];
-       Entity [label="Entity\n(Agents)"];
-       Resource [label="Resource\n(Basic Capacity)", fillcolor=lightyellow];
-       
-       // Resource variants
-       PriorityResource [label="PriorityResource\n(Priority Queuing)", fillcolor=lightgreen];
-       PreemptiveResource [label="PreemptiveResource\n(Preemptive)", fillcolor=lightgreen];
-       GeneralResource [label="GeneralResource\n(Generic Wrapper)", fillcolor=lightsteelblue];
-       
-       // Inheritance relationships
-       SimObject -> Environment;
-       SimObject -> Entity;
-       SimObject -> Resource;
-       
-       Resource -> PriorityResource;
-       Resource -> PreemptiveResource;
-       Resource -> GeneralResource;
-   }
+.. image:: ../_visualizations/simpm_classes.svg
+   :alt: SimPM Class Hierarchy Diagram
+   :align: center
+   :width: 90%
 
 **Class Descriptions:**
 
@@ -112,85 +53,42 @@ Simulation Workflow
 
 The typical workflow for creating and running a SimPM simulation:
 
-.. graphviz::
+.. image:: ../_visualizations/simpm_workflow.svg
+   :alt: SimPM Simulation Workflow Diagram
+   :align: center
+   :width: 90%
 
-   digraph SimPM_Workflow {
-       graph [rankdir=TB, bgcolor=white];
-       node [shape=box, style="filled", fillcolor=lightblue, margin="0.3,0.2"];
-       edge [color=gray];
-       
-       Start [shape=ellipse, label="Start\nSimulation Design", fillcolor=lightgreen, fontweight=bold];
-       
-       Step1 [label="1. Create Environment\n\nenv = des.Environment('Project Name')"];
-       Step2 [label="2. Define Resources\n\nloader = des.Resource(env, 'loader')\ntrucks = des.Resource(env, 'trucks')"];
-       Step3 [label="3. Create Entities\n\nentities = env.create_entities('truck', 10)"];
-       Step4 [label="4. Define Processes\n\ndef process(entity, resource):\n    yield entity.get(resource)\n    yield entity.do('work', duration)\n    yield entity.put(resource)"];
-       Step5 [label="5. Schedule Processes\n\nenv.process(process(...))"];
-       Step6 [label="6. Run Simulation\n\nsimpm.run(env, dashboard=True)"];
-       Step7 [label="7. Analyze Results\n\nresults = entity.schedule()\nutils = resource.average_utilization()"];
-       
-       End [shape=ellipse, label="End\nReview & Iterate", fillcolor=lightgreen, fontweight=bold];
-       
-       Start -> Step1 -> Step2 -> Step3 -> Step4 -> Step5 -> Step6 -> Step7 -> End;
-       
-       // Styling
-       Step1 [fillcolor=lightcyan];
-       Step2 [fillcolor=lightyellow];
-       Step3 [fillcolor=lightcyan];
-       Step4 [fillcolor=lightyellow];
-       Step5 [fillcolor=lightcyan];
-       Step6 [fillcolor=lightyellow, fontweight=bold];
-       Step7 [fillcolor=lightgreen];
-   }
+**Workflow Steps:**
+
+1. **Create Environment** – Initialize the simulation clock and event scheduler
+2. **Define Resources** – Specify shared capacities (loaders, crews, equipment, etc.)
+3. **Create Entities** – Instantiate agents/items that will move through the system
+4. **Define Processes** – Write generator functions describing entity behavior
+5. **Schedule Processes** – Register processes with the environment
+6. **Run Simulation** – Execute until no future events remain (optionally show dashboard)
+7. **Analyze Results** – Extract statistics, view logs, or export data
 
 Data Flow
 ---------
 
 How data flows through SimPM during a simulation:
 
-.. graphviz::
+**Data Flow Pipeline:**
 
-   digraph SimPM_DataFlow {
-       graph [rankdir=LR, bgcolor=white];
-       node [shape=box, style="filled", margin="0.3,0.2"];
-       edge [color=gray];
-       
-       // Input
-       UserCode [label="User Code\n(Simulation Definition)", shape=note, fillcolor=lightyellow];
-       
-       // Processing
-       Environment [label="Environment\n(Event Processing)", fillcolor=lightcoral, fontcolor=white];
-       Entities [label="Entities\n(Process Execution)", fillcolor=lightblue];
-       Resources [label="Resources\n(Queue Management)", fillcolor=lightyellow];
-       
-       // Recording
-       Recorder [label="Recorder\n(Data Collection)", fillcolor=lightsteelblue];
-       ScheduleLog [label="Schedule Log\n(Activities)", shape=database, fillcolor=lightgray];
-       QueueLog [label="Queue Log\n(Waits)", shape=database, fillcolor=lightgray];
-       StatusLog [label="Status Log\n(States)", shape=database, fillcolor=lightgray];
-       
-       // Output
-       Dashboard [label="Dashboard\n(Visualization)", fillcolor=lightgreen];
-       CSVExport [label="CSV Export\n(Data Analysis)", shape=note, fillcolor=lightgreen];
-       
-       // Flow
-       UserCode -> Environment;
-       Environment -> Entities;
-       Environment -> Resources;
-       
-       Entities -> Recorder;
-       Resources -> Recorder;
-       
-       Recorder -> ScheduleLog;
-       Recorder -> QueueLog;
-       Recorder -> StatusLog;
-       
-       ScheduleLog -> Dashboard;
-       QueueLog -> Dashboard;
-       StatusLog -> Dashboard;
-       
-       Dashboard -> CSVExport;
-   }
+1. **User Code** → Defines simulation structure (entities, resources, processes)
+2. **Environment** → Processes events and advances simulation clock
+3. **Entities & Resources** → Execute processes and generate events
+4. **Recorder** → Collects all simulation data (activities, queues, status changes)
+5. **Storage** → Data stored in three main logs:
+   
+   - **Schedule Log** – Entity activities and timings
+   - **Queue Log** – Resource waiting times
+   - **Status Log** – State changes over time
+
+6. **Output** → Data visualized or exported:
+   
+   - **Dashboard** – Interactive Streamlit interface
+   - **CSV Export** – Data files for external analysis
 
 Module Dependencies
 -------------------

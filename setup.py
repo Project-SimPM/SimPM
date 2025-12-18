@@ -4,13 +4,14 @@ More: https://youtu.be/U-aIPTS580s
 """
 import re
 import subprocess
+from pathlib import Path
 from setuptools import setup
 
 def get_version() -> str:
-    """get the last version tag from git
+    """get the last version tag from git, with fallback to __init__.py
 
     Returns:
-        str: version tag in PEP 440 format, defaults to '0.0.0' if git describe fails
+        str: version tag in PEP 440 format
     """
     try:
         result = subprocess.run(
@@ -39,9 +40,20 @@ def get_version() -> str:
     except (subprocess.TimeoutExpired, FileNotFoundError, IndexError):
         pass
     
-    # Fallback version for detached HEAD or when git is not available
-    # (e.g., Read the Docs builds)
-    return "0.0.0"
+    # Fallback: read version from __init__.py
+    # This is used on Read the Docs when git describe fails
+    try:
+        init_file = Path("src/simpm/__init__.py")
+        if init_file.exists():
+            content = init_file.read_text()
+            match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
+            if match:
+                return match.group(1)
+    except Exception:
+        pass
+    
+    # Final fallback if all else fails
+    return "2.0.3"
 
 def validate_version(version: str) -> bool:
     """Validate Version (matches PEP 440 format)

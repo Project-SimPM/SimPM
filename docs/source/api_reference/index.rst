@@ -10,6 +10,7 @@ components.
 .. toctree::
    :maxdepth: 2
 
+   architecture
    simpm
    simpm.dashboard
    simpm.des

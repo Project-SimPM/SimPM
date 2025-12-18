@@ -1,0 +1,34 @@
+digraph SimPM_ClassHierarchy {
+    graph [rankdir=TB, bgcolor=white];
+    node [shape=box, style="filled", fillcolor=lightblue];
+    edge [arrowhead=empty];
+    
+    // Base classes
+    SimObject [label="SimObject
+(Base Class)"];
+    
+    // Derived classes
+    Environment [label="Environment"];
+    Entity [label="Entity"];
+    Resource [label="Resource"];
+    
+    // Resource variants
+    PriorityResource [label="PriorityResource"];
+    PreemptiveResource [label="PreemptiveResource"];
+    GeneralResource [label="GeneralResource"];
+    
+    // Relationships
+    SimObject -> Environment;
+    SimObject -> Entity;
+    SimObject -> Resource;
+    
+    Resource -> PriorityResource;
+    Resource -> PreemptiveResource;
+    Resource -> GeneralResource;
+    
+    // Styling
+    SimObject [fillcolor=lightcoral];
+    Resource [fillcolor=lightyellow];
+    PriorityResource [fillcolor=lightgreen];
+    PreemptiveResource [fillcolor=lightgreen];
+}

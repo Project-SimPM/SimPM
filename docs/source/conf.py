@@ -47,6 +47,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.graphviz',
+    'sphinx.ext.inheritance_diagram',
     'recommonmark',
 ]
 

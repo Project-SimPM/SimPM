@@ -1,0 +1,22 @@
+digraph SimPM_Workflow {
+    graph [rankdir=TB, bgcolor=white];
+    node [shape=box, style="filled", fillcolor=lightblue];
+    
+    Start [shape=ellipse, label="Start"];
+    CreateEnv [label="1. Create Environment"];
+    CreateResources [label="2. Create Resources"];
+    CreateEntities [label="3. Create Entities"];
+    DefineProcess [label="4. Define Processes"];
+    RunSim [label="5. Run Simulation
+(simpm.run)"];
+    ViewResults [label="6. View Results
+(Dashboard/Logs)"];
+    End [shape=ellipse, label="End"];
+    
+    Start -> CreateEnv -> CreateResources -> CreateEntities -> DefineProcess -> RunSim -> ViewResults -> End;
+    
+    // Styling
+    CreateEnv [fillcolor=lightcoral];
+    RunSim [fillcolor=lightyellow];
+    ViewResults [fillcolor=lightgreen];
+}

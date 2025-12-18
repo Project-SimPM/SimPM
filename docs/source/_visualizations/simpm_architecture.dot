@@ -1,0 +1,49 @@
+digraph SimPM_Architecture {
+    graph [rankdir=LR, bgcolor=white];
+    node [shape=box, style="filled,rounded", fillcolor=lightblue];
+    
+    // Core modules
+    Environment [label="Environment
+(Simulation Clock)"];
+    Entity [label="Entity
+(Agents/Items)"];
+    Resource [label="Resource
+(Capacity Pools)"];
+    Distribution [label="Distribution
+(Random Vars)"];
+    
+    // Process management
+    Process [label="Process
+(Generator Functions)"];
+    Event [label="Event
+(Event Queue)"];
+    
+    // Logging & Output
+    Recorder [label="Recorder
+(Data Collection)"];
+    Dashboard [label="Dashboard
+(Streamlit UI)"];
+    Logger [label="Logger
+(Log Config)"];
+    
+    // Relationships
+    Environment -> Entity [label="creates"];
+    Environment -> Resource [label="manages"];
+    Environment -> Process [label="schedules"];
+    Environment -> Event [label="drives"];
+    
+    Entity -> Process [label="runs"];
+    Entity -> Resource [label="uses"];
+    Entity -> Recorder [label="records to"];
+    
+    Resource -> Recorder [label="records to"];
+    Distribution -> Entity [label="provides durations"];
+    
+    Recorder -> Dashboard [label="feeds"];
+    Recorder -> Logger [label="configured by"];
+    
+    // Styling
+    Environment [fillcolor=lightcoral];
+    Dashboard [fillcolor=lightgreen];
+    Recorder [fillcolor=lightyellow];
+}

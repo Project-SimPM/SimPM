@@ -26,9 +26,19 @@ author = 'Project SimPM Team'
 try:
     release: str = importlib.metadata.version('simpm')
 except importlib.metadata.PackageNotFoundError:
-    import simpm
-
-    release = getattr(simpm, "__version__", "0.0.0")
+    # Fallback: read directly from __init__.py
+    try:
+        import re
+        init_path = os.path.abspath("../../src/simpm/__init__.py")
+        with open(init_path, 'r') as f:
+            content = f.read()
+        match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
+        if match:
+            release = match.group(1)
+        else:
+            release = "2.0.3"
+    except Exception:
+        release = "2.0.3"
 
 # The short X.Y version.
 version: str = '.'.join(release.split('.')[:2])

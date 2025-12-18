@@ -14,7 +14,8 @@ Install SimPM from PyPI:
    pip install simpm
 
 
-## A minimal example
+A minimal example
+-----------------
 
 This minimal model represents a single project activity that requires one crew. The activity waits until the crew is available, performs the work, and then releases the resource. The SimPM engine models activities with ``do`` (time spent working) and ``get`` / ``put`` (queueing for and releasing resources), rather than raw ``timeout`` calls.
 
@@ -69,4 +70,5 @@ Next steps
 * Read :doc:`concepts/project-modeling` to understand how activities, resources,
   and distributions fit together.
 
-* Try the first full tutorial at :doc:`tutorials/hello-simpm`.
+* Try the full tutorial at :doc:`tutorials/index`.
+* Check out the API reference at :doc:`api_reference/index`.

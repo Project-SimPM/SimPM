@@ -7,7 +7,7 @@
 Overview
 --------
 
-Build a minimal project simulation using SimPM's discrete-event engine.
+The objective here is to build a minimal project simulation using SimPM's discrete-event engine.
 This walkthrough mirrors the runnable example in ``example/test_simple_earthmoving.py``
 and shows how to inspect queueing and utilization once the run finishes.
 

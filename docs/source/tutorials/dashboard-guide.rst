@@ -1,5 +1,5 @@
-Dashboard Guide
-===============
+04 – Dashboard Guide
+====================
 
 .. contents:: On this page
    :local:
@@ -64,7 +64,7 @@ This section shows aggregated execution statistics across all runs (or a filtere
   - ``run_id`` – Unique identifier for each run
   - ``simulation_time`` – Total wall-clock or simulation duration
 
-  Use the download button (📥) in the top-left to export the full table as CSV.
+  Use the download button in the top-left to export the full table as CSV.
 
 **Statistics Tab**
   Shows key metrics for simulation times:
@@ -357,15 +357,6 @@ Multiple Runs
 Advanced Usage
 --------------
 
-Customizing Decimal Precision
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-By default, the dashboard displays 3 decimal places. To change this:
-
-1. Look for the settings option in the dashboard (if available)
-2. Adjust the ``decimal_digits`` slider if present
-3. Or pass a configuration parameter when launching the dashboard (see API reference)
-
 Logging Custom Metrics
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -382,51 +373,3 @@ Analyzing Results Externally
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Export CSV data and use pandas/matplotlib for deeper analysis:
-
-.. code-block:: python
-
-   import pandas as pd
-   import matplotlib.pyplot as plt
-
-   # Load exported CSV
-   df = pd.read_csv("simulation_activity.csv")
-   
-   # Custom analysis
-   entity_df = df[df["source"] == "entity"]
-   plt.figure()
-   entity_df.groupby("entity_name")["duration"].mean().plot(kind="bar")
-   plt.title("Average Activity Duration by Entity")
-   plt.show()
-
-FAQ
----
-
-**Q: Can I print the dashboard?**
-
-A: Yes. Use your browser's Print function (Ctrl+P or Cmd+P). For best results, print individual views or export to CSV.
-
-**Q: What if my simulation has no queues?**
-
-A: If entities never wait, the Waiting Log sections will be empty. Focus on the Schedule and Status Log sections instead.
-
-**Q: How do I interpret time-weighted statistics?**
-
-A: A resource's "time-weighted utilization" reflects the fraction of simulation time it was in use, accounting for how long each state lasted. 
-Regular averages would treat each snapshot equally, ignoring duration.
-
-**Q: Can I compare two simulations side-by-side?**
-
-A: Not directly in the dashboard. Export both as CSV and use Excel or Python to create side-by-side comparisons.
-
-**Q: Why are there so many tabs and visualizations?**
-
-A: Different questions benefit from different visualizations. Histograms show distribution, time series show trends, 
-box plots show outliers, and statistics provide exact numbers. Use whichever helps answer your question.
-
-See Also
---------
-
-- :doc:`hello-simpm` – Tutorial on building your first simulation
-- :doc:`resource-bottlenecks` – Identifying constraints using dashboard insights
-- :doc:`schedule-risk` – Analyzing schedule risk and variability
-

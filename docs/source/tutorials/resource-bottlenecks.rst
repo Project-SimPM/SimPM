@@ -7,8 +7,8 @@
 Overview
 --------
 
-Analyze how limited capacities affect throughput and schedule. This
-example reuses ``example/test_priority_resource.py`` to show how queues
+The objective here is to analyze how limited capacities affect throughput 
+and schedule and show how queues
 behave when multiple entities compete for scarce capacity and how
 priority settings change the outcome.
 

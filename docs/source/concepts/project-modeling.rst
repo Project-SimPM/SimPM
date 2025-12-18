@@ -48,7 +48,7 @@ requesting a resource, and the environment manages time and events.
 This is similar in spirit to libraries like SimPy, but SimPM adds
 features aimed directly at project and construction models:
 
-* **Project-focused entities** – :class:`simpm.des.Entity` carries arbitrary
+* **Project-focused entities** – :class:`simpm.des.Entity` carries user-defined arbitrary
   attributes (e.g. WBS code, activity type, planned duration) so you can
   attach project metadata to simulated work items.
 * **Crew and equipment resources** – :class:`simpm.des.Resource`,
@@ -72,7 +72,7 @@ Entities and their attributes
 
 Each entity instance has:
 
-* a **name** and **id** (e.g., ``"truck_3"``),
+* a **name** and **id**,
 * a reference to the **environment** it belongs to,
 * a dictionary-like attribute store (via ``entity["key"]`` or
   :py:attr:`entity.attributes <simpm.des.Entity.attributes>`) for arbitrary
@@ -219,12 +219,8 @@ Examples of log accessors:
 * ``entity.schedule()`` – the activity-level schedule of a single
   entity (start/finish times for each named activity).
 
-These are used extensively in the tutorials:
+These are used extensively in the tutorials:* :doc:`../tutorials/index` – overview of available tutorials.
 
-* :doc:`../tutorials/hello-simpm` – basic earthmoving system.
-* :doc:`../tutorials/schedule-risk` – Monte Carlo schedule risk.
-* :doc:`../tutorials/resource-bottlenecks` – priority and resource
-  competition.
 
 Basic workflow
 --------------

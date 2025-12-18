@@ -4,11 +4,11 @@
 .. contents:: On this page
    :local:
 
-Overview
---------
+Objective
+---------
 
-Explore how SimPM performs Monte Carlo simulations to estimate project
-schedule risk. This tutorial builds on ``example/test_cpm.py`` to run a
+The objective here is to explore how SimPM performs Monte Carlo simulations to estimate project
+schedule risk. This tutorial runs a
 small CPM-style network hundreds of times and summarize completion
 percentiles.
 

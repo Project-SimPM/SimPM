@@ -44,24 +44,25 @@ def get_version() -> str:
     return "0.0.0"
 
 def validate_version(version: str) -> bool:
-    """Validate Version (example: 1.0.1)
+    """Validate Version (matches PEP 440 format)
 
     Args:
-        version (str): version
+        version (str): version string
 
     Returns:
         bool: if it validates, returns True, else False
     """
-    pattern = r'\d+\.\d+\.\d+'
+    # Matches PEP 440: X.Y.Z with optional .postN, .devN, etc.
+    pattern = r'^\d+\.\d+\.\d+([.-]?\w+)?$'
     return bool(re.match(pattern, version))
 
 
 # get version
 simpm_version = get_version()
-# version validation - log warning if invalid but don't fail
+# version validation - log warning if invalid but still use it
 if not validate_version(simpm_version):
-    print(f"Warning: Version '{simpm_version}' doesn't match semantic versioning pattern")
-    simpm_version = "0.0.0"
+    print(f"Warning: Version '{simpm_version}' may not match semantic versioning pattern")
+    # Still use the version even if it doesn't validate perfectly
 
 # setup
 setup(version=simpm_version)

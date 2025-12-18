@@ -14,7 +14,7 @@ The following diagram shows the core components of SimPM and how they interact:
 .. image:: ../_visualizations/simpm_architecture.svg
    :alt: SimPM Architecture Diagram
    :align: center
-   :width: 75%
+   :width: 45%
 
 **Key Components:**
 
@@ -36,7 +36,7 @@ The following diagram shows the relationship between SimPM's main classes:
 .. image:: ../_visualizations/simpm_classes.svg
    :alt: SimPM Class Hierarchy Diagram
    :align: center
-   :width: 70%
+   :width: 40%
 
 **Class Descriptions:**
 
@@ -56,7 +56,7 @@ The typical workflow for creating and running a SimPM simulation:
 .. image:: ../_visualizations/simpm_workflow.svg
    :alt: SimPM Simulation Workflow Diagram
    :align: center
-   :width: 80%
+   :width: 50%
 
 **Workflow Steps:**
 

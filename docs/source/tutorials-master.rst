@@ -7,6 +7,8 @@ SimPM Tutorials - Complete Guide
    :caption: SimPM Tutorial Documentation
 
    tutorials/hello-simpm
+   tutorials/priority-resource
+   tutorials/preemptive-resource
    tutorials/equipment-maintenance
    tutorials/schedule-risk
    tutorials/resource-bottlenecks
@@ -16,8 +18,10 @@ Index
 -----
 
 1. Hello SimPM: First Project Simulation
-2. Equipment Maintenance Scheduling
-3. Schedule Risk Analysis with Monte Carlo
-4. Resource Bottlenecks and Utilization
-5. Dashboard Guide - Complete Reference
+2. Priority-Based Resource Scheduling
+3. Preemptive Resource Scheduling
+4. Equipment Maintenance Scheduling
+5. Schedule Risk Analysis with Monte Carlo
+6. Resource Bottlenecks and Utilization
+7. Dashboard Guide - Complete Reference
 

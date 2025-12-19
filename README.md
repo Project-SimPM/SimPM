@@ -80,9 +80,41 @@ Relationship to SimPy
 
 SimPM follows the same process-based discrete-event simulation style popularized by libraries
 like SimPy, but it is a **self-contained** toolkit focused on project and construction management.
+Here's how SimPM compares to SimPy:
+
+**Entity and Attribute Support**
+
+- **SimPy**: Entities are passive objects that require custom classes and manual attribute management.
+- **SimPM**: Entities are first-class objects with built-in support for attributes like ``start_time``, ``end_time``, and custom properties. You can easily track entity-specific data throughout simulation.
+
+**Automatic Logging and Analytics**
+
+- **SimPy**: Requires manual event logging and custom code to track waiting times, queue lengths, and resource utilization. Data collection is the user's responsibility.
+- **SimPM**: Provides **automatic tabular logging** out of the box—events, queue lengths, waiting times, and resource utilization are tracked automatically and exported as pandas-friendly tables ready for analysis and visualization.
+
+**Waiting Time and Utilization Reporting**
+
+- **SimPy**: No built-in support for calculating or reporting waiting times and utilization statistics. Users must implement custom metrics collection.
+- **SimPM**: Automatic calculation and reporting of waiting times per entity and per resource, utilization percentages, and queue statistics without extra code.
+
+**Dashboard and Visualization**
+
+- **SimPy**: No visualization or dashboard features; all output requires custom plotting and analysis.
+- **SimPM**: Includes an **optional interactive dashboard** (powered by Plotly Dash) that displays timelines, queue behavior, resource bottlenecks, and completion time distributions automatically after each run.
+
+**Probability Distributions**
+
+- **SimPy**: Uses only deterministic values or raw random number generation. Implementing distributions like triangular, beta, or empirical requires custom code and significant manual labour.
+- **SimPM**: Includes a rich library of **project-friendly distributions** (triangular, beta, trapezoidal, normal, exponential, uniform, empirical) pre-built and optimized for three-point estimates and Monte Carlo schedule risk analysis. Distributions integrate seamlessly with ``Entity.do()``, making stochastic simulation straightforward.
+
+**Stochastic Simulation**
+
+- **SimPy**: Stochastic simulation requires manual integration of random sampling and distribution logic throughout your model.
+- **SimPM**: Full **stochastic simulation support** is integrated—define durations as distributions, and the framework handles sampling and uncertainty propagation automatically.
 
 You do **not** need to install or know SimPy to use SimPM: you work directly with `simpm.des`,
 `simpm.dist`, and the higher-level project modelling and dashboard features described above.
+All the tools needed for project management and construction process simulation are built in and ready to use.
 
 ## Using SimPM
 Getting started quickly:

@@ -64,6 +64,53 @@ This example shows how to:
     print(activity.schedule())
 
 
+Why SimPM instead of SimPy?
+----------------------------
+
+While SimPM is inspired by SimPy's process-based discrete-event simulation approach, it is purpose-built
+for **project and construction management** with features that SimPy requires extensive custom code to achieve:
+
+**Entities with Attributes**
+
+SimPy entities are minimal; you must build your own classes and manage attributes manually.
+SimPM's :class:`simpm.des.Entity` comes with built-in support for scheduling, waiting times,
+and custom attributes—tracking entity state is effortless.
+
+**Automatic Logging and Analytics**
+
+SimPy does not log events or metrics automatically; you write custom instrumentation for each model.
+SimPM automatically tracks events, queue lengths, waiting times, and resource utilization,
+storing results in pandas-friendly tables ready for analysis. No extra code needed.
+
+**Integrated Distributions**
+
+SimPy offers no built-in distributions; you manually sample from NumPy or SciPy.
+SimPM includes project-friendly distributions—triangular, beta, trapezoidal, normal, exponential,
+uniform, and empirical—all integrated with ``Entity.do()`` for seamless stochastic simulation.
+Monte Carlo schedule risk analysis becomes straightforward.
+
+**Dashboard and Visualization**
+
+SimPy leaves visualization entirely to you.
+SimPM includes an optional interactive :doc:`dashboard <tutorials/dashboard-guide>` that automatically displays
+timelines, queue behavior, bottlenecks, and completion time distributions after each run.
+
+**Waiting Times and Utilization**
+
+SimPy requires you to instrument your model to extract waiting times and utilization metrics.
+SimPM calculates and reports these automatically—no extra instrumentation code required.
+
+**Built for Project Management**
+
+SimPM's design focuses on the questions project managers ask:
+
+- How long will this project take (with uncertainty)?
+- Where are the bottlenecks in crews, equipment, or workspaces?
+- What happens if we change crew size or equipment plans?
+
+All the tools for answering these questions—distributions, logging, dashboards, and entity tracking—
+are integrated and ready to use.
+
 Next steps
 ----------
 

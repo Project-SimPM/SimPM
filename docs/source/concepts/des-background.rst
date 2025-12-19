@@ -109,18 +109,87 @@ General-purpose discrete-event simulation (DES) libraries such as
 queues and process flows. SimPy is a well-known open-source Python
 library for this purpose.
 
-SimPM adopts the same idea of process-based DES — you describe how a
+SimPM adopts the same idea of **process-based DES** — you describe how a
 system evolves over time using Python code, while an environment
-advances the simulation clock and processes events in order. It
-focuses specifically on project and construction management:
+advances the simulation clock and processes events in order. However, SimPM is
+specialized for project and construction management and includes many features
+that SimPy requires extensive custom code to achieve.
 
-* Simulation time is interpreted as project time.
-* Entities typically represent activities, work packages, or work items.
-* Resources represent crews, equipment, or other limited project capacities.
-* Distributions and logging are tuned for completion time, risk, and
-  resource-usage questions.
+Core SimPM design
+~~~~~~~~~~~~~~~~~
 
-You do not need prior experience with SimPy or other DES tools to use
-SimPM. You can treat it as a focused project-simulation toolkit built
-on these well-established ideas.
+SimPM focuses specifically on project and construction management:
+
+* **Simulation time** is interpreted as project time (days, hours, minutes).
+* **Entities** typically represent activities, work packages, work items, or equipment (trucks, crews).
+* **Resources** represent crews, equipment, workspaces, or other limited project capacities.
+* **Distributions** are tuned for completion time, risk, and resource-usage questions.
+* **Logging and dashboards** are built in for project analysis without extra code.
+
+Comparison with SimPy
+~~~~~~~~~~~~~~~~~~~~~
+
+While SimPy is a general-purpose DES library, SimPM is purpose-built with features
+that eliminate manual labour in simulation for project management:
+
+**Entities and Attributes**
+
+  SimPy entities are minimal objects; you must build custom classes and manage attributes
+  manually. SimPM's :class:`~simpm.des.Entity` provides first-class support for tracking
+  ``start_time``, ``end_time``, ``waiting_times``, and custom attributes automatically.
+  This makes it easy to extract project-relevant metrics without extra instrumentation.
+
+**Automatic Logging and Metrics**
+
+  SimPy does not log events or track metrics automatically; you write custom code to
+  record events, queue lengths, and utilization. SimPM provides **automatic tabular logging**
+  out of the box: events, queue lengths, waiting times per entity, resource utilization,
+  and other metrics are tracked automatically and exported as pandas-friendly tables
+  ready for analysis and visualization. No extra instrumentation code required.
+
+**Waiting Time and Utilization Reporting**
+
+  SimPy offers no built-in calculations for waiting times or utilization. You must write
+  custom code to track when entities wait, how long they wait, and how busy resources are.
+  SimPM calculates and reports these metrics automatically—waiting times per entity and
+  per resource, utilization percentages, queue statistics, and more—without any extra code.
+
+**Probability Distributions**
+
+  SimPy offers only deterministic values; random values must be drawn manually from NumPy
+  or SciPy. Implementing distributions like triangular, beta, trapezoidal, or empirical
+  requires custom code throughout your model. SimPM includes a rich library of
+  **project-friendly distributions** (triangular, beta, trapezoidal, normal, exponential,
+  uniform, empirical) pre-built and optimized for three-point estimates and Monte Carlo
+  schedule risk analysis. Distributions integrate seamlessly with ``Entity.do()``,
+  making stochastic simulation straightforward.
+
+**Stochastic Simulation and Uncertainty**
+
+  SimPy does not support stochastic simulation natively; you must manually integrate
+  random sampling and uncertainty handling throughout your model. SimPM includes
+  full **stochastic simulation support**: define durations as distributions, and the
+  framework handles sampling, uncertainty propagation, and Monte Carlo experiments
+  automatically. This makes schedule risk analysis and "what-if" analysis effortless.
+
+**Dashboard and Visualization**
+
+  SimPy provides no visualization features; all output requires custom plotting code and
+  data processing. SimPM includes an optional interactive **Plotly Dash dashboard** that
+  automatically displays timelines, queue behavior, resource bottlenecks, waiting time
+  distributions, and completion time histograms after each run. Enable it with
+  ``simpm.run(env, dashboard=True)`` and explore results interactively.
+
+**When to use each**
+
+  Use **SimPy** if you need a lightweight, general-purpose DES library with minimal
+  dependencies and are comfortable writing custom instrumentation and visualization code.
+  
+  Use **SimPM** if you are modeling projects, construction operations, or resource-constrained
+  workflows and want automatic logging, built-in distributions, dashboards, and project-oriented
+  analysis without extensive manual labour.
+
+You do not need prior experience with SimPy or other DES tools to use SimPM. You can
+treat it as a focused project-simulation toolkit built on these well-established DES
+ideas but with everything you need for project management integrated and ready to use.
 

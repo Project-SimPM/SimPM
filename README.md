@@ -78,43 +78,23 @@ SimPM builds a project-oriented layer on top of a general DES core:
 Relationship to SimPy
 ---------------------
 
-SimPM follows the same process-based discrete-event simulation style popularized by libraries
-like SimPy, but it is a **self-contained** toolkit focused on project and construction management.
-Here's how SimPM compares to SimPy:
+SimPM is built on the same **process-based discrete-event simulation** approach popularized by
+`SimPy <https://simpy.readthedocs.io/>`_, but it is a **self-contained** toolkit purpose-built
+for project and construction management.
 
-**Entity and Attribute Support**
+SimPM includes many features that SimPy requires extensive custom code to achieve:
 
-- **SimPy**: Entities are passive objects that require custom classes and manual attribute management.
-- **SimPM**: Entities are first-class objects with built-in support for attributes like ``start_time``, ``end_time``, and custom properties. You can easily track entity-specific data throughout simulation.
+* **Entities with attributes** – track entity-specific data (start time, end time, custom properties).
+* **Automatic logging and analytics** – events, queues, waiting times, and utilization tracked automatically.
+* **Interactive dashboards** – optional Plotly Dash dashboards for inspecting results interactively.
+* **Integrated distributions** – triangular, beta, empirical, and other project-friendly distributions.
+* **Stochastic simulation** – seamless Monte Carlo support without manual instrumentation.
 
-**Automatic Logging and Analytics**
-
-- **SimPy**: Requires manual event logging and custom code to track waiting times, queue lengths, and resource utilization. Data collection is the user's responsibility.
-- **SimPM**: Provides **automatic tabular logging** out of the box—events, queue lengths, waiting times, and resource utilization are tracked automatically and exported as pandas-friendly tables ready for analysis and visualization.
-
-**Waiting Time and Utilization Reporting**
-
-- **SimPy**: No built-in support for calculating or reporting waiting times and utilization statistics. Users must implement custom metrics collection.
-- **SimPM**: Automatic calculation and reporting of waiting times per entity and per resource, utilization percentages, and queue statistics without extra code.
-
-**Dashboard and Visualization**
-
-- **SimPy**: No visualization or dashboard features; all output requires custom plotting and analysis.
-- **SimPM**: Includes an **optional interactive dashboard** (powered by Plotly Dash) that displays timelines, queue behavior, resource bottlenecks, and completion time distributions automatically after each run.
-
-**Probability Distributions**
-
-- **SimPy**: Uses only deterministic values or raw random number generation. Implementing distributions like triangular, beta, or empirical requires custom code and significant manual labour.
-- **SimPM**: Includes a rich library of **project-friendly distributions** (triangular, beta, trapezoidal, normal, exponential, uniform, empirical) pre-built and optimized for three-point estimates and Monte Carlo schedule risk analysis. Distributions integrate seamlessly with ``Entity.do()``, making stochastic simulation straightforward.
-
-**Stochastic Simulation**
-
-- **SimPy**: Stochastic simulation requires manual integration of random sampling and distribution logic throughout your model.
-- **SimPM**: Full **stochastic simulation support** is integrated—define durations as distributions, and the framework handles sampling and uncertainty propagation automatically.
+For a detailed comparison, see the [getting-started guide](https://simpm.readthedocs.io/en/latest/getting-started.html) and
+the [DES background](https://simpm.readthedocs.io/en/latest/concepts/des-background.html) in the documentation.
 
 You do **not** need to install or know SimPy to use SimPM: you work directly with `simpm.des`,
-`simpm.dist`, and the higher-level project modelling and dashboard features described above.
-All the tools needed for project management and construction process simulation are built in and ready to use.
+`simpm.dist`, and the higher-level features built in for project management.
 
 ## Using SimPM
 Getting started quickly:

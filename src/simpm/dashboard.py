@@ -118,7 +118,7 @@ def _standardize_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]]) -> pd.DataFrame:
-    """Build a dataframe with per-run simulation times.
+    """Build a dataframe with per-run finish times (simulation end times).
 
     We first look at ``environment["run_history"]`` (the canonical source),
     and fall back to synthetic log entries that have ``category="simulation_time"``.
@@ -128,14 +128,14 @@ def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]])
     # Preferred: environment["run_history"]
     for rh in environment.get("run_history") or []:
         run_id = rh.get("run_id")
-        duration = rh.get("duration")
-        if run_id is None or duration is None:
+        end_time = rh.get("end_time")
+        if run_id is None or end_time is None:
             continue
         try:
-            sim_val = float(duration)
+            sim_val = float(end_time)
         except (TypeError, ValueError):
             continue
-        records.append({"run_id": run_id, "simulation_time": sim_val})
+        records.append({"run_id": run_id, "finish_time": sim_val})
 
     # Fallback: look into logs (older / alternative recorders)
     if not records:
@@ -143,7 +143,7 @@ def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]])
         for event in logs or []:
             sim_time = None
             if event.get("category") == "simulation_time":
-                sim_time = event.get("duration")
+                sim_time = event.get("time")
             else:
                 metadata = event.get("metadata") or {}
                 sim_time = metadata.get("simulation_time")
@@ -156,7 +156,7 @@ def _simulation_time_df(environment: dict[str, Any], logs: list[dict[str, Any]])
                 sim_val = float(sim_time)
             except (TypeError, ValueError):
                 continue
-            records.append({"run_id": run_id, "simulation_time": sim_val})
+            records.append({"run_id": run_id, "finish_time": sim_val})
 
     return pd.DataFrame.from_records(records)
 
@@ -943,30 +943,6 @@ def _activity_dataframe(snapshot: RunSnapshot) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
-def _load_logo() -> bytes | None:
-    """Try to load the SimPM logo from common locations."""
-    logo_paths = [
-        Path(__file__).resolve().parent.parent / "docs" / "_build" / "html" / "_static" / "simpm_logo.png",
-        Path(__file__).resolve().parent.parent / "docs" / "source" / "images" / "simpm_logo.png",
-        Path(__file__).resolve().parent / "assets" / "simpm_logo.png",
-    ]
-    for logo_path in logo_paths:
-        if logo_path.exists():
-            return logo_path.read_bytes()
-    return None
-
-
-def _render_logo(logo: bytes | None) -> None:
-    if not logo:
-        st.caption("SimPM")
-        return
-
-    encoded = base64.b64encode(logo).decode("utf-8")
-    st.markdown(
-        f"<div class='simpm-logo-card'><img src='data:image/png;base64,{encoded}' alt='SimPM logo'></div>",
-        unsafe_allow_html=True,
-    )
-
 
 def _styled_container() -> None:
     st.markdown(
@@ -1038,7 +1014,6 @@ class StreamlitDashboard:
         st.set_page_config(
             page_title=f"SimPM Dashboard • {self.snapshot.environment.get('name', 'Environment')}",
             layout="wide",
-            page_icon=_load_logo() or None,
         )
         _styled_container()
 
@@ -1094,12 +1069,9 @@ class StreamlitDashboard:
     def _render_overview_switcher(self) -> None:
         """Show environment info and run selector."""
         env_info = self.snapshot.environment or {}
-        logo_b64 = _asset_base64("simpm_logo.png")
-        logo_img = f"<img src='data:image/png;base64,{logo_b64}' " "style='height: 40px; margin-right: 12px;' alt='SimPM logo'>" if logo_b64 else ""
         st.markdown(
-            f"""
+            """
             <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                {logo_img}
                 <h2 style="margin: 0;">Overview</h2>
             </div>
             """,
@@ -1128,7 +1100,7 @@ class StreamlitDashboard:
             )
 
     def _render_simulation_time_overview(self) -> None:
-        """Render simulation-time stats across runs, if available."""
+        """Render finish-time stats across runs, if available."""
         sim_df = _simulation_time_df(self.snapshot.environment or {}, self.snapshot.logs or [])
         if sim_df.empty:
             return
@@ -1158,21 +1130,21 @@ class StreamlitDashboard:
             )
 
         with tab_stats:
-            stats_df = _basic_statistics(display_df["simulation_time"])
+            stats_df = _basic_statistics(display_df["finish_time"])
             _render_compact_table(stats_df)
 
         with tab_hist:
             fig = px.histogram(
                 display_df,
-                x="simulation_time",
+                x="finish_time",
                 nbins=min(30, max(5, len(display_df))),
-                labels={"simulation_time": "Simulation time"},
+                labels={"finish_time": "Finish time"},
             )
             fig.update_traces(marker_color="#5bbd89")
             st.plotly_chart(fig, width="stretch")
 
         with tab_box:
-            fig = px.box(display_df, y="simulation_time")
+            fig = px.box(display_df, y="finish_time")
             fig.update_traces(marker_color="#3a7859")
             st.plotly_chart(fig, width="stretch")
 

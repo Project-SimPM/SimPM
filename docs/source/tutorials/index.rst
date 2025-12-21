@@ -5,6 +5,7 @@ SimPM Tutorials
    :maxdepth: 1
 
    hello-simpm
+   uncertainty
    priority-resource
    preemptive-resource
    equipment-maintenance

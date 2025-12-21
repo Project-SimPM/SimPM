@@ -213,9 +213,31 @@ process logic with square-bracket access:
 
            yield truck.do("return", 13)
 
-This pattern keeps the tutorial scenario the same, but shows how
-truck-level attributes influence both durations (loading time) and
-production (dirt moved per cycle).
+**How it works:**
+
+1. **Setting attributes** – After creating entities, assign custom data via 
+   dictionary notation: ``truck["size"] = 50``. This stores a truck-specific 
+   parameter that persists throughout the simulation.
+
+2. **Using attributes in calculations** – Reference the attribute inside process 
+   functions: ``loading_time = 5 + truck["size"] / 20``. Here, a larger truck 
+   takes longer to load because of the size multiplier.
+
+3. **Using attributes in operations** – Pass attributes to resource methods:
+   ``dumped_dirt.add(truck["size"])`` deposits a different amount of dirt 
+   depending on each truck's capacity.
+
+4. **Parametric comparison** – This pattern enables easy comparison of different 
+   truck fleets. You can measure how size affects loading time, total output, 
+   and queue behavior without duplicating the process logic.
+
+**Key benefit:** Attributes decouple entity parameters from hardcoded values. 
+You can run the same simulation with different truck sizes, priorities, or 
+capabilities just by changing attribute values. This makes it simple to 
+conduct sensitivity analysis and optimize designs.
+
+See ``example/earthmoving_with_truck_sizes.py`` for a complete worked example 
+with attributes, analysis code, and detailed results.
 
 Try it yourself
 ---------------

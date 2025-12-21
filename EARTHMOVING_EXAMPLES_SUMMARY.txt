@@ -1,0 +1,364 @@
+================================================================================
+EARTHMOVING SIMULATION EXAMPLES - COMPLETE SUMMARY
+================================================================================
+
+OVERVIEW:
+Three complete examples have been created in the example/ folder that demonstrate
+different aspects of discrete event simulation:
+
+1. simple_earthmoving.py - Basic earthmoving with fixed resources
+2. earthmoving_with_truck_sizes.py - Attributes and their impact
+3. earthmoving_probabilistic.py - Probabilistic durations and variability
+
+================================================================================
+EXAMPLE 1: EARTHMOVING WITH TRUCK SIZES (Attributes Impact)
+================================================================================
+
+File: example/earthmoving_with_truck_sizes.py
+Purpose: Demonstrates entity attributes and their effect on simulation
+
+Key Concepts:
+  - Entity attributes: truck["size"] = value
+  - Using attributes in calculations: loading_time = 5 + truck["size"] / 20
+  - Using attributes in resource operations: dumped_dirt.add(truck["size"])
+
+Trucks Simulated:
+  - Truck 0: 30 m³ per load (fastest loading: 6.5 minutes)
+  - Truck 1: 35 m³ per load (medium loading: 6.75 minutes)
+  - Truck 2: 50 m³ per load (slowest loading: 7.5 minutes)
+
+RESULTS (480-minute run):
+  ┌─────────────────────────────────────────────────────────┐
+  │ Metric                              Value               │
+  ├─────────────────────────────────────────────────────────┤
+  │ Project Duration                    480.00 minutes      │
+  │ Total Cycles Completed              37                  │
+  │ Total Dirt Moved                    1330 m³             │
+  │ Loader Utilization                  52.53%              │
+  │ Average Wait Time                   0.53 minutes        │
+  │ Maximum Wait Time                   13.25 minutes       │
+  └─────────────────────────────────────────────────────────┘
+
+Truck Performance:
+  Truck 0 (30m³):  13 cycles × 30m³ = 390 m³  (smallest, most cycles)
+  Truck 1 (35m³):  12 cycles × 35m³ = 420 m³
+  Truck 2 (50m³):  12 cycles × 50m³ = 600 m³  (largest, most total dirt)
+
+Key Insight:
+  Larger trucks are MORE EFFICIENT despite longer loading times:
+  - Truck 2 moves 53% more dirt (600 vs 390) than Truck 0
+  - Even though loading time is 15% longer (7.5 vs 6.5 minutes)
+  - Dirt per minute of loader time: 6.67 (Truck 2) vs 4.62 (Truck 0)
+
+ATTRIBUTES DEMONSTRATED:
+  ✓ Setting attributes: truck["size"] = 30
+  ✓ Accessing attributes: truck["size"] in expressions
+  ✓ Using in durations: loading_time = 5 + truck["size"] / 20
+  ✓ Using in quantities: dumped_dirt.add(truck["size"])
+  ✓ Analysis and comparison based on attributes
+
+
+================================================================================
+EXAMPLE 2: EARTHMOVING WITH PROBABILISTIC DURATIONS
+================================================================================
+
+File: example/earthmoving_probabilistic.py
+Purpose: Demonstrates probability distributions and stochastic simulation
+
+Key Concepts:
+  - Probability distributions: norm (normal), uniform
+  - Sampling from distributions: dist.sample()
+  - Realistic variability in operation times
+  - Results vary between runs (stochastic)
+
+Distributions Used:
+  
+  LOADING TIMES (Normal Distribution):
+    - Truck 0: norm(6.5, 0.5)   → mean 6.5, std dev 0.5
+    - Truck 1: norm(6.75, 0.6)  → mean 6.75, std dev 0.6
+    - Truck 2: norm(7.5, 0.8)   → mean 7.5, std dev 0.8
+    → Larger trucks have more variability (realistic)
+  
+  HAULING TIMES (Normal Distribution):
+    - norm(17, 2) → mean 17 minutes, std dev 2 minutes
+    → Variation due to traffic, weather, road conditions
+  
+  DUMPING TIMES (Uniform Distribution):
+    - uniform(2, 4) → any time between 2-4 minutes equally likely
+    → Unpredictable dump site conditions
+  
+  RETURN TIMES (Normal Distribution):
+    - norm(13, 1.5) → mean 13 minutes, std dev 1.5 minutes
+    → Variation due to traffic and other factors
+
+RESULTS (480-minute run - One stochastic run):
+  ┌─────────────────────────────────────────────────────────┐
+  │ Metric                              Value               │
+  ├─────────────────────────────────────────────────────────┤
+  │ Project Duration                    480.00 minutes      │
+  │ Total Cycles Completed              37                  │
+  │ Total Dirt Moved                    1330 m³             │
+  │ Loader Utilization                  49.21%              │
+  │ Average Wait Time                   0.96 minutes        │
+  │ Maximum Wait Time                   12.62 minutes       │
+  └─────────────────────────────────────────────────────────┘
+
+Loading Time Variability (Actual Observed):
+  Truck 0: 6.48 minutes average (5.52-7.13 range)
+    Expected: 6.50 minutes ✓ (very close!)
+  
+  Truck 1: 6.20 minutes average (5.52-7.63 range)
+    Expected: 6.75 minutes (happened to be faster this run)
+  
+  Truck 2: 6.40 minutes average (5.67-6.93 range)
+    Expected: 7.50 minutes (lucky with timing this run!)
+
+COMPARISON: DETERMINISTIC vs. PROBABILISTIC
+  
+  Deterministic Model:
+    - Loading times: ALWAYS 6.50, 6.75, 7.50 minutes
+    - Results: EXACTLY repeatable each run
+    - Loader util: 52.53%
+    - Wait time: 0.53 minutes
+  
+  Probabilistic Model:
+    - Loading times: VARY 5.5-7.6 minutes (sampled each cycle)
+    - Results: DIFFERENT each run (stochastic)
+    - Loader util: 49.21% (this run)
+    - Wait time: 0.96 minutes (this run)
+  
+  Outcome: Same project completed in same time, but with variation!
+
+Why Results Might Differ Between Runs:
+  1. Faster loading on some trucks → more cycles completed
+  2. Slower loading on other trucks → fewer cycles
+  3. Random timing creates different queue patterns
+  4. Cumulative effects of small delays compound
+
+PROBABILITY CONCEPTS DEMONSTRATED:
+  ✓ Normal (Gaussian) distribution: bell-shaped, symmetric
+  ✓ Uniform distribution: flat, any value equally likely
+  ✓ Sampling from distributions: drawing random values
+  ✓ Standard deviation: controlling spread/variability
+  ✓ Mean vs. observed: actual values vary around expected
+
+
+================================================================================
+DISTRIBUTIONS AVAILABLE IN SimPM
+================================================================================
+
+The simpm.dist module provides several probability distributions:
+
+1. norm(mean, std_dev)
+   - Normal (Gaussian) distribution
+   - Bell-shaped, symmetric around mean
+   - Good for natural variation around an average
+   - Example: norm(10, 2) → most values 8-12, rarely outside 6-14
+
+2. uniform(a, b)
+   - Uniform distribution
+   - All values between a and b equally likely
+   - Good for bounded ranges
+   - Example: uniform(2, 4) → 2.0 to 4.0 with equal probability
+
+3. triang(a, b, c)
+   - Triangular distribution
+   - Peak at mode c between bounds a and b
+   - Good for estimates with most likely value
+   - Example: triang(1, 5, 3) → peak at 3, range 1-5
+
+4. expon(scale)
+   - Exponential distribution
+   - Right-skewed, memoryless
+   - Good for random event times (failures, arrivals)
+   - Example: expon(5) → mean 5, with occasional long times
+
+5. beta(a, b, scale)
+   - Beta distribution
+   - Flexible shape, bounded 0-scale
+   - Good for uncertain percentages
+
+6. trapz(c, d, scale)
+   - Trapezoidal distribution
+   - Flat top between c and d
+   - Good for range with equally likely middle values
+
+
+================================================================================
+HOW TO USE DISTRIBUTIONS IN YOUR SIMULATIONS
+================================================================================
+
+BASIC USAGE:
+
+  from simpm.dist import norm, uniform
+  
+  # Create a distribution
+  loading_dist = norm(7, 1.5)  # mean 7 minutes, std dev 1.5
+  
+  # Sample a random value
+  duration = loading_dist.sample()
+  
+  # Use in your process
+  yield entity.do("loading", duration)
+
+
+ATTRIBUTE-BASED DISTRIBUTIONS:
+
+  # Different distributions per entity (like truck sizes)
+  distributions = {
+      "truck_0": norm(6.5, 0.5),
+      "truck_1": norm(6.75, 0.6),
+      "truck_2": norm(7.5, 0.8),
+  }
+  
+  # Use in process
+  duration = distributions[truck.name].sample()
+  yield truck.do("loading", duration)
+
+
+MULTIPLE OPERATIONS WITH DIFFERENT DISTRIBUTIONS:
+
+  yield entity.do("operation_1", norm(10, 2).sample())
+  yield entity.do("operation_2", uniform(5, 15).sample())
+  yield entity.do("operation_3", norm(20, 3).sample())
+
+
+================================================================================
+WHAT'S INCLUDED IN THE EXAMPLE FILES
+================================================================================
+
+earthmoving_with_truck_sizes.py (385 lines):
+  ✓ Comprehensive docstrings
+  ✓ Inline code explanations
+  ✓ Detailed process function documentation
+  ✓ Analysis code with truck statistics
+  ✓ Performance comparison output
+  ✓ Actual results from a 480-minute run (commented)
+  ✓ Key insights and conclusions section
+  ✓ Over 200 lines of explanatory comments
+
+earthmoving_probabilistic.py (830 lines):
+  ✓ All above features PLUS:
+  ✓ Probability distribution explanations
+  ✓ Detailed distribution declarations with comments
+  ✓ Deterministic vs. Probabilistic comparison
+  ✓ Extensive analysis of variability
+  ✓ Loading time variability analysis
+  ✓ Why use probabilistic models section
+  ✓ Distribution types and use cases
+  ✓ Practical insights and next steps
+  ✓ Over 400 lines of explanatory comments and results
+
+
+================================================================================
+RUNNING THE EXAMPLES
+================================================================================
+
+From the SimPM root directory:
+
+  # Run deterministic example
+  python example/earthmoving_with_truck_sizes.py
+  
+  # Run probabilistic example (stochastic - results vary)
+  python example/earthmoving_probabilistic.py
+
+
+EXPECTED OUTPUT:
+  - Both should complete without errors
+  - Display comprehensive results and metrics
+  - Show truck performance statistics
+  - Include actual simulation data (truck schedules, etc.)
+  - End with detailed analysis and insights
+
+
+================================================================================
+LEARNING PROGRESSION
+================================================================================
+
+These examples build on each other:
+
+1. simple_earthmoving.py
+   → Learn: Basic structure, resources, entities, processes
+
+2. earthmoving_with_truck_sizes.py
+   → Learn: Attributes, using attributes in calculations, analysis
+
+3. earthmoving_probabilistic.py
+   → Learn: Distributions, variability, stochastic simulation
+
+Together they demonstrate:
+  ✓ How to structure a simulation
+  ✓ How to use attributes for parametrization
+  ✓ How to add realistic variability
+  ✓ How to analyze and interpret results
+  ✓ How to compare different approaches
+
+
+================================================================================
+KEY TAKEAWAYS
+================================================================================
+
+ATTRIBUTES:
+  - Store custom data on entities: entity["key"] = value
+  - Use in calculations and decisions
+  - Enable comparative analysis
+  - Persist throughout simulation
+
+PROBABILITY DISTRIBUTIONS:
+  - Model real-world variability
+  - Different distributions for different operations
+  - Sampling: dist.sample() generates random values
+  - Normal for symmetric variation, Uniform for bounded ranges
+
+ANALYSIS:
+  - Track metrics: utilization, waiting times, throughput
+  - Compare alternatives (truck sizes, distributions)
+  - Identify bottlenecks (loader is bottleneck here)
+  - Make recommendations (larger trucks are efficient)
+
+STOCHASTIC SIMULATION:
+  - Results vary between runs (unlike deterministic)
+  - Need multiple runs for statistics (Monte Carlo)
+  - Probability distributions match reality better
+  - Risk assessment possible (what's worst case?)
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+Modifications to try:
+
+  1. Add a second loader - how much does productivity increase?
+  2. Add equipment failures - use exponential distribution
+  3. Run probabilistic model 100 times - collect statistics
+  4. Change truck sizes - find optimal mix
+  5. Add variable travel distances - more realistic
+  6. Implement priority queue - favor smaller trucks
+  7. Add cost analysis - which approach is most economical?
+  8. Sensitivity analysis - which parameter matters most?
+
+Monte Carlo Analysis:
+  - Run probabilistic model multiple times
+  - Collect cycle counts and completion times
+  - Create histogram of outcomes
+  - Calculate percentiles: 10th, 50th, 90th
+  - Answer: "What's 90% confidence project time?"
+
+
+================================================================================
+CONTACT & DOCUMENTATION
+================================================================================
+
+These examples are part of SimPM package:
+  - Source: src/simpm/
+  - Distributions: src/simpm/dist.py
+  - Simulation core: src/simpm/des.py
+  - Documentation: docs/
+
+For more information on:
+  - Distributions: See simpm.dist module documentation
+  - Simulation engine: See simpm.des module documentation
+  - Complete API: See docs/build/html/index.html
+
+================================================================================

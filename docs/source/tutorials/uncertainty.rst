@@ -361,16 +361,34 @@ The script:
 
 See these complete, documented examples in the ``example/`` folder:
 
-- **earthmoving_with_truck_sizes.py** – Deterministic with attributes (no randomness)
-- **earthmoving_probabilistic.py** – Stochastic single run (with randomness)
-- **earthmoving_monte_carlo.py** – Monte Carlo with multiple fleet configurations
+- **earthmoving_with_truck_sizes.py** – Deterministic with attributes (fixed durations)
+- **earthmoving_probabilistic.py** – Stochastic single run with factory pattern (10 replicates)
+- **earthmoving_monte_carlo.py** – Monte Carlo analysis across fleet configurations
 
-All include:
+**Key Pattern Used:**
 
-- Comprehensive docstrings and inline comments
-- Analysis code showing how to extract and compare metrics
-- Actual results from simulation runs
-- Key insights and lessons learned
+All examples use the **factory pattern** with ``simpm.run()``::
+
+   def env_factory() -> des.Environment:
+       # Create fresh environment with current truck count
+       env = des.Environment(...)
+       # ... set up resources and processes ...
+       return env
+
+   all_envs = simpm.run(env_factory, number_runs=10)
+   durations = [env.now for env in all_envs]
+
+**Distributions in All Probabilistic Examples:**
+
+- Loading: ``norm(5 + size/20, 0.5 + 0.1*(i%3))`` – varies by truck size
+- Hauling: ``norm(17, 4)`` – high variability (traffic, conditions)
+- Dumping: ``uniform(2, 5)`` – site conditions uncertain
+- Return: ``norm(13, 3)`` – traffic and route variability
+
+**Important:** Distributions are passed **directly** to ``do()``, not sampled::
+
+   yield truck.do("loading", loading_dists[truck_id])  # Correct
+   # NOT: yield truck.do("loading", loading_dists[truck_id].sample())
 
 Run them yourself:
 

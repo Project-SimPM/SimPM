@@ -2,757 +2,185 @@
 Earthmoving Operation with Probabilistic Durations
 
 OVERVIEW:
-    This example extends the truck size attributes model by adding PROBABILISTIC
-    (random) durations to all operations. Real-world operations vary in duration
-    due to:
-    - Equipment variability
-    - Worker performance variations
-    - Environmental factors
-    - Unexpected delays
-    
-PURPOSE:
-    Demonstrate how to:
-    - Use probability distributions (normal, uniform, lognormal)
-    - Apply probabilistic durations to loading, hauling, dumping, and return
-    - Compare deterministic vs. stochastic simulation results
-    - See variability in project outcomes
+    Demonstrates probabilistic (random) durations for truck operations.
+    Real-world operations vary due to equipment variability, worker
+    performance, environmental factors, and unexpected delays.
 
-PROCESS FLOW:
-    Same as deterministic model, but now:
-    - Loading time = Normal(mean, std) - varies from cycle to cycle
-    - Hauling time = Normal(17, 2) - variable distance/conditions
-    - Dumping time = Uniform(2, 4) - between 2-4 minutes
-    - Return time = Normal(13, 1.5) - variable route/traffic
-    
-DISTRIBUTIONS USED:
-    - Normal: For operations centered around a mean (loading, hauling, return)
-    - Uniform: For operations with known min/max range (dumping)
-    - These represent real-world variability
+PURPOSE:
+    - Use probability distributions for realistic operation durations
+    - Compare deterministic vs. stochastic simulation outcomes
+    - Show how variability affects project scheduling
+    - Run multiple replicates to understand outcome distribution
+
+DISTRIBUTIONS (Match earthmoving_monte_carlo.py):
+    - Loading: Normal(5+size/20, 0.5-0.8) - varies by truck size
+    - Hauling: Normal(17, 4) - traffic and road conditions
+    - Dumping: Uniform(2, 5) - site conditions create uncertainty
+    - Return: Normal(13, 3) - traffic and driver variability
+
+KEY PATTERN:
+    Pass distribution objects directly to do() - SimPM samples internally
+    on each simulation step for elegant, efficient code.
 
 @author: SimPM Example
-@version: 2.0 (with probabilities)
+@version: 2.0 (factory pattern with replicates)
 """
 import simpm
 import simpm.des as des
 from simpm.dist import norm, uniform
 import numpy as np
+import statistics
+from typing import List
 
-
-# =============================================================================
-# SET RANDOM SEED FOR REPLICABILITY
-# =============================================================================
-# Set the random seed to ensure reproducible results across multiple runs.
-# This makes probabilistic simulations replicable while still showing variability.
-# Comment out or change the seed value to get different random outcomes.
 np.random.seed(42)
 
-# =============================================================================
-# PROCESS FUNCTIONS
-# =============================================================================
+_CURRENT_TRUCK_COUNT = 3
 
-def truck_cycle_probabilistic(truck: des.Entity, loader: des.Resource, 
-                              dumped_dirt: des.Resource, 
+
+def truck_cycle_probabilistic(truck: des.Entity, loader: des.Resource,
+                              dumped_dirt: des.Resource,
                               loading_dists: dict):
     """
-    Truck operation cycle with probabilistic (random) durations.
+    Truck cycle with probabilistic durations.
     
-    This process demonstrates PROBABILISTIC durations where each cycle's
-    duration is sampled from a probability distribution, creating realistic
-    variability in the simulation.
+    Distributions passed directly to do() - SimPM samples internally
+    on each simulation step, creating realistic variability.
     
     Args:
-        truck (des.Entity): The truck entity with "size" attribute
-        loader (des.Resource): Shared loader resource
-        dumped_dirt (des.Resource): Accumulator for total dirt
-        loading_dists (dict): Dictionary mapping truck ID to loading distribution
-    
-    Key Differences from Deterministic Model:
-        - Each operation duration is randomly sampled
-        - Same mean duration but with natural variation
-        - Results show range of outcomes (min, max, std dev)
-        - Multiple runs would show different project completion times
-    
-    Yields:
-        Simulation events for each operation phase
+        truck: Truck entity with 'size' attribute
+        loader: Shared loader resource
+        dumped_dirt: Accumulator for total dirt moved
+        loading_dists: Truck-specific loading distributions
     """
     truck_id = int(truck.name.split('_')[1]) if '_' in truck.name else 0
-    
+
     while True:
-        # =====================================================================
-        # LOADING PHASE - PROBABILISTIC
-        # =====================================================================
-        # Each truck has its own loading distribution based on size
-        # This creates variation: sometimes faster, sometimes slower
         yield truck.get(loader, 1)
-        
-        # Sample loading time from the distribution for this truck
-        # truck["size"] defines the base duration, but actual time varies
-        loading_dist = loading_dists[truck_id]
-        loading_time = loading_dist.sample()
-        
-        yield truck.do("loading", loading_time)
+        yield truck.do("loading", loading_dists[truck_id])
         yield truck.put(loader, 1)
-
-        # =====================================================================
-        # HAULING PHASE - PROBABILISTIC
-        # =====================================================================
-        # Hauling time varies due to traffic, road conditions, weather, etc.
-        # norm distribution centered at 17 minutes with 2-minute std dev
-        # Occasionally might be 15 min (good conditions) or 19 min (slow)
-        hauling_dist = norm(17, 4)  # mean=17, std_dev=2
-        hauling_time = hauling_dist.sample()
-        
-        yield truck.do("hauling", hauling_time)
-        
-        # =====================================================================
-        # DUMPING PHASE - PROBABILISTIC
-        # =====================================================================
-        # Dumping time uniformly distributed between 2-4 minutes
-        # Depends on site conditions, queue at dump site, etc.
-        dumping_dist = uniform(3, 6)  # min=2, max=4
-        dumping_time = dumping_dist.sample()
-        
-        yield truck.do("dumping", dumping_time)
-        
-        # Add the truck's load size to total
+        yield truck.do("hauling", norm(17, 4))
+        yield truck.do("dumping", uniform(2, 5))
         yield truck.add(dumped_dirt, truck["size"])
-
-        # =====================================================================
-        # RETURN PHASE - PROBABILISTIC
-        # =====================================================================
-        # Return journey varies due to traffic, weather, driver variability
-        # norm distribution centered at 13 minutes with 1.5-minute std dev
-        return_dist = norm(13, 3)  # mean=13, std_dev=1.5
-        return_time = return_dist.sample()
-        
-        yield truck.do("return", return_time)
-        
-        # Cycle repeats - truck goes back to loading
+        yield truck.do("return", norm(13, 3))
 
 
-# =============================================================================
-# ENVIRONMENT SETUP
-# =============================================================================
-
-print(f"\n{'='*80}")
-print(f"EARTHMOVING WITH PROBABILISTIC DURATIONS")
-print(f"{'='*80}\n")
-
-# Create the discrete event simulation environment
-env = des.Environment("Earthmoving with probabilistic durations")
-
-# Create the LOADER RESOURCE
-loader = des.Resource(env, "loader", init=1, capacity=1, log=True)
-
-# Create counter for TOTAL DIRT DUMPED
-dumped_dirt = des.Resource(env, "dirt", init=0, capacity=100000, log=True)
-
-# =========================================================================
-# CREATE TRUCKS WITH SIZE ATTRIBUTES AND PROBABILISTIC DISTRIBUTIONS
-# =========================================================================
-# Create 3 truck entities
-trucks = env.create_entities("truck", 3, log=True)
-
-# Define truck sizes and create loading distributions for each
-truck_sizes = [30, 35, 50]  # cubic meters per load
-
-# Create probabilistic loading distributions for each truck
-# Larger trucks have higher mean loading time but also more variability
-# norm distribution: norm(mean, std_dev)
-loading_dists = {
-    0: norm(5 + truck_sizes[0]/20, 0.5),   # Truck 0: mean=6.5, std=0.5
-    1: norm(5 + truck_sizes[1]/20, 0.6),   # Truck 1: mean=6.75, std=0.6
-    2: norm(5 + truck_sizes[2]/20, 0.8),   # Truck 2: mean=7.5, std=0.8
-}
-
-for truck, size in zip(trucks, truck_sizes):
-    truck["size"] = size
-
-# Start the truck cycle process for each truck
-for truck in trucks:
-    env.process(truck_cycle_probabilistic(truck, loader, dumped_dirt, loading_dists))
-
-
-# =============================================================================
-# RUN SIMULATION
-# =============================================================================
-
-print(f"Running probabilistic simulation for 480 minutes...\n")
-simpm.run(env, dashboard=False, until=480)
-
-
-# =============================================================================
-# RESULTS AND ANALYSIS
-# =============================================================================
-
-print(f"\n{'='*80}")
-print(f"PROBABILISTIC SIMULATION - RESULTS (Stochastic Run)")
-print(f"{'='*80}\n")
-
-# Simulation end time
-print(f"Simulation Duration: {env.now:.2f} minutes ({env.now/60:.2f} hours)\n")
-
-# =========================================================================
-# LOADER UTILIZATION ANALYSIS
-# =========================================================================
-loader_util = loader.average_utilization()
-print(f"LOADER UTILIZATION:")
-print(f"  Utilization Rate: {loader_util*100:.2f}%")
-print(f"  (Loader was busy {loader_util*100:.2f}% of the time)\n")
-
-# =========================================================================
-# QUEUE STATISTICS
-# =========================================================================
-waiting_times = loader.waiting_time()
-print(f"LOADER QUEUE STATISTICS:")
-print(f"  Total waiting instances: {len(waiting_times)}")
-if len(waiting_times) > 0:
-    avg_wait = sum(waiting_times) / len(waiting_times)
-    max_wait = max(waiting_times)
-    min_wait = min(waiting_times)
-    print(f"  Average truck waiting time: {avg_wait:.2f} minutes")
-    print(f"  Maximum truck waiting time: {max_wait:.2f} minutes")
-    print(f"  Minimum truck waiting time: {min_wait:.2f} minutes\n")
-else:
-    print(f"  No trucks had to wait\n")
-
-# =========================================================================
-# TRUCK PERFORMANCE ANALYSIS
-# =========================================================================
-print(f"{'='*80}")
-print(f"TRUCK PERFORMANCE ANALYSIS (With Probabilistic Durations)")
-print(f"{'='*80}\n")
-
-# Analyze each truck's performance
-for i, truck in enumerate(trucks):
-    truck_size = truck["size"]
-    truck_log = truck.schedule()
+def env_factory() -> des.Environment:
+    """
+    Create a fresh earthmoving environment.
     
-    # Count cycles (number of times truck did "loading")
-    loading_activities = truck_log[truck_log['activity'] == 'loading']
-    num_cycles = len(loading_activities)
+    Called by simpm.run() for each replicate.
+    Global _CURRENT_TRUCK_COUNT determines fleet size.
     
-    # Calculate loading time statistics for this truck
-    if num_cycles > 0:
-        loading_activities = loading_activities.copy()
-        loading_activities['duration'] = (loading_activities['finish_time'] - 
-                                         loading_activities['start_time'])
-        loading_durations = loading_activities['duration'].values
-        avg_loading_time = loading_durations.mean()
-        min_loading_time = loading_durations.min()
-        max_loading_time = loading_durations.max()
-        std_loading_time = loading_durations.std()
-        total_dirt_moved = truck_size * num_cycles
-    else:
-        avg_loading_time = min_loading_time = max_loading_time = std_loading_time = 0
-        total_dirt_moved = 0
-    
-    print(f"TRUCK {i} - Size: {truck_size} m³ per load")
-    print(f"  Completed cycles: {num_cycles}")
-    print(f"  Loading time statistics:")
-    print(f"    Expected mean: {5 + truck_size/20:.2f} minutes")
-    print(f"    Average actual: {avg_loading_time:.2f} minutes")
-    print(f"    Std deviation: {std_loading_time:.2f} minutes")
-    print(f"    Min observed: {min_loading_time:.2f} minutes")
-    print(f"    Max observed: {max_loading_time:.2f} minutes")
-    print(f"  Total dirt moved: {total_dirt_moved:.0f} m³\n")
+    Returns:
+        Environment ready to simulate
+    """
+    global _CURRENT_TRUCK_COUNT
 
-# =========================================================================
-# TOTAL PROJECT METRICS
-# =========================================================================
-total_dirt = dumped_dirt.level()
-total_cycles = 0
-for truck in trucks:
-    truck_log = truck.schedule()
-    loading_activities = truck_log[truck_log['activity'] == 'loading']
-    total_cycles += len(loading_activities)
+    env = des.Environment(f"Earthmoving ({_CURRENT_TRUCK_COUNT} trucks)")
+    loader = des.Resource(env, "loader", init=1, capacity=1, log=True)
+    dumped_dirt = des.Resource(env, "dirt", init=0, capacity=100000, log=True)
 
-print(f"{'='*80}")
-print(f"PROJECT SUMMARY")
-print(f"{'='*80}\n")
-print(f"Total dirt moved: {total_dirt:.0f} m³")
-print(f"Total load cycles: {total_cycles}")
-print(f"Average dirt per cycle: {total_dirt / total_cycles if total_cycles > 0 else 0:.2f} m³")
-print(f"Project duration: {env.now:.2f} minutes ({env.now/60:.2f} hours)\n")
+    trucks = env.create_entities("truck", _CURRENT_TRUCK_COUNT, log=True)
+    truck_sizes = [30, 35, 50]
+    loading_dists = {}
+
+    for i, truck in enumerate(trucks):
+        size = truck_sizes[i % len(truck_sizes)]
+        truck["size"] = size
+        loading_dists[i] = norm(5 + size / 20, 0.5 + (0.1 * (i % 3)))
+
+    for truck in trucks:
+        env.process(truck_cycle_probabilistic(truck, loader, dumped_dirt, loading_dists))
+
+    return env
 
 
-# =============================================================================
-# COMPARISON: DETERMINISTIC vs. PROBABILISTIC
-# =============================================================================
+def extract_stats(env: des.Environment) -> dict:
+    """Extract project statistics from completed environment."""
+    loader = [r for r in env.resources if r.name == "loader"][0]
+    dumped_dirt = [r for r in env.resources if r.name == "dirt"][0]
 
-print(f"{'='*80}")
-print(f"DETERMINISTIC vs. PROBABILISTIC COMPARISON")
-print(f"{'='*80}\n")
-
-print(f"""
-DETERMINISTIC MODEL (Previous Run):
-  - Project time: 480.00 minutes (fixed runtime)
-  - Total cycles: 37
-  - Total dirt: 1330 m³
-  - Loader utilization: 52.53%
-  - Average wait time: 0.53 minutes
-  - Key: All durations are FIXED, no variability
-
-PROBABILISTIC MODEL (This Run):
-  - Project time: {env.now:.2f} minutes
-  - Total cycles: {total_cycles}
-  - Total dirt: {total_dirt:.0f} m³
-  - Loader utilization: {loader_util*100:.2f}%
-  - Average wait time: {(sum(waiting_times) / len(waiting_times) if len(waiting_times) > 0 else 0):.2f} minutes
-  - Key: All durations are RANDOM, natural variability
-
-WHY ARE RESULTS DIFFERENT?
-  1. Probabilistic durations create variation
-  2. Some operations take longer, some shorter
-  3. Random timing creates different queue patterns
-  4. Faster/slower truck cycles affect interactions
-  5. Results vary between runs (stochastic)
-
-WHAT TO NOTICE:
-  - Loader utilization is similar ({loader_util*100:.2f}% vs 52.53%)
-  - Total cycles might differ due to timing variation
-  - Total dirt should be proportional to cycle count
-  - Variability in operation times is REALISTIC
-  - Multiple runs would give range of outcomes
-
-WHY USE PROBABILISTIC MODELS?
-  1. Realistic representation of real operations
-  2. Account for uncertainty in estimates
-  3. Identify risks and bottlenecks
-  4. Plan for worst-case and best-case scenarios
-  5. Sensitivity analysis on variability
-""")
+    return {
+        "duration": env.now,
+        "total_dirt": dumped_dirt.level(),
+        "loader_util": loader.average_utilization(),
+        "wait_times": loader.waiting_time(),
+    }
 
 
-# =============================================================================
-# DETAILED LOADING TIME ANALYSIS
-# =============================================================================
+def run_probabilistic_example(truck_counts: List[int], num_replicates: int = 10):
+    """Run probabilistic simulations with different truck counts."""
+    global _CURRENT_TRUCK_COUNT
 
-print(f"\n{'='*80}")
-print(f"LOADING TIME VARIABILITY ANALYSIS")
-print(f"{'='*80}\n")
+    print(f"\n{'='*80}")
+    print(f"EARTHMOVING - PROBABILISTIC SIMULATION (Factory Pattern)")
+    print(f"{'='*80}\n")
 
-for i, truck in enumerate(trucks):
-    truck_log = truck.schedule()
-    loading_activities = truck_log[truck_log['activity'] == 'loading']
-    
-    if len(loading_activities) > 0:
-        loading_activities = loading_activities.copy()
-        loading_activities['duration'] = (loading_activities['finish_time'] - 
-                                         loading_activities['start_time'])
-        durations = loading_activities['duration'].values
-        
-        print(f"Truck {i} Loading Times (First 10 cycles):")
-        for j, duration in enumerate(durations[:10]):
-            print(f"  Cycle {j+1}: {duration:.2f} minutes")
-        if len(durations) > 10:
-            print(f"  ... ({len(durations)-10} more cycles)")
-        print()
+    for num_trucks in truck_counts:
+        _CURRENT_TRUCK_COUNT = num_trucks
+
+        print(f"\nRunning {num_replicates} replicates with {num_trucks} trucks...")
+        all_envs = simpm.run(env_factory, dashboard=False,
+                            number_runs=num_replicates, start_async=False)
+
+        durations = [env.now for env in all_envs]
+        dirt_totals = []
+        loader_utils = []
+        all_waits = []
+
+        for env in all_envs:
+            stats = extract_stats(env)
+            dirt_totals.append(stats["total_dirt"])
+            loader_utils.append(stats["loader_util"])
+            all_waits.extend(stats["wait_times"])
+
+        mean_duration = statistics.mean(durations)
+        std_duration = statistics.stdev(durations) if len(durations) > 1 else 0
+        mean_dirt = statistics.mean(dirt_totals)
+        mean_util = statistics.mean(loader_utils)
+        mean_wait = statistics.mean(all_waits) if all_waits else 0
+
+        print(f"\n{num_trucks} Trucks Summary ({num_replicates} replicates):")
+        print(f"  Project duration: {mean_duration:.2f} min "
+              f"({std_duration:.2f}, range {min(durations):.0f}-{max(durations):.0f})")
+        print(f"  Total dirt moved: {mean_dirt:.0f} m (avg)")
+        print(f"  Loader utilization: {mean_util*100:.1f}%")
+        print(f"  Avg truck wait time: {mean_wait:.2f} min")
 
 
-# =============================================================================
-# ACTUAL SIMULATION RESULTS
-# =============================================================================
-"""
-==========================================================================
-PROBABILISTIC EARTHMOVING SIMULATION RESULTS (8-hour run)
-==========================================================================
+if __name__ == "__main__":
+    print(f"\n{'='*80}")
+    print(f"PROBABILISTIC EARTHMOVING SIMULATION")
+    print(f"Factory Pattern with Multiple Replicates")
+    print(f"{'='*80}")
 
-Simulation Duration: 480.00 minutes (8.00 hours)
+    print("""
+OVERVIEW:
+    Uses simpm.run() with a factory function to run multiple replicates
+    of a stochastic (probabilistic) earthmoving simulation.
 
-LOADER UTILIZATION:
-  Utilization Rate: 60.27%
-  (Loader was busy 60.27% of the time)
-  Note: Higher than deterministic run (52.53%) due to variability
+KEY PATTERN:
+    1. Define env_factory() that creates fresh environments
+    2. Call simpm.run(env_factory, number_runs=10) for replicates
+    3. Extract statistics from each completed environment
+    4. Compare across truck configurations
 
-LOADER QUEUE STATISTICS:
-  Total waiting instances: 48
-  Average truck waiting time: 0.67 minutes
-  Maximum truck waiting time: 15.42 minutes
-  Minimum truck waiting time: 0.00 minutes
-  (More waiting instances than deterministic due to uneven durations)
-
-==========================================================================
-TRUCK PERFORMANCE ANALYSIS (With Probabilistic Durations)
-==========================================================================
-
-TRUCK 0 - Size: 30 m³ per load
-  Completed cycles: 12
-  Loading time statistics:
-    Expected mean: 6.50 minutes
-    Average actual: 6.52 minutes
-    Std deviation: 0.48 minutes
-    Min observed: 5.38 minutes
-    Max observed: 7.63 minutes
-  Total dirt moved: 360 m³
-
-TRUCK 1 - Size: 35 m³ per load
-  Completed cycles: 11
-  Loading time statistics:
-    Expected mean: 6.75 minutes
-    Average actual: 6.78 minutes
-    Std deviation: 0.59 minutes
-    Min observed: 5.22 minutes
-    Max observed: 8.14 minutes
-  Total dirt moved: 385 m³
-
-TRUCK 2 - Size: 50 m³ per load
-  Completed cycles: 11
-  Loading time statistics:
-    Expected mean: 7.50 minutes
-    Average actual: 7.49 minutes
-    Std deviation: 0.82 minutes
-    Min observed: 5.89 minutes
-    Max observed: 9.31 minutes
-  Total dirt moved: 550 m³
-
-==========================================================================
-PROJECT SUMMARY
-==========================================================================
-
-Total dirt moved: 1295 m³
-Total load cycles: 34
-Average dirt per cycle: 38.09 m³
-Project duration: 480.00 minutes (8.00 hours)
-
-==========================================================================
-LOADING TIME VARIABILITY ANALYSIS
-==========================================================================
-
-Truck 0 Loading Times (First 10 cycles):
-  Cycle 1: 6.21 minutes
-  Cycle 2: 6.78 minutes
-  Cycle 3: 5.98 minutes
-  Cycle 4: 6.41 minutes
-  Cycle 5: 6.67 minutes
-  Cycle 6: 6.15 minutes
-  Cycle 7: 6.89 minutes
-  Cycle 8: 6.34 minutes
-  Cycle 9: 6.55 minutes
-  Cycle 10: 6.44 minutes
-
-Truck 1 Loading Times (First 10 cycles):
-  Cycle 1: 6.98 minutes
-  Cycle 2: 6.52 minutes
-  Cycle 3: 6.85 minutes
-  Cycle 4: 6.91 minutes
-  Cycle 5: 6.43 minutes
-  Cycle 6: 7.12 minutes
-  Cycle 7: 6.67 minutes
-  Cycle 8: 6.84 minutes
-  Cycle 9: 7.05 minutes
-  Cycle 10: 6.61 minutes
-
-Truck 2 Loading Times (First 10 cycles):
-  Cycle 1: 7.89 minutes
-  Cycle 2: 7.15 minutes
-  Cycle 3: 7.61 minutes
-  Cycle 4: 8.02 minutes
-  Cycle 5: 7.31 minutes
-  Cycle 6: 7.73 minutes
-  Cycle 7: 6.98 minutes
-  Cycle 8: 7.54 minutes
-  Cycle 9: 7.82 minutes
-  Cycle 10: 7.26 minutes
-
-==========================================================================
-KEY INSIGHTS FROM PROBABILISTIC RESULTS
-==========================================================================
-
-1. VARIABILITY IN LOADING TIMES:
-   - Truck 0: Mean 6.50, observed range 5.38-7.63 (±1.2 minutes)
-   - Truck 1: Mean 6.75, observed range 5.22-8.14 (±1.5 minutes)
-   - Truck 2: Mean 7.50, observed range 5.89-9.31 (±1.8 minutes)
-   - Larger trucks have more variability (reasonable: bigger loads vary more)
-
-2. IMPACT ON CYCLES AND PRODUCTIVITY:
-   - Deterministic: 37 cycles
-   - Probabilistic: 34 cycles (3 fewer due to timing variation)
-   - Longer durations reduce total cycles completed
-   - This shows risk: assuming worst-case durations affects scheduling
-
-3. QUEUE IMPACT:
-   - More waiting instances (48 vs 37 in deterministic)
-   - Higher utilization (60.27% vs 52.53%)
-   - Variability makes queue dynamics more complex
-
-4. REALISTIC VARIABILITY:
-   - Each truck's loading time varies cycle to cycle
-   - This matches real-world operations
-   - Some cycles run fast, others slow
-   - Queue position affects when each truck gets to load
-
-5. PROBABILITY DISTRIBUTIONS USED:
-   - Normal(6.5, 0.5): Loading durations - centered around mean
-   - Normal(17, 2): Hauling durations - road conditions variable
-   - Uniform(2, 4): Dumping durations - any time in range equally likely
-   - Normal(13, 1.5): Return durations - travel time varies
+DISTRIBUTIONS (Match earthmoving_monte_carlo.py):
+    - Loading: norm(5+size/20, 0.5-0.8) by truck size
+    - Hauling: norm(17, 4) - high variability
+    - Dumping: uniform(2, 5) - uniform uncertainty
+    - Return: norm(13, 3) - high variability
 
 WHY DISTRIBUTIONS MATTER:
-   - Normal: Good for natural variations around a mean
-   - Uniform: Good for min/max bounds (anything in range equally likely)
-   - Exponential: Good for random event times (failures, repairs)
-   - Lognormal: Good for operations with occasional long delays
+    - Realistic representation of operational variability
+    - Identify risks and bottlenecks
+    - Plan for worst-case scenarios
+    - Monte Carlo: run multiple times for outcome distribution
+    """)
 
-PRACTICAL APPLICATIONS:
-   1. Project scheduling: Use probabilistic to account for uncertainty
-   2. Resource planning: How much equipment do you really need?
-   3. Risk analysis: What's the probability of exceeding timeline?
-   4. Sensitivity analysis: Which operation's variability matters most?
-   5. Monte Carlo: Run multiple times to get distribution of outcomes
-"""
+    truck_counts = [3, 5, 7]
+    num_replicates = 10
 
-print(f"{'='*80}\n")
+    run_probabilistic_example(truck_counts, num_replicates)
 
-
-# =============================================================================
-# ACTUAL SIMULATION RESULTS (480-minute probabilistic run)
-# =============================================================================
-"""
-==========================================================================
-PROBABILISTIC EARTHMOVING SIMULATION RESULTS (8-hour run)
-==========================================================================
-
-Simulation Duration: 480.00 minutes (8.00 hours)
-
-LOADER UTILIZATION:
-  Utilization Rate: 51.25%
-  (Loader was busy 51.25% of the time)
-  Note: Similar to deterministic run (52.53%) - randomness didn't change utilization
-
-LOADER QUEUE STATISTICS:
-  Total waiting instances: 37
-  Average truck waiting time: 0.73 minutes
-  Maximum truck waiting time: 12.85 minutes
-  Minimum truck waiting time: 0.00 minutes
-  (Slightly more waiting than deterministic due to varied durations)
-
-==========================================================================
-TRUCK PERFORMANCE ANALYSIS (With Probabilistic Durations)
-==========================================================================
-
-TRUCK 0 - Size: 30 m³ per load
-  Completed cycles: 13
-  Loading time statistics:
-    Expected mean: 6.50 minutes
-    Average actual: 6.46 minutes (close to expected!)
-    Std deviation: 0.48 minutes
-    Min observed: 5.70 minutes
-    Max observed: 7.42 minutes
-  Total dirt moved: 390 m³
-
-TRUCK 1 - Size: 35 m³ per load
-  Completed cycles: 12
-  Loading time statistics:
-    Expected mean: 6.75 minutes
-    Average actual: 6.58 minutes (close to expected!)
-    Std deviation: 0.47 minutes
-    Min observed: 5.37 minutes
-    Max observed: 7.40 minutes
-  Total dirt moved: 420 m³
-
-TRUCK 2 - Size: 50 m³ per load
-  Completed cycles: 12
-  Loading time statistics:
-    Expected mean: 7.50 minutes
-    Average actual: 6.51 minutes (interesting: lower than expected)
-    Std deviation: 0.41 minutes
-    Min observed: 5.82 minutes
-    Max observed: 7.24 minutes
-  Total dirt moved: 600 m³
-
-==========================================================================
-PROJECT SUMMARY
-==========================================================================
-
-Total dirt moved: 1330 m³
-Total load cycles: 37
-Average dirt per cycle: 35.95 m³
-Project duration: 480.00 minutes (8.00 hours)
-
-==========================================================================
-LOADING TIME VARIABILITY (First 10 Cycles per Truck)
-==========================================================================
-
-Truck 0 Loading Times:
-  Cycle 1: 6.24 min
-  Cycle 2: 6.20 min
-  Cycle 3: 7.04 min
-  Cycle 4: 6.20 min
-  Cycle 5: 7.42 min (peak)
-  Cycle 6: 6.07 min
-  Cycle 7: 5.70 min (valley)
-  Cycle 8: 6.28 min
-  Cycle 9: 6.66 min
-  Cycle 10: 6.13 min
-  Range: 5.70 - 7.42 minutes (1.72 minute spread)
-
-Truck 1 Loading Times:
-  Cycle 1: 6.61 min
-  Cycle 2: 6.40 min
-  Cycle 3: 6.33 min
-  Cycle 4: 6.75 min
-  Cycle 5: 6.89 min
-  Cycle 6: 5.37 min (valley)
-  Cycle 7: 6.76 min
-  Cycle 8: 6.97 min
-  Cycle 9: 7.40 min (peak)
-  Cycle 10: 6.69 min
-  Range: 5.37 - 7.40 minutes (2.03 minute spread)
-
-Truck 2 Loading Times:
-  Cycle 1: 6.30 min
-  Cycle 2: 6.03 min
-  Cycle 3: 6.51 min
-  Cycle 4: 7.03 min
-  Cycle 5: 6.56 min
-  Cycle 6: 6.20 min
-  Cycle 7: 6.13 min
-  Cycle 8: 6.88 min
-  Cycle 9: 6.66 min
-  Cycle 10: 5.82 min
-  Range: 5.82 - 7.03 minutes (1.21 minute spread)
-
-==========================================================================
-COMPARISON: DETERMINISTIC vs. PROBABILISTIC
-==========================================================================
-
-DETERMINISTIC MODEL (Truck Sizes - Fixed Durations):
-  Project time: 480.00 minutes
-  Total cycles: 37
-  Total dirt: 1330 m³
-  Loading time (Truck 0): ALWAYS 6.50 minutes
-  Loading time (Truck 1): ALWAYS 6.75 minutes
-  Loading time (Truck 2): ALWAYS 7.50 minutes
-  Loader utilization: 52.53%
-  Average wait time: 0.53 minutes
-  → Results are PREDICTABLE and REPEATABLE
-
-PROBABILISTIC MODEL (Random Durations):
-  Project time: 480.00 minutes (same total time used)
-  Total cycles: 37 (same in this run)
-  Total dirt: 1330 m³ (same in this run)
-  Loading time (Truck 0): VARIES 5.70-7.42 minutes (mean 6.46)
-  Loading time (Truck 1): VARIES 5.37-7.40 minutes (mean 6.58)
-  Loading time (Truck 2): VARIES 5.82-7.24 minutes (mean 6.51)
-  Loader utilization: 51.25%
-  Average wait time: 0.73 minutes
-  → Results VARY between runs (stochastic)
-
-KEY OBSERVATIONS:
-  1. SAME outcome in this run: Both models completed 37 cycles in 480 minutes
-     - The randomness happened to balance out this particular run
-     - Different runs would show different results
-
-  2. OBSERVED MEANS match expected values:
-     - Truck 0: Expected 6.50, Observed 6.46 ✓
-     - Truck 1: Expected 6.75, Observed 6.58 ✓ (close to expected)
-     - Truck 2: Expected 7.50, Observed 6.51 ✗ (got lucky with this run)
-
-  3. VARIABILITY is realistic:
-     - Truck 0 range: 1.72 minutes (22% variation from mean)
-     - Truck 1 range: 2.03 minutes (25% variation from mean)
-     - Truck 2 range: 1.21 minutes (15% variation from mean)
-     - These represent real equipment and process variability
-
-  4. QUEUE behavior is slightly different:
-     - Same waiting instances (37 vs 37)
-     - Higher average wait (0.73 vs 0.53 minutes)
-     - Randomness creates different queue patterns
-
-==========================================================================
-WHY USE PROBABILISTIC MODELS?
-==========================================================================
-
-1. REALISTIC REPRESENTATION:
-   ✓ Real operations have variability
-   ✓ Workers, equipment, and environment are never perfectly consistent
-   ✓ Probabilistic models match reality better
-
-2. RISK ASSESSMENT:
-   ✓ Probabilistic models show range of outcomes
-   ✓ Can identify worst-case and best-case scenarios
-   ✓ Better for project planning with contingencies
-
-3. MONTE CARLO ANALYSIS:
-   ✓ Run the simulation 1000 times
-   ✓ Collect results from each run
-   ✓ Create distribution of outcomes
-   ✓ Answer: "What's the 90% confidence project time?"
-
-4. SENSITIVITY ANALYSIS:
-   ✓ Which operation's variability matters most?
-   ✓ If we reduce loading time variation, how much time saved?
-   ✓ Is equipment upgrade worth the cost?
-
-5. STATISTICAL RIGOR:
-   ✓ Hypothesis testing: Is this process stable?
-   ✓ Design of experiments: Test equipment/process changes
-   ✓ Optimization: Find parameter values that minimize cost/time
-
-==========================================================================
-PROBABILITY DISTRIBUTIONS USED IN THIS MODEL
-==========================================================================
-
-1. NORMAL (norm) DISTRIBUTION:
-   Used for: Loading, Hauling, Return times
-   Why: Natural variation around a mean
-   Formula: X ~ N(μ, σ²)
-   - μ (mu): Mean, center of distribution
-   - σ (sigma): Standard deviation, spread/variability
-   
-   Loading times:
-   - Truck 0: norm(6.5, 0.5)   → mean 6.5, rarely outside 5.5-7.5
-   - Truck 1: norm(6.75, 0.6)  → mean 6.75, rarely outside 5.55-7.95
-   - Truck 2: norm(7.5, 0.8)   → mean 7.5, rarely outside 5.9-9.1
-   
-   Hauling times: norm(17, 2)  → most loads 15-19 min, some 13-21
-   Return times: norm(13, 1.5) → most returns 11.5-14.5 min
-
-2. UNIFORM DISTRIBUTION:
-   Used for: Dumping time
-   Why: Any value in range equally likely
-   Formula: X ~ U(a, b) where a=min, b=max
-   
-   Dumping time: uniform(2, 4) → any value 2-4 minutes equally likely
-   - Could be 2.0, 3.5, 3.99, or 4.0 with equal probability
-   - Represents unpredictable dump site conditions
-
-3. EXPONENTIAL DISTRIBUTION (not used here, but common):
-   Used for: Random event times (failures, arrivals)
-   Why: Memoryless - past doesn't affect future
-   Example: time until next equipment failure
-
-4. LOGNORMAL DISTRIBUTION (not used here):
-   Used for: Operations with occasional long delays
-   Why: Right-skewed - occasional outliers
-   Example: Very rare but long traffic delays
-
-==========================================================================
-PRACTICAL INSIGHTS FROM RESULTS
-==========================================================================
-
-1. RESULTS STABILITY:
-   ✓ Cycle count was same (37) despite randomness
-   ✓ Total dirt same (1330 m³) despite randomness
-   ✓ Shows the simulation is stable/robust to normal variation
-
-2. QUEUE IMPACT:
-   ✓ Variability created slightly MORE waiting (0.73 vs 0.53 min)
-   ✓ Queue is more complex with random durations
-   ✓ Management insight: Plan for extra buffer time
-
-3. TRUCK EFFICIENCY:
-   ✓ Despite different sizes, all trucks got roughly same utilization
-   ✓ Larger trucks still moved more total dirt (Truck 2: 600 vs Truck 0: 390)
-   ✓ Size advantage overcomes any speed differences
-
-4. NEXT STEPS FOR DEEPER ANALYSIS:
-   ✓ Run 100 times, collect all cycle counts
-   ✓ What's distribution of total project time?
-   ✓ What's probability project exceeds 500 minutes?
-   ✓ Which truck's variability matters most?
-   ✓ What if we add buffer time? How much needed?
-"""
-
-print(f"{'='*80}\n")
+    print(f"\n{'='*80}\n")

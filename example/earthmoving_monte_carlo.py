@@ -26,9 +26,9 @@ KEY CONCEPT:
 
 PROCESS FLOW (Per Simulation):
     - Loading time: Normal(mean=5+size/20, std=0.5-0.8) - varies each cycle
-    - Hauling time: Normal(17, 2) - variable distance/conditions
-    - Dumping time: Uniform(2, 4) - between 2-4 minutes
-    - Return time: Normal(13, 1.5) - variable route conditions
+    - Hauling time: Normal(17, 4) - variable distance/conditions
+    - Dumping time: Uniform(2, 5) - between 2-5 minutes
+    - Return time: Normal(13, 3) - variable route conditions
 
 MONTE CARLO APPROACH:
     1. Define: env_factory() creates fresh environments with truck count

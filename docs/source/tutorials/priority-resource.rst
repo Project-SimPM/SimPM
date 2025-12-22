@@ -272,14 +272,105 @@ Enable the dashboard (default: ``dashboard=True``). Explore:
 - Queue view: See how the priority queue changes over time
 - Resource utilization: How many trucks are in use at each time?
 
+Real-World Example: Earthmoving with Scheduled Maintenance
+-----------------------------------------------------------
+
+A practical application of priority scheduling: managing equipment repairs in an earthmoving project.
+
+**Scenario:**
+
+A construction site has:
+- **2 trucks** (small 80-unit, large 100-unit capacity)
+- **1 shared loader** (bottleneck resource)
+- **1 repair person** who maintains the loader based on usage
+
+**The Challenge:**
+
+Trucks request the loader with normal priority. When the loader accumulates 10 worked hours,
+the repair person needs to service it. Using a **PriorityResource**, we give the repair person
+high priority (-3) so repairs happen quickly, without waiting for truck loading to finish.
+
+**Code Example (Simplified):**
+
+.. code-block:: python
+
+    import simpm
+    import simpm.des as d
+    import simpm.dist as dist
+
+    def truck_process(truck, loader, dumped_dirt, worked_hours):
+        """Truck cycles: load, haul, dump, return."""
+        while True:
+            # Request loader with normal priority (priority=2)
+            yield truck.get(loader, 1, priority=2)
+            
+            loading_time = truck.loading_dur.sample()
+            yield truck.do('load', loading_time)
+            yield truck.add(worked_hours, loading_time)  # Track hours for repairs
+            
+            yield truck.put(loader, 1)
+            yield truck.do('haul', truck.hauling_dur.sample())
+            yield truck.do('dump', truck.dumping_dur)
+            yield truck.add(dumped_dirt, truck.capacity)
+            yield truck.do('return', 8)
+
+    def repair_process(repair_man, loader, worked_hours):
+        """Repair person monitors loader hours."""
+        while True:
+            # Wait until 10 hours accumulated
+            yield repair_man.get(worked_hours, 10)
+            
+            # Request with HIGH PRIORITY to interrupt trucks
+            yield repair_man.get(loader, 1, priority=-3)
+            
+            yield repair_man.do('repair', 10)
+            yield repair_man.put(loader, 1)
+
+    # Set up environment
+    env = d.Environment()
+    loader = d.PriorityResource(env, 'loader', init=1)
+    dumped_dirt = d.Resource(env, 'dirt', init=0, capacity=2000)
+    worked_hours = d.Resource(env, 'worked_hours', init=0)
+    
+    small_truck = d.Entity(env, 'small_truck')
+    small_truck.loading_dur = dist.uniform(4, 5)
+    small_truck.hauling_dur = dist.uniform(10, 14)
+    small_truck.dumping_dur = 4
+    small_truck.capacity = 80
+    
+    large_truck = d.Entity(env, 'large_truck')
+    large_truck.loading_dur = dist.uniform(4, 7)
+    large_truck.hauling_dur = dist.uniform(12, 16)
+    large_truck.dumping_dur = 5
+    large_truck.capacity = 100
+    
+    repair_man = d.Entity(env, 'repair_person')
+    
+    env.process(truck_process(small_truck, loader, dumped_dirt, worked_hours))
+    env.process(truck_process(large_truck, loader, dumped_dirt, worked_hours))
+    env.process(repair_process(repair_man, loader, worked_hours))
+    
+    simpm.run(env, dashboard=False)
+
+**Results:**
+
+With PriorityResource, repairs are scheduled with high priority but still queue-based:
+- When repair is needed (10 worked hours), the repair person waits for the next
+  available loader opportunity
+- Current truck loading finishes, then repair proceeds immediately
+- Trucks never wait long because repairs have priority=-3 > normal priority=2
+- This balances maintenance needs with productivity
+
+**Key Advantage of PriorityResource Here:**
+
+Instead of adding 10 hours of repair delay to the project timeline, the high-priority
+queue ensures repairs are done at the first opportunity when the loader becomes free.
+This maintains schedule reliability while keeping maintenance current.
+
+See the complete working example: ``example/repair_earthmoving.py``
+
 Next Steps
 ----------
 
-* Learn about **preemptive resources** where high-priority work can interrupt 
-  low-priority work: :doc:`preemptive-resource`
-
-* Apply priority resources in real projects with :doc:`equipment-maintenance`
-
-* Explore resource bottlenecks with :doc:`resource-bottlenecks`
-
-* Check out the :doc:`../api_reference/simpm.des` reference for detailed API documentation
+* Learn about **preemptive resources** where high-priority work can INTERRUPT 
+  low-priority work in progress: :doc:`preemptive-resource`

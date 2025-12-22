@@ -1,11 +1,20 @@
 """
-Earthmoving Operation with Equipment Repair Simulation
+Earthmoving Operation with Preemptive Equipment Repair
 
-This simulation models an earthmoving project with equipment maintenance:
-- 2 trucks (small and large) that load, haul, and dump dirt
-- 1 loader shared between both trucks
-- 1 repair person who services the loader based on usage hours
-- Goal: Analyze impact of maintenance on project productivity
+This simulation models an earthmoving project with PREEMPTIVE equipment maintenance.
+The key difference from PriorityResource: repairs can INTERRUPT ongoing truck loading!
+
+COMPARISON:
+    PriorityResource (see repair_earthmoving.py):
+    - Repair waits in queue until truck finishes loading
+    - Loader finishes 4-7 minutes of work, then repair takes over
+    - High priority (priority=-3) ensures repair is next in queue
+    
+    PreemptiveResource (this example):
+    - Repair can INTERRUPT truck loading immediately
+    - Truck's loading work is interrupted mid-operation
+    - Repair happens right away; truck must restart loading
+    - Demonstrates true preemption for emergency maintenance
 
 SYSTEM DESCRIPTION:
     Small Truck:
@@ -20,18 +29,21 @@ SYSTEM DESCRIPTION:
         - Dumping time: 5 minutes
         - Capacity: 100 units
     
-    Repair System:
+    Repair System (PREEMPTIVE):
         - Repair person monitors worked hours on loader
         - When loader reaches 10 worked hours, repair is triggered
-        - Repair takes 10 minutes and takes priority over loading
-        - Uses PriorityResource for loader to handle repair priorities
+        - Repair INTERRUPTS ongoing truck loading immediately
+        - Interrupted truck's work is lost; must start loading again
+        - Repair takes 10 minutes
+        - Uses PreemptiveResource for immediate interruption
 
 ANALYSIS PERFORMED:
     - Total simulation time to complete all operations
-    - Loader utilization with repairs
-    - Truck waiting times and idle periods
-    - Number of repairs performed
-    - Total dirt moved before repairs become necessary
+    - Loader utilization with preemptive repairs
+    - Truck waiting times and interrupted work
+    - Number of repairs performed and interruptions
+    - Total dirt moved (affected by lost work from interruptions)
+    - Comparison with non-preemptive version
 
 @author: Naima Sadeghi
 @version: 2.0
@@ -67,21 +79,23 @@ print(f"Simulation initialized with random seed: {RANDOM_SEED}\n")
 
 def truck_process(truck, loader, dumped_dirt, worked_hours):
     """
-    Truck operation cycle process.
+    Truck operation cycle process with INTERRUPTIBLE loading.
     
     Simulates the complete cycle of a truck in the earthmoving operation:
     - Wait for loader availability
-    - Get loaded with dirt
+    - Get loaded with dirt (CAN BE INTERRUPTED by emergency repair)
     - Haul to dump site
     - Dump the load
     - Return to pit for next load
     
-    The truck attributes (loadingDur, haulingDur, capacity, etc.) are set
-    on the entity and define truck-specific parameters.
+    KEY DIFFERENCE from PriorityResource version:
+    - Uses interruptive_do() for loading phase
+    - Loading can be INTERRUPTED by emergency repair
+    - If interrupted, loading time is lost; truck must restart
     
     Args:
         truck (des.Entity): The truck entity with custom attributes
-        loader (des.Resource): Loader resource (shared, capacity = 1)
+        loader (des.Resource): PreemptiveResource (can interrupt work)
         dumped_dirt (des.Resource): Counter for total dumped dirt
         worked_hours (des.Resource): Tracks cumulative loader working hours
     
@@ -89,18 +103,29 @@ def truck_process(truck, loader, dumped_dirt, worked_hours):
         Simulation events: Loading, hauling, dumping, and return operations
     """
     while True:
-        # LOADING PHASE: Wait for loader with normal priority (priority=2)
-        # Lower priority than repair (priority=-3) means trucks wait for repairs
-        yield truck.get(loader, 1, 2)
-        yield truck.do('load', truck.loading_dur)
-        # Track hours worked on the loader (for triggering repairs)
-        yield truck.add(worked_hours, truck.loading_dur)
+        # LOADING PHASE: Get loader access
+        yield truck.get(loader, 1, priority=2)
         
-        # Release loader for other trucks or repair person
+        # Try to load (CAN BE INTERRUPTED by emergency repair)
+        loading_duration = truck.loading_dur.sample()
+        try:
+            # Use interruptive_do() to allow preemption
+            # Regular do() cannot be interrupted
+            yield truck.interruptive_do('load', loading_duration)
+            # If no interruption, add the work time to loader hours
+            yield truck.add(worked_hours, loading_duration)
+            
+        except d.Interrupt:
+            # Loading was INTERRUPTED by emergency repair!
+            # Work is lost; truck must release and try again
+            print(f'{truck.env.now:.2f}: {truck.name} loading INTERRUPTED by emergency repair!')
+        
+        # Release loader (whether completed or interrupted)
         yield truck.put(loader, 1)
 
         # HAULING PHASE: Transport loaded dirt to dump site
-        yield truck.do('haul', truck.hauling_dur)
+        # (only happens if loading was completed, not interrupted)
+        yield truck.do('haul', truck.hauling_dur.sample())
         
         # DUMPING PHASE: Unload dirt at dump site
         yield truck.do('dump', truck.dumping_dur)
@@ -112,29 +137,39 @@ def truck_process(truck, loader, dumped_dirt, worked_hours):
 
 def repair_process(repair_man, loader, worked_hours):
     """
-    Equipment repair process.
+    Equipment repair process with PREEMPTION capability.
     
     Simulates the repair person monitoring loader usage and performing
-    maintenance. When the loader reaches 10 accumulated working hours,
-    the repair person steps in with high priority to perform a 10-minute
-    repair, resetting the working hours counter.
+    EMERGENCY maintenance. When the loader reaches 10 accumulated working hours,
+    the repair person IMMEDIATELY PREEMPTS any truck loading to perform repairs.
+    
+    KEY DIFFERENCE from PriorityResource version:
+    - Repair request uses preempt=True
+    - This INTERRUPTS ongoing truck loading
+    - Interrupted truck work is lost (must restart)
+    - Repair takes priority immediately
     
     Args:
         repair_man (des.Entity): The repair person entity
-        loader (des.Resource): Loader resource to repair
+        loader (des.Resource): PreemptiveResource (can preempt work)
         worked_hours (des.Resource): Tracks cumulative loader working hours
     
     Yields:
         Simulation events: Waiting for repair trigger and repair work
     """
+    repairs_triggered = 0
+    
     while True:
         # Wait until 10 hours of work have been accumulated on the loader
         # This triggers the need for maintenance
         yield repair_man.get(worked_hours, 10)
         
-        # Get the loader with HIGH PRIORITY (-3) to interrupt trucks
-        # Negative priority ensures repair takes precedence over normal loading (priority=2)
-        yield repair_man.get(loader, 1, -3)
+        # Get the loader with PREEMPTION
+        # preempt=True means if a truck is loading, it gets interrupted
+        yield repair_man.get(loader, 1, priority=-3, preempt=True)
+        
+        repairs_triggered += 1
+        print(f'{repair_man.env.now:.2f}: Repair #{repairs_triggered} - Emergency maintenance (preemptive)')
         
         # Perform the repair (10 minutes)
         yield repair_man.do('repair', 10)
@@ -150,10 +185,10 @@ def repair_process(repair_man, loader, worked_hours):
 # Create the discrete event simulation environment
 env = d.Environment()
 
-# Create the PRIORITY LOADER resource
-# PriorityResource allows requests with different priorities
-# Higher priority (more negative numbers) are served first
-loader = d.PriorityResource(env, 'loader', init=1, print_actions=False)
+# Create the PREEMPTIVE LOADER resource
+# PreemptiveResource allows interruption of ongoing work
+# preempt=True in get() will interrupt lower-priority entities
+loader = d.PreemptiveResource(env, 'loader', print_actions=False, log=True)
 
 # Create counter for total dumped dirt
 dumped_dirt = d.Resource(env, 'dirt', init=0, capacity=2000, print_actions=False)
@@ -187,7 +222,7 @@ repair_man = d.Entity(env, 'repair_person', print_actions=False)
 env.process(truck_process(small_truck, loader, dumped_dirt, worked_hours))
 env.process(truck_process(large_truck, loader, dumped_dirt, worked_hours))
 
-# Start repair process
+# Start repair process with PREEMPTION capability
 env.process(repair_process(repair_man, loader, worked_hours))
 
 
@@ -204,7 +239,7 @@ simpm.run(env, dashboard=False)
 # =============================================================================
 
 print(f"\n{'='*70}")
-print(f"EARTHMOVING PROJECT WITH REPAIRS - SIMULATION RESULTS")
+print(f"EARTHMOVING PROJECT WITH PREEMPTIVE REPAIRS - SIMULATION RESULTS")
 print(f"{'='*70}\n")
 
 # Simulation completion time
@@ -243,12 +278,14 @@ if len(loader_waiting) > 0:
 repair_schedule = repair_man.schedule()
 if len(repair_schedule) > 0:
     repair_count = len(repair_schedule)
-    print(f"\nRepair Statistics:")
+    print(f"\nRepair Statistics (PREEMPTIVE):")
     print(f"  Total repairs performed: {repair_count}")
     print(f"  Repair interval: Every 10 worked hours on loader")
     print(f"  Repair time per service: 10 minutes")
+    print(f"  KEY DIFFERENCE: These repairs INTERRUPTED ongoing truck loading!")
+    print(f"  Lost work from interruptions may delay project completion")
 else:
-    print(f"\nRepair Statistics:")
+    print(f"\nRepair Statistics (PREEMPTIVE):")
     print(f"  No repairs recorded (simulation too short)")
 
 # Sample schedules
@@ -268,69 +305,67 @@ print(f"\n{'='*70}\n")
 
 
 # =============================================================================
+# COMPARISON: PREEMPTIVE vs NON-PREEMPTIVE
+# =============================================================================
+print(f"{'='*70}")
+print(f"PREEMPTIVE vs NON-PREEMPTIVE REPAIR COMPARISON")
+print(f"{'='*70}\n")
+
+print(f"PREEMPTIVE RESOURCE (this simulation):")
+print(f"  - Repairs can INTERRUPT truck loading immediately")
+print(f"  - Interrupted loading work is LOST")
+print(f"  - Truck must restart loading from scratch")
+print(f"  - Impact: More total time needed (lost work), fewer cycles completed")
+print(f"  - Current run: {small_truck_cycles} small + {large_truck_cycles} large trucks")
+print(f"  - Total output: {total_dirt:.0f} units\n")
+
+print(f"NON-PREEMPTIVE / PRIORITY RESOURCE (see repair_earthmoving.py):")
+print(f"  - Repairs wait in queue until truck finishes loading")
+print(f"  - Loader completes current 4-7 minute loading, then repair happens")
+print(f"  - No lost work; loading is completed before interruption")
+print(f"  - Impact: Higher productivity, more cycles, more output")
+print(f"  - Expected: More truck cycles and more dirt dumped\n")
+
+print(f"WHEN TO USE EACH:")
+print(f"  Use PreemptiveResource when:")
+print(f"    - Emergency maintenance cannot wait (safety critical)")
+print(f"    - Repair time is critical for system health")
+print(f"    - Lost work is acceptable (cost of delay > cost of restart)")
+print(f"    - Example: Emergency fire suppression, safety shutdowns\n")
+
+print(f"  Use PriorityResource when:")
+print(f"    - Planned maintenance can wait briefly")
+print(f"    - Completing current work is important")
+print(f"    - Minimizing rework is critical")
+print(f"    - Example: Scheduled maintenance, routine repairs\n")
+
+print(f"{'='*70}\n")
+
+# =============================================================================
 # SIMULATION RESULTS SUMMARY
 # =============================================================================
 #
-# ACTUAL RUN RESULTS (Random Seed: 42 with Dashboard=True):
-# 
-# Simulation Time: 381.16 minutes (approximately 6.35 hours)
-# 
-# Project Output:
-#   - Total dirt dumped: 1,960 units
-#   - Small Truck: 51 cycles completed (4,080 units moved)
-#   - Large Truck: 43 cycles completed (4,300 units moved)
-#   - Combined trucks productivity: 94 cycles, 8,380 units total
+# KEY INSIGHTS ABOUT PREEMPTIVE RESOURCES:
 #
-# Loader Performance:
-#   - Total loader requests: 34
-#   - Average truck wait time: 1.64 minutes
-#   - Maximum truck wait time: 7.57 minutes
-#   - Loader bottleneck clearly visible in queue statistics
+# 1. INTERRUPTION COST: Preemption interrupts work mid-cycle.
+#    This means:
+#    - Loading time already invested is LOST
+#    - Truck must restart loading from beginning
+#    - Cumulative: Reduces cycles completed vs non-preemptive
 #
-# Repair Statistics:
-#   - Total repairs performed: 10 maintenance cycles
-#   - First repair at: 33.36 minutes (after 10 worked hours)
-#   - Last repair at: 230.99 minutes
-#   - Average repair interval: ~38 minutes
-#   - Each repair takes 10 minutes and preempts truck loading
+# 2. RESOURCE BEHAVIOR:
+#    - PreemptiveResource allows immediate interruption
+#    - Regular Resource / PriorityResource only queue-based (wait for release)
+#    - Priority=-3 on PreemptiveResource uses preempt=True for interruption
 #
-# KEY FINDINGS:
-# 1. PRIORITY-BASED SCHEDULING: The PriorityResource ensures repairs 
-#    are executed with higher priority than normal loading operations.
-#    Trucks must wait when repairs are in progress, as demonstrated
-#    by the preemption visible in the schedule.
-#
-# 2. MAINTENANCE IMPACT: The 10 repairs (100 minutes total) represent
-#    roughly 4.4% of simulation time dedicated to preventive maintenance.
-#    This prevents equipment failure while maintaining acceptable 
-#    productivity levels.
-#
-# 3. TRUCK COORDINATION: Both trucks efficiently use the single loader.
-#    Small truck completes more cycles (51 vs 43) due to shorter loading
-#    time (4-5 min vs 4-7 min), demonstrating the impact of equipment
-#    performance differences.
-#
-# 4. WORK TRACKING: The worked_hours resource successfully tracked
-#    cumulative loader activity, triggering repairs at predictable
-#    intervals (roughly every 38 minutes of simulation time).
-#
-# WHAT THIS SIMULATION DEMONSTRATES:
-# 1. Preventive maintenance scheduling using resource monitoring
-# 2. Priority-based resource allocation (repairs > loading)
-# 3. Multi-entity coordination with shared constrained resources
-# 4. Impact of equipment capacity constraints with maintenance
-# 5. Realistic modeling of maintenance-dependent operations
-# 6. How repair schedules affect project productivity and timeline
-# 7. Queue dynamics when multiple entities compete for resources
-#
-# POTENTIAL IMPROVEMENTS:
-# 1. Add stochastic failure rates (equipment may fail before scheduled repair)
-# 2. Implement multiple repair persons for complex systems
-# 3. Add different repair types with varying duration based on severity
-# 4. Track repair costs and maintenance efficiency metrics
-# 5. Model tool/part inventory management and supply constraints
-# 6. Analyze break-even point for adding more loaders vs. repair costs
-# 7. Compare this scenario with continuous operation (no maintenance)
-# 8. Implement predictive maintenance based on utilization patterns
+# 3. USE CASE: Emergency maintenance
+#    - Fire suppression: Can't wait for truck to finish loading
+#    - Safety shutdowns: Must stop immediately
+#    - Critical repairs: Cannot delay by current job duration
+#    
+# 4. PENALTY: More preemptions = more lost work = longer project
+#    - Each interruption costs loading time + restart
+#    - If repair happens during first minute of 5-minute load, 4 min lost
 #
 # =============================================================================
+

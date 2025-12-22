@@ -311,8 +311,96 @@ Enable the dashboard. Observe:
 - Queue: How do priority and preemption affect queue order?
 - Entity schedules: When does each entity work? When interrupted?
 
-Real-World Example: Hospital Emergency Department
---------------------------------------------------
+Real-World Example: Equipment Repair with Preemption
+-----------------------------------------------------
+
+An earthmoving project demonstrates preemptive maintenance versus scheduled maintenance:
+
+**Scenario:**
+
+Construction site with:
+- **2 trucks** (small 80-unit, large 100-unit capacity)
+- **1 shared loader** (resource)
+- **1 repair person** who maintains the loader
+
+**Non-Preemptive (see repair_earthmoving.py):**
+
+Loader uses ``PriorityResource``. Repairs wait in queue with high priority:
+
+.. code-block:: python
+
+    # Truck loading (priority=2)
+    yield truck.get(loader, 1, priority=2)
+    yield truck.do('load', 5)  # Finishes 5-minute load
+    yield truck.put(loader, 1)
+    
+    # Repair (priority=-3, waits until truck done)
+    yield repair_man.get(loader, 1, priority=-3)
+    yield repair_man.do('repair', 10)  # Repair starts next
+
+Result: Truck finishes 5-minute load, then repair takes over. 
+Repair happens quickly but doesn't interrupt ongoing work.
+
+**Preemptive (this example: repair_earthmoving_preemptive.py):**
+
+Loader uses ``PreemptiveResource``. Repairs can interrupt truck loading:
+
+.. code-block:: python
+
+    # Truck loading (priority=2, CAN BE INTERRUPTED)
+    yield truck.get(loader, 1, priority=2)
+    try:
+        yield truck.interruptive_do('load', 5)  # CAN BE INTERRUPTED mid-operation
+        yield truck.add(worked_hours, 5)
+    except simpm.des.Interrupt:
+        print(f"Loading interrupted! Restart from scratch")
+    
+    yield truck.put(loader, 1)
+    
+    # Repair (priority=-3, WITH PREEMPTION)
+    yield repair_man.get(loader, 1, priority=-3, preempt=True)
+    yield repair_man.do('repair', 10)  # Repair starts IMMEDIATELY
+
+Result: If truck is loading when repair is needed, truck is interrupted IMMEDIATELY.
+Loading work is lost; truck must restart. Repair happens right away.
+
+**Comparison:**
+
++------------------------+---------------------+--------------------+
+| Aspect                 | Non-Preemptive      | Preemptive         |
++========================+=====================+====================+
+| Resource Type          | PriorityResource    | PreemptiveResource |
++------------------------+---------------------+--------------------+
+| Repair Timing          | Waits for next free | Interrupts now     |
++------------------------+---------------------+--------------------+
+| Truck Work Loss        | None (work done)    | Yes (lost work)    |
++------------------------+---------------------+--------------------+
+| Project Timeline       | Longer (repair wait)| Shorter (no wait)  |
++------------------------+---------------------+--------------------+
+| Total Dirt Moved       | Higher              | Lower              |
++------------------------+---------------------+--------------------+
+| Use Case               | Planned maintenance | Emergency repair   |
++------------------------+---------------------+--------------------+
+
+**When to use each:**
+
+- **Non-Preemptive (PriorityResource)**:
+  - Scheduled maintenance (known time)
+  - High-priority work but not emergency
+  - Completing current work is important
+  
+- **Preemptive (PreemptiveResource)**:
+  - Emergency repairs (safety critical)
+  - Cannot wait for current work to finish
+  - Risk of disaster justifies lost work
+  - Example: Equipment failure, safety shutdown
+
+See the complete examples:
+- ``example/repair_earthmoving.py`` (non-preemptive with PriorityResource)
+- ``example/repair_earthmoving_preemptive.py`` (preemptive with PreemptiveResource)
+
+Real-World Hospital Example
+---------------------------
 
 A hospital with one operating room (PreemptiveResource):
 

@@ -34,7 +34,8 @@ DISTRIBUTIONS USED:
 """
 import simpm
 import simpm.des as des
-from simpm.dist import norm, uniformimport numpy as np
+from simpm.dist import norm, uniform
+import numpy as np
 
 
 # =============================================================================
@@ -98,7 +99,7 @@ def truck_cycle_probabilistic(truck: des.Entity, loader: des.Resource,
         # Hauling time varies due to traffic, road conditions, weather, etc.
         # norm distribution centered at 17 minutes with 2-minute std dev
         # Occasionally might be 15 min (good conditions) or 19 min (slow)
-        hauling_dist = norm(17, 2)  # mean=17, std_dev=2
+        hauling_dist = norm(17, 4)  # mean=17, std_dev=2
         hauling_time = hauling_dist.sample()
         
         yield truck.do("hauling", hauling_time)
@@ -108,7 +109,7 @@ def truck_cycle_probabilistic(truck: des.Entity, loader: des.Resource,
         # =====================================================================
         # Dumping time uniformly distributed between 2-4 minutes
         # Depends on site conditions, queue at dump site, etc.
-        dumping_dist = uniform(2, 4)  # min=2, max=4
+        dumping_dist = uniform(3, 6)  # min=2, max=4
         dumping_time = dumping_dist.sample()
         
         yield truck.do("dumping", dumping_time)
@@ -121,7 +122,7 @@ def truck_cycle_probabilistic(truck: des.Entity, loader: des.Resource,
         # =====================================================================
         # Return journey varies due to traffic, weather, driver variability
         # norm distribution centered at 13 minutes with 1.5-minute std dev
-        return_dist = norm(13, 1.5)  # mean=13, std_dev=1.5
+        return_dist = norm(13, 3)  # mean=13, std_dev=1.5
         return_time = return_dist.sample()
         
         yield truck.do("return", return_time)

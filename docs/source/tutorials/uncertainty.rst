@@ -1,11 +1,11 @@
-Modeling Uncertainty with Probability Distributions
+1. Modeling Uncertainty with Probability Distributions
 =====================================================
 
 .. contents:: On this page
    :local:
 
-Overview
---------
+1.1 Overview
+----------
 
 In real-world projects, durations are rarely fixed. Equipment speed varies, 
 workers perform differently, and environmental factors create unpredictability. 
@@ -13,7 +13,7 @@ This tutorial shows how to model uncertainty using **probability distributions**
 turning deterministic simulations into **stochastic** ones that reflect real-world 
 variability.
 
-Why Uncertainty Matters
+1.2 Why Uncertainty Matters
 -----------------------
 
 A deterministic model (fixed durations) tells you "how long if everything 
@@ -26,7 +26,7 @@ goes perfectly." A stochastic model (random durations) shows you:
 
 Without modeling uncertainty, you miss critical risks.
 
-Available Distributions
+1.3 Available Distributions
 -----------------------
 
 SimPM includes several probability distributions. Each is suited to different 
@@ -63,7 +63,7 @@ types of operational variability:
 - **Triangular**: When you have optimistic, pessimistic, and best-guess estimates
 - **Exponential**: When modeling rare but long delays
 
-Earthmoving with Uncertainty
+1.4 Earthmoving with Uncertainty
 -----------------------------
 
 Let's extend the earthmoving scenario with realistic variability. Here's 
@@ -127,26 +127,26 @@ the basic idea:
 Key Concepts
 ~~~~~~~~~~~~
 
-1. **Distribution parameters** – Each distribution has parameters defining its shape:
+1.4.1 **Distribution parameters** – Each distribution has parameters defining its shape:
    
    - ``norm(mean, std)`` – mean is the center, std controls spread
    - ``uniform(a, b)`` – a and b are the min and max bounds
    - ``triang(a, c, b)`` – a/b are bounds, c is the peak (mode)
 
-2. **Sampling** – Each time you call ``dist.sample()``, you get a random value 
+1.4.2 **Sampling** – Each time you call ``dist.sample()``, you get a random value 
    drawn from that distribution. The value is different each time (unless you 
    fix the random seed).
 
-3. **Seeding for reproducibility** – Call ``np.random.seed(42)`` at the start 
+1.4.3 **Seeding for reproducibility** – Call ``np.random.seed(42)`` at the start 
    of your simulation. This ensures the same "random" sequence every time, 
    making your results repeatable while still showing variability.
 
-4. **Stochastic vs. deterministic** – With a seed, results are replicable but 
+1.4.4 **Stochastic vs. deterministic** – With a seed, results are replicable but 
    vary from the fixed-duration model. Running the same simulation again 
    produces identical output (same seed). Running with a different seed 
    produces different but realistic variability.
 
-Comparison: Deterministic vs. Stochastic
+1.5 Comparison: Deterministic vs. Stochastic
 -----------------------------------------
 
 Let's compare the same earthmoving project with and without uncertainty:
@@ -195,7 +195,7 @@ Let's compare the same earthmoving project with and without uncertainty:
 | Risk assessment           | Single estimate    | Range of outcomes  |
 +---------------------------+--------------------+--------------------+
 
-Practical Example: The Seed in Action
+1.6 Practical Example: The Seed in Action
 -------------------------------------
 
 Here's a complete minimal example showing the seed effect:
@@ -233,39 +233,57 @@ Here's a complete minimal example showing the seed effect:
   the range of possibilities
 - **Scientific rigor** – You can document exactly which randomness you used
 
-Monte Carlo: Running Multiple Scenarios
+1.7 Monte Carlo: Running Multiple Scenarios
 ---------------------------------------
 
 One seed gives you one random scenario. To understand the full range of 
-possible outcomes, run the simulation many times with different seeds:
+possible outcomes, run the simulation many times with different seeds.
+
+**Modern Approach with simpm.run():**
+
+SimPM provides a factory pattern for elegantly running Monte Carlo experiments. 
+Define an environment factory function and let simpm.run() handle multiple 
+replicates:
 
 .. code-block:: python
 
-   import numpy as np
+   import simpm
+   import simpm.des as des
+   from simpm.dist import norm, uniform
+   import statistics
 
-   results = []
+   # Global variable for truck count
+   _CURRENT_TRUCK_COUNT = 3
 
-   for seed in range(100):  # Run 100 times with different seeds
-       np.random.seed(seed)
+   def env_factory() -> des.Environment:
+       """Create a fresh earthmoving environment."""
+       global _CURRENT_TRUCK_COUNT
        
-       env = des.Environment("Earthmoving")
-       # ... set up simulation ...
-       simpm.run(env, dashboard=False, until=480)
+       env = des.Environment(f"Earthmoving ({_CURRENT_TRUCK_COUNT} trucks)")
+       loader = des.Resource(env, "loader", init=1, capacity=1, log=True)
+       dumped_dirt = des.Resource(env, "dirt", init=0, capacity=100000, log=True)
        
-       results.append({
-           'seed': seed,
-           'cycles': total_cycles,
-           'dirt_moved': dumped_dirt.level(),
-           'completion_time': env.now
-       })
+       trucks = env.create_entities("truck", _CURRENT_TRUCK_COUNT, log=True)
+       for i, truck in enumerate(trucks):
+           truck["size"] = [30, 35, 50][i % 3]
+       
+       # Set up truck processes with probabilistic durations
+       for truck in trucks:
+           env.process(truck_cycle(truck, loader, dumped_dirt))
+       
+       return env
 
+   # Run 10 replicates with 5 trucks
+   _CURRENT_TRUCK_COUNT = 5
+   all_envs = simpm.run(env_factory, dashboard=False, number_runs=10)
+   
+   # Extract completion times
+   durations = [env.now for env in all_envs]
+   
    # Analyze results
-   import pandas as pd
-   df = pd.DataFrame(results)
-   print(f"Minimum cycles: {df['cycles'].min()}")
-   print(f"Maximum cycles: {df['cycles'].max()}")
-   print(f"Average cycles: {df['cycles'].mean():.1f}")
-   print(f"90th percentile cycles: {df['cycles'].quantile(0.9):.0f}")
+   print(f"Mean duration: {statistics.mean(durations):.2f} minutes")
+   print(f"Std deviation: {statistics.stdev(durations):.2f} minutes")
+   print(f"Min: {min(durations):.2f}, Max: {max(durations):.2f}")
 
 This **Monte Carlo** approach reveals:
 
@@ -274,12 +292,73 @@ This **Monte Carlo** approach reveals:
 - **Average case** – Mean across all runs
 - **Confidence intervals** – E.g., "90% of runs complete in X minutes or less"
 
-Real-World Applications
+1.8 Real-World Example: Earthmoving with Variable Fleet Size
+------------------------------------------------------------
+
+A practical example combining all concepts: **earthmoving_monte_carlo.py** 
+runs 10 replicates for each truck configuration (3, 5, 7, 10 trucks), collecting 
+actual project completion times from each run.
+
+**Results from Monte Carlo Analysis (300-hour project target):**
+
++----------+---------------+-----------+----------+---------------------+
+| Trucks   | Mean (hours)  | Std Dev   | Min      | Risk of Missing 300h|
++==========+===============+===========+==========+=====================+
+| 3        | 593.78        | 1.49      | 591.30   | 100%                |
++----------+---------------+-----------+----------+---------------------+
+| 5        | 393.45        | 0.85      | 392.48   | 100%                |
++----------+---------------+-----------+----------+---------------------+
+| 7        | 298.40        | 0.42      | 297.81   | 0%                  |
++----------+---------------+-----------+----------+---------------------+
+| 10       | 290.46        | 0.39      | 289.82   | 0%                  |
++----------+---------------+-----------+----------+---------------------+
+
+**Key Insights:**
+
+1. **Clear Decision Point** – The 300-hour target creates meaningful risk differentiation:
+   - 3 trucks: 100% overrun (exceeds 300 hours in all runs) – not viable
+   - 5 trucks: 100% overrun (exceeds 300 hours in all runs) – not viable
+   - 7 trucks: 0% overrun risk (all runs complete within 300 hours) – viable
+   - 10 trucks: 0% overrun risk (all runs complete within 300 hours) – viable
+
+2. **Variability Decreases with Fleet Size** – More trucks = lower standard deviation:
+   - 3 trucks: ±1.49 hours variability
+   - 5 trucks: ±0.85 hours variability
+   - 7 trucks: ±0.42 hours variability
+   - 10 trucks: ±0.39 hours variability
+   This shows that larger fleets reduce schedule unpredictability.
+
+3. **Efficiency Gains Diminish** – From 3→5 trucks saves 200 hours; from 7→10 trucks saves only 8 hours:
+   - 3→5 trucks: 200.33 hour reduction (33.7%)
+   - 5→7 trucks: 94.95 hour reduction (24.2%)
+   - 7→10 trucks: 7.94 hour reduction (2.7%)
+   Adding more trucks yields diminishing returns in schedule improvement.
+
+4. **Distribution Shape** – Higher uncertainty in distributions (increased std dev in 
+   normal distributions and wider uniform ranges) reveals realistic project variability 
+   that deterministic models miss.
+
+**Running the Example:**
+
+See the complete working implementation in ``example/earthmoving_monte_carlo.py``:
+
+.. code-block:: bash
+
+   python example/earthmoving_monte_carlo.py
+
+The script:
+- Defines ``env_factory()`` to create fresh environments with variable truck counts
+- Uses ``simpm.run(env_factory, number_runs=10)`` for each configuration
+- Extracts completion times directly from ``env.now``
+- Calculates percentiles, confidence intervals, and risk assessments
+- Compares configurations to guide fleet sizing decisions
+
+1.9 Real-World Applications
 -----------------------
 
 **Project Planning:**
   Use Monte Carlo to determine realistic project duration with contingency buffer.
-  If 90% of stochastic runs complete in 500 minutes, plan for 550 minutes (10% buffer).
+  If 90% of stochastic runs complete in 310 hours, plan for 330 hours (10% buffer).
 
 **Resource Optimization:**
   Run stochastic simulations with different fleet sizes. What fleet minimizes 
@@ -294,15 +373,16 @@ Real-World Applications
   stochastic simulation. Make decisions based on confidence intervals, not 
   just averages.
 
-Complete Working Example
+1.10 Complete Working Examples
 ------------------------
 
 See these complete, documented examples in the ``example/`` folder:
 
 - **earthmoving_with_truck_sizes.py** – Deterministic with attributes (no randomness)
-- **earthmoving_probabilistic.py** – Stochastic with distributions (with randomness)
+- **earthmoving_probabilistic.py** – Stochastic single run (with randomness)
+- **earthmoving_monte_carlo.py** – Monte Carlo with multiple fleet configurations
 
-Both include:
+All include:
 
 - Comprehensive docstrings and inline comments
 - Analysis code showing how to extract and compare metrics
@@ -315,15 +395,16 @@ Run them yourself:
 
    python example/earthmoving_with_truck_sizes.py
    python example/earthmoving_probabilistic.py
+   python example/earthmoving_monte_carlo.py
 
 Then modify them:
 
 - Change distribution parameters (e.g., ``norm(7, 1.5)`` to ``norm(7, 3)``)
-- Try different seeds (``np.random.seed(42)`` → ``np.random.seed(99)``)
-- Add Monte Carlo loop to see range of outcomes
+- Try different truck counts
+- Adjust the risk threshold for different project targets
 - Experiment with different truck sizes and loaders
 
-Summary
+1.11 Summary
 -------
 
 Probability distributions transform simulations from "best case" to "real world":
@@ -334,10 +415,10 @@ Probability distributions transform simulations from "best case" to "real world"
 4. **Run Monte Carlo** (multiple runs with different seeds) to understand outcomes
 5. **Use results for planning** – Confidence intervals, risk assessment, optimization
 
-Next Steps
+1.12 Next Steps
 ----------
 
 - Read the :doc:`hello-simpm` tutorial for basic concepts and entity attributes
-- Explore the complete probabilistic example: ``example/earthmoving_probabilistic.py``
+- Explore the complete probabilistic examples in ``example/``
 - Try adding uncertainty to your own simulations
 - See also the :doc:`dashboard-guide` for analyzing simulation results visually

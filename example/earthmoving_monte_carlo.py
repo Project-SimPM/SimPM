@@ -79,53 +79,13 @@ def truck_cycle_probabilistic(truck: des.Entity, loader: des.Resource,
     truck_id = int(truck.name.split('_')[1]) if '_' in truck.name else 0
 
     while True:
-        # =====================================================================
-        # LOADING PHASE - PROBABILISTIC
-        # =====================================================================
         yield truck.get(loader, 1)
-
-        # Sample loading time from the distribution for this truck
-        # Clip to ensure positive values
-        loading_dist = loading_dists[truck_id]
-        loading_time = max(0.1, loading_dist.sample())  # Ensure > 0
-
-        yield truck.do("loading", loading_time)
+        yield truck.do("loading", loading_dists[truck_id])
         yield truck.put(loader, 1)
-
-        # =====================================================================
-        # HAULING PHASE - PROBABILISTIC
-        # =====================================================================
-        # Hauling time varies due to traffic, road conditions, weather
-        # Increased std dev to 4 (from 2) for more realistic variability
-        # Clip to ensure positive values
-        hauling_dist = norm(17, 4)  # mean=17, std_dev=4 (higher variability)
-        hauling_time = max(0.5, hauling_dist.sample())  # Ensure > 0.5
-
-        yield truck.do("hauling", hauling_time)
-
-        # =====================================================================
-        # DUMPING PHASE - PROBABILISTIC
-        # =====================================================================
-        # Dumping time uniformly distributed between 2-5 minutes (wider range)
-        # Increased range for more variability in site conditions
-        dumping_dist = uniform(2, 5)  # min=2, max=5 (wider range)
-        dumping_time = dumping_dist.sample()
-
-        yield truck.do("dumping", dumping_time)
-
-        # Add the truck's load size to total
-        yield truck.add(dumped_dirt, truck["size"])
-
-        # =====================================================================
-        # RETURN PHASE - PROBABILISTIC
-        # =====================================================================
-        # Return journey varies due to traffic and conditions
-        # Increased std dev to 3 (from 1.5) for more variability
-        # Clip to ensure positive values
-        return_dist = norm(13, 3)  # mean=13, std_dev=3 (higher variability)
-        return_time = max(0.5, return_dist.sample())  # Ensure > 0.5
-
-        yield truck.do("return", return_time)
+        yield truck.do("hauling", norm(17, 4))
+        yield truck.do("dumping", uniform(2, 5))
+        yield truck.add(dumped_dirt, truck["size"])# Ensure > 0.5
+        yield truck.do("return", norm(13, 3))
 
 
 # =============================================================================

@@ -1,11 +1,11 @@
 1. Modeling Uncertainty with Probability Distributions
-=====================================================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. contents:: On this page
    :local:
 
 1.1 Overview
-----------
+~~~~~~~~~~~~
 
 In real-world projects, durations are rarely fixed. Equipment speed varies, 
 workers perform differently, and environmental factors create unpredictability. 
@@ -14,7 +14,7 @@ turning deterministic simulations into **stochastic** ones that reflect real-wor
 variability.
 
 1.2 Why Uncertainty Matters
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A deterministic model (fixed durations) tells you "how long if everything 
 goes perfectly." A stochastic model (random durations) shows you:
@@ -27,7 +27,7 @@ goes perfectly." A stochastic model (random durations) shows you:
 Without modeling uncertainty, you miss critical risks.
 
 1.3 Available Distributions
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 SimPM includes several probability distributions. Each is suited to different 
 types of operational variability:
@@ -49,12 +49,12 @@ types of operational variability:
    # Triangular: Min, max, and mode (peak) all specified
    # Use for: Expert estimates with "most likely" value
    # Example: Optimistic 5 min, pessimistic 15 min, likely 8 min
-   return_dist = triang(a=5, c=8, b=15)
+   return_dist = triang(5, 8, b=15)
 
    # Exponential: Right-skewed, long tail
    # Use for: Random event times (equipment failures, arrivals)
    # Example: ~50 min average, occasional much longer
-   failure_dist = expon(scale=50)
+   failure_dist = expon(50)
 
 **Which distribution to choose?**
 
@@ -64,7 +64,7 @@ types of operational variability:
 - **Exponential**: When modeling rare but long delays
 
 1.4 Earthmoving with Uncertainty
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Let's extend the earthmoving scenario with realistic variability. Here's 
 the basic idea:
@@ -99,20 +99,17 @@ the basic idea:
            yield truck.put(loader, 1)
 
            # Hauling time varies due to traffic, weather, and road conditions
-           # Model as normal: mean 17 minutes, std 2 minutes
-           hauling_dist = norm(17, 2)
-           yield truck.do("hauling", hauling_dist.sample())
+           # Model as normal: mean 17 minutes, std 4 minutes (high variability)
+           yield truck.do("hauling", norm(17, 4))
 
            # Dumping time depends on site conditions (equipment availability, queue)
-           # Model as uniform: anywhere from 2 to 4 minutes equally likely
-           dumping_dist = uniform(2, 4)
-           yield truck.do("dumping", dumping_dist.sample())
+           # Model as uniform: anywhere from 2 to 5 minutes equally likely
+           yield truck.do("dumping", uniform(2, 5))
            yield truck.add(dumped_dirt, truck["size"])
 
            # Return trip also has variation (traffic, driver difference)
-           # Model as normal: mean 13 minutes, std 1.5 minutes
-           return_dist = norm(13, 1.5)
-           yield truck.do("return", return_dist.sample())
+           # Model as normal: mean 13 minutes, std 3 minutes
+           yield truck.do("return", norm(13, 3))
 
    # Create and run the simulation
    for truck in trucks:
@@ -133,9 +130,11 @@ Key Concepts
    - ``uniform(a, b)`` – a and b are the min and max bounds
    - ``triang(a, c, b)`` – a/b are bounds, c is the peak (mode)
 
-1.4.2 **Sampling** – Each time you call ``dist.sample()``, you get a random value 
-   drawn from that distribution. The value is different each time (unless you 
-   fix the random seed).
+1.4.2 **Sampling via do()** – In SimPM, sampling happens automatically when you 
+   pass a distribution object to ``entity.do()``. Each time ``do()`` executes 
+   (in each simulation replicate), it draws a fresh random sample from that 
+   distribution. You don't need to call ``.sample()`` explicitly – just pass 
+   the distribution object directly to ``do()``.
 
 1.4.3 **Seeding for reproducibility** – Call ``np.random.seed(42)`` at the start 
    of your simulation. This ensures the same "random" sequence every time, 
@@ -147,7 +146,7 @@ Key Concepts
    produces different but realistic variability.
 
 1.5 Comparison: Deterministic vs. Stochastic
------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Let's compare the same earthmoving project with and without uncertainty:
 
@@ -170,14 +169,35 @@ Let's compare the same earthmoving project with and without uncertainty:
 .. code-block:: python
 
    # All durations vary based on distributions
-   yield truck.do("loading", norm(6.5, 0.5).sample())  # 5.5-7.5 typical
-   yield truck.do("hauling", norm(17, 2).sample())     # 15-19 typical
-   yield truck.do("dumping", uniform(2, 4).sample())   # 2-4 equally likely
-   yield truck.do("return", norm(13, 1.5).sample())    # 11.5-14.5 typical
+   # SimPM's do() method accepts distribution objects directly
+   # and samples internally on each replicate run
+   yield truck.do("loading", norm(6.5, 0.5))  # 5.5-7.5 typical
+   yield truck.do("hauling", norm(17, 4))     # 13-21 typical (higher variability)
+   yield truck.do("dumping", uniform(2, 5))   # 2-5 equally likely
+   yield truck.do("return", norm(13, 3))      # 10-16 typical (higher variability)
 
    # Run 1: 37 cycles, 1,330 m³ (with seed=42)
    # Run 2: 37 cycles, 1,330 m³ (identical with same seed)
    # Run 3: 36 cycles, 1,295 m³ (different with seed=99)
+
+**Key Pattern: Direct Distribution Objects**
+
+Note: In SimPM, you pass **distribution objects directly** to ``do()``, 
+not pre-sampled values. The ``do()`` method automatically samples from the 
+distribution on each simulation run:
+
+.. code-block:: python
+
+   # CORRECT: Pass the distribution object directly
+   yield truck.do("hauling", norm(17, 4))     # SimPM samples internally
+
+   # NOT: Don't pre-sample before passing
+   # yield truck.do("hauling", norm(17, 4).sample())  # Inefficient
+
+This approach is elegant because:
+- Distribution definition is clear and concise
+- Each replicate gets different random samples automatically
+- Works seamlessly with ``simpm.run(factory, number_runs=10)``
 
 **Key Differences:**
 
@@ -195,46 +215,8 @@ Let's compare the same earthmoving project with and without uncertainty:
 | Risk assessment           | Single estimate    | Range of outcomes  |
 +---------------------------+--------------------+--------------------+
 
-1.6 Practical Example: The Seed in Action
--------------------------------------
-
-Here's a complete minimal example showing the seed effect:
-
-.. code-block:: python
-
-   import numpy as np
-   from simpm.dist import norm
-
-   # Create a normal distribution
-   loading_dist = norm(mean=7, std=1.5)
-
-   # With seed 42
-   np.random.seed(42)
-   values_1 = [loading_dist.sample() for _ in range(5)]
-   print("Run 1:", values_1)
-   # Output: [6.48, 6.20, 7.53, 6.88, 7.12]
-
-   # Run again with same seed → identical values
-   np.random.seed(42)
-   values_2 = [loading_dist.sample() for _ in range(5)]
-   print("Run 2:", values_2)
-   # Output: [6.48, 6.20, 7.53, 6.88, 7.12]  ← SAME!
-
-   # Run with different seed → different values
-   np.random.seed(99)
-   values_3 = [loading_dist.sample() for _ in range(5)]
-   print("Run 3:", values_3)
-   # Output: [7.21, 6.56, 8.04, 6.35, 7.89]  ← DIFFERENT
-
-**Why this matters:**
-
-- **Seeding ensures reproducibility** – You can verify your code doesn't have bugs
-- **Different seeds let you explore outcomes** – Run with seed 1, 2, 3... to see 
-  the range of possibilities
-- **Scientific rigor** – You can document exactly which randomness you used
-
 1.7 Monte Carlo: Running Multiple Scenarios
----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 One seed gives you one random scenario. To understand the full range of 
 possible outcomes, run the simulation many times with different seeds.
@@ -299,44 +281,45 @@ A practical example combining all concepts: **earthmoving_monte_carlo.py**
 runs 10 replicates for each truck configuration (3, 5, 7, 10 trucks), collecting 
 actual project completion times from each run.
 
-**Results from Monte Carlo Analysis (300-hour project target):**
+**Results from Monte Carlo Analysis (10 replicates per configuration):**
 
-+----------+---------------+-----------+----------+---------------------+
-| Trucks   | Mean (hours)  | Std Dev   | Min      | Risk of Missing 300h|
-+==========+===============+===========+==========+=====================+
-| 3        | 593.78        | 1.49      | 591.30   | 100%                |
-+----------+---------------+-----------+----------+---------------------+
-| 5        | 393.45        | 0.85      | 392.48   | 100%                |
-+----------+---------------+-----------+----------+---------------------+
-| 7        | 298.40        | 0.42      | 297.81   | 0%                  |
-+----------+---------------+-----------+----------+---------------------+
-| 10       | 290.46        | 0.39      | 289.82   | 0%                  |
-+----------+---------------+-----------+----------+---------------------+
+With **actual distributions** norm(5+size/20, 0.5-0.8) for loading, 
+norm(17, 4) for hauling, uniform(2, 5) for dumping, and norm(13, 3) for return:
+
++----------+---------------+----------+-----------+---------------------+
+| Trucks   | Mean (hours)  | Std Dev  | Min (hrs) | Risk > 300 hours    |
++==========+===============+==========+===========+=====================+
+| 3        | 593.14        | 1.50 min | 590.81    | 100% (all 10 runs)  |
++----------+---------------+----------+-----------+---------------------+
+| 5        | 393.41        | 24.35min | 392.65    | 100% (all 10 runs)  |
++----------+---------------+----------+-----------+---------------------+
+| 7        | 297.85        | 26.11min | 297.41    | 0% (all runs < 300) |
++----------+---------------+----------+-----------+---------------------+
+| 10       | 290.31        | 21.06min | 289.60    | 0% (all runs < 300) |
++----------+---------------+----------+-----------+---------------------+
 
 **Key Insights:**
 
 1. **Clear Decision Point** – The 300-hour target creates meaningful risk differentiation:
-   - 3 trucks: 100% overrun (exceeds 300 hours in all runs) – not viable
-   - 5 trucks: 100% overrun (exceeds 300 hours in all runs) – not viable
-   - 7 trucks: 0% overrun risk (all runs complete within 300 hours) – viable
-   - 10 trucks: 0% overrun risk (all runs complete within 300 hours) – viable
+   - 3 trucks: 100% overrun (all 10 replicates exceed 300 hours) – **not viable**
+   - 5 trucks: 100% overrun (all 10 replicates exceed 300 hours) – **not viable**
+   - 7 trucks: 0% overrun risk (all 10 replicates complete within 300 hours) – **viable**
+   - 10 trucks: 0% overrun risk (all 10 replicates complete within 300 hours) – **viable**
 
-2. **Variability Decreases with Fleet Size** – More trucks = lower standard deviation:
-   - 3 trucks: ±1.49 hours variability
-   - 5 trucks: ±0.85 hours variability
-   - 7 trucks: ±0.42 hours variability
-   - 10 trucks: ±0.39 hours variability
-   This shows that larger fleets reduce schedule unpredictability.
+2. **Variability Pattern** – Interestingly, more trucks doesn't always mean lower variability 
+   in this case. With high variability in hauling (std=4) and return (std=3), the pattern 
+   is more complex than with low-uncertainty models.
 
-3. **Efficiency Gains Diminish** – From 3→5 trucks saves 200 hours; from 7→10 trucks saves only 8 hours:
-   - 3→5 trucks: 200.33 hour reduction (33.7%)
-   - 5→7 trucks: 94.95 hour reduction (24.2%)
-   - 7→10 trucks: 7.94 hour reduction (2.7%)
-   Adding more trucks yields diminishing returns in schedule improvement.
+3. **Efficiency Gains Diminish** – Adding trucks shows decreasing marginal benefit:
+   - 3→5 trucks: saves 199.73 hours (33.7% reduction)
+   - 5→7 trucks: saves 95.56 hours (24.3% reduction)
+   - 7→10 trucks: saves 7.54 hours (2.5% reduction)
+   The first jump (3→5 trucks) provides the biggest scheduling improvement.
 
-4. **Distribution Shape** – Higher uncertainty in distributions (increased std dev in 
-   normal distributions and wider uniform ranges) reveals realistic project variability 
-   that deterministic models miss.
+4. **Distribution Impact** – Using realistic, high-variability distributions 
+   (norm(17, 4), uniform(2, 5), norm(13, 3)) creates meaningful uncertainty that 
+   deterministic models miss. These values reflect real-world earthmoving conditions 
+   with traffic, weather, and operational variability.
 
 **Running the Example:**
 
@@ -354,7 +337,7 @@ The script:
 - Compares configurations to guide fleet sizing decisions
 
 1.9 Real-World Applications
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Project Planning:**
   Use Monte Carlo to determine realistic project duration with contingency buffer.
@@ -374,7 +357,7 @@ The script:
   just averages.
 
 1.10 Complete Working Examples
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 See these complete, documented examples in the ``example/`` folder:
 
@@ -405,7 +388,7 @@ Then modify them:
 - Experiment with different truck sizes and loaders
 
 1.11 Summary
--------
+~~~~~~~~~~~~
 
 Probability distributions transform simulations from "best case" to "real world":
 
@@ -416,7 +399,7 @@ Probability distributions transform simulations from "best case" to "real world"
 5. **Use results for planning** – Confidence intervals, risk assessment, optimization
 
 1.12 Next Steps
-----------
+~~~~~~~~~~~~~~~
 
 - Read the :doc:`hello-simpm` tutorial for basic concepts and entity attributes
 - Explore the complete probabilistic examples in ``example/``

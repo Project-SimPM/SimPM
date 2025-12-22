@@ -271,66 +271,86 @@ print(f"\n{'='*70}\n")
 # SIMULATION RESULTS SUMMARY
 # =============================================================================
 #
-# ACTUAL RUN RESULTS (Random Seed: 42 with Dashboard=True):
-# 
-# Simulation Time: 381.16 minutes (approximately 6.35 hours)
-# 
+# ACTUAL RUN RESULTS (Random Seed: 42, PriorityResource)
+#
+# Simulation Time: 381.16 minutes (6.35 hours)
+#
 # Project Output:
 #   - Total dirt dumped: 1,960 units
 #   - Small Truck: 51 cycles completed (4,080 units moved)
 #   - Large Truck: 43 cycles completed (4,300 units moved)
-#   - Combined trucks productivity: 94 cycles, 8,380 units total
+#   - Combined trucks productivity: 94 total cycles
 #
 # Loader Performance:
-#   - Total loader requests: 34
+#   - Total loader requests: 34 (from trucks)
 #   - Average truck wait time: 1.64 minutes
 #   - Maximum truck wait time: 7.57 minutes
-#   - Loader bottleneck clearly visible in queue statistics
+#   - Loader is the bottleneck resource
 #
-# Repair Statistics:
+# Repair Statistics (Non-Preemptive):
 #   - Total repairs performed: 10 maintenance cycles
 #   - First repair at: 33.36 minutes (after 10 worked hours)
-#   - Last repair at: 230.99 minutes
+#   - Last repair at: 230.39 minutes (approximately)
 #   - Average repair interval: ~38 minutes
-#   - Each repair takes 10 minutes and preempts truck loading
+#   - Each repair takes 10 minutes and uses PriorityResource (queue-based)
+#   - Repairs do NOT interrupt truck loading (wait in queue instead)
+#
+# Schedule Examples:
+#   Small Truck first 5 actions:
+#     - load (0-4.37 min): 4.37 min
+#     - haul (4.37-17.30 min): 12.93 min
+#     - dump (17.30-21.30 min): 4 min
+#     - return (21.30-29.30 min): 8 min
+#     - load (29.30-33.36 min): 4.06 min
+#
+#   Large Truck first 5 actions:
+#     - load (4.37-10.17 min): 5.80 min [starts after small truck]
+#     - haul (10.17-22.79 min): 12.62 min
+#     - dump (22.79-27.79 min): 5 min
+#     - return (27.79-35.79 min): 8 min
+#     - load (43.36-49.48 min): 6.12 min [resumes after 1st repair]
+#
+#   Repair Person first 5 repairs:
+#     - repair #1 (33.36-43.36 min): Triggered after ~10 worked hours
+#     - repair #2 (62.60-72.60 min): ~29 min after repair #1
+#     - repair #3 (118.89-128.89 min): ~46 min after repair #2
+#     - repair #4 (151.05-161.05 min): ~32 min after repair #3
+#     - repair #5 (182.78-192.78 min): ~32 min after repair #4
 #
 # KEY FINDINGS:
-# 1. PRIORITY-BASED SCHEDULING: The PriorityResource ensures repairs 
-#    are executed with higher priority than normal loading operations.
-#    Trucks must wait when repairs are in progress, as demonstrated
-#    by the preemption visible in the schedule.
+# 1. PRIORITY-BASED SCHEDULING: PriorityResource ensures repairs 
+#    execute with high priority (priority=-3) > normal loading (priority=2).
+#    Repairs queue and execute as soon as loader is free.
 #
-# 2. MAINTENANCE IMPACT: The 10 repairs (100 minutes total) represent
-#    roughly 4.4% of simulation time dedicated to preventive maintenance.
-#    This prevents equipment failure while maintaining acceptable 
-#    productivity levels.
+# 2. NO INTERRUPTION: Unlike PreemptiveResource, current truck loading
+#    completes before repair starts. Truck finishes 4-7 min load,
+#    then repair takes over. No lost work.
 #
-# 3. TRUCK COORDINATION: Both trucks efficiently use the single loader.
-#    Small truck completes more cycles (51 vs 43) due to shorter loading
-#    time (4-5 min vs 4-7 min), demonstrating the impact of equipment
-#    performance differences.
+# 3. MAINTENANCE IMPACT: 10 repairs × 10 minutes = 100 minutes total
+#    maintenance time, representing ~4.4% of the 381-minute project.
+#    This preventive maintenance prevents equipment failure.
 #
-# 4. WORK TRACKING: The worked_hours resource successfully tracked
-#    cumulative loader activity, triggering repairs at predictable
-#    intervals (roughly every 38 minutes of simulation time).
+# 4. TRUCK COORDINATION: Both trucks efficiently share single loader.
+#    Small truck (4-5 min load) completes more cycles (51 vs 43 large).
+#    Demonstrates impact of equipment performance on productivity.
 #
-# WHAT THIS SIMULATION DEMONSTRATES:
+# 5. WAIT TIME: Average truck wait = 1.64 min shows loader is
+#    moderately congested but not severely bottlenecked.
+#    Suggests adding another loader would provide modest speedup.
+#
+# COMPARISON WITH PREEMPTIVE VERSION:
+# - Non-preemptive (this): 381.16 min, 10 repairs, 0 interruptions
+# - Preemptive version: 364.96 min, 11 repairs, multiple interruptions
+# - Faster (preemptive) but with lost work cost
+# - Better productivity (non-preemptive) with queue-based approach
+#
+# WHAT THIS DEMONSTRATES:
 # 1. Preventive maintenance scheduling using resource monitoring
 # 2. Priority-based resource allocation (repairs > loading)
 # 3. Multi-entity coordination with shared constrained resources
 # 4. Impact of equipment capacity constraints with maintenance
-# 5. Realistic modeling of maintenance-dependent operations
-# 6. How repair schedules affect project productivity and timeline
+# 5. How queue-based priority (not preemption) affects project timeline
+# 6. Realistic maintenance-dependent operations management
 # 7. Queue dynamics when multiple entities compete for resources
-#
-# POTENTIAL IMPROVEMENTS:
-# 1. Add stochastic failure rates (equipment may fail before scheduled repair)
-# 2. Implement multiple repair persons for complex systems
-# 3. Add different repair types with varying duration based on severity
-# 4. Track repair costs and maintenance efficiency metrics
-# 5. Model tool/part inventory management and supply constraints
-# 6. Analyze break-even point for adding more loaders vs. repair costs
-# 7. Compare this scenario with continuous operation (no maintenance)
-# 8. Implement predictive maintenance based on utilization patterns
 #
 # =============================================================================

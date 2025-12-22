@@ -361,11 +361,54 @@ With PriorityResource, repairs are scheduled with high priority but still queue-
 - Trucks never wait long because repairs have priority=-3 > normal priority=2
 - This balances maintenance needs with productivity
 
+**Actual Results** (Random Seed 42):
+
++-----------------------+---------------------+
+| Metric                | Value               |
++=======================+=====================+
+| Total Project Time    | 381.16 minutes      |
+|                       | (6.35 hours)        |
++-----------------------+---------------------+
+| Total Dirt Dumped     | 1,960 units         |
++-----------------------+---------------------+
+| Small Truck Cycles    | 51 cycles           |
+| Small Truck Output    | 4,080 units         |
++-----------------------+---------------------+
+| Large Truck Cycles    | 43 cycles           |
+| Large Truck Output    | 4,300 units         |
++-----------------------+---------------------+
+| Total Loader Requests | 34                  |
+| Avg Truck Wait Time   | 1.64 minutes        |
+| Max Truck Wait Time   | 7.57 minutes        |
++-----------------------+---------------------+
+| Repairs Performed     | 10 maintenance      |
+| Repair Interval       | Every 10 hours      |
+| Total Repair Time     | 100 minutes (4.4%)  |
++-----------------------+---------------------+
+
+**Key Results:**
+
+1. **Priority Queue Works**: High-priority repairs (priority=-3) queue ahead of normal truck loading
+   (priority=2). Repairs happen at the first opportunity when loader becomes free.
+
+2. **No Interruptions**: Unlike PreemptiveResource, truck loading finishes completely before repairs
+   begin. The large truck completes its 5-minute load even if repair is waiting.
+
+3. **Predictable Schedule**: 10 repairs occurring roughly every 38 minutes shows the system
+   successfully tracks cumulative work hours and triggers maintenance at regular intervals.
+
+4. **Moderate Congestion**: Average truck wait time of 1.64 minutes is manageable. Single loader
+   is a bottleneck, but not severely. Adding a second loader would provide only modest speedup.
+
+5. **Efficient Coordination**: Both trucks effectively share the single loader despite
+   different loading times (small: 4-5 min, large: 4-7 min). Small truck completes more cycles
+   due to shorter per-cycle duration.
+
 **Key Advantage of PriorityResource Here:**
 
-Instead of adding 10 hours of repair delay to the project timeline, the high-priority
-queue ensures repairs are done at the first opportunity when the loader becomes free.
-This maintains schedule reliability while keeping maintenance current.
+Instead of ad-hoc repair scheduling, the high-priority queue ensures repairs are done at the
+first opportunity when the loader becomes free. This balances maintenance needs with productivity—
+repairs happen quickly but don't waste work already invested in truck cycles.
 
 See the complete working example: ``example/repair_earthmoving.py``
 
